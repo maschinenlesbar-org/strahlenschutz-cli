@@ -7,11 +7,21 @@ import type { CliDeps } from "./io.js";
 import { StrahlError } from "../client/errors.js";
 import type { EngineOptions } from "../client/engine.js";
 
-/** commander value-parser: a non-negative integer. */
+/**
+ * commander value-parser: a non-negative integer.
+ *
+ * Bare `Number()` is too permissive here — it accepts hex (`0x10`), exponent
+ * notation (`1e3`), empty/whitespace strings (coerced to 0), and magnitudes past
+ * `Number.MAX_SAFE_INTEGER` (silently rounded). We require a plain run of decimal
+ * digits and reject anything that would not round-trip as a safe integer.
+ */
 export function parseIntArg(value: string): number {
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 0) {
+  if (!/^[0-9]+$/.test(value)) {
     throw new InvalidArgumentError("Expected a non-negative integer.");
+  }
+  const n = Number(value);
+  if (!Number.isSafeInteger(n)) {
+    throw new InvalidArgumentError("Expected a non-negative integer within the safe range.");
   }
   return n;
 }

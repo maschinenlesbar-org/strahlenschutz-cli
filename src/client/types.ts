@@ -40,8 +40,8 @@ export interface FeatureQuery {
   station?: string;
   /** Property to sort by; append "+D" for descending. */
   sortBy?: string;
-  /** Max features to return. */
+  /** Max features to return (sent as the WFS 2.0 `count` parameter). */
   maxFeatures?: number;
-  /** Offset for paging. */
+  /** Offset for paging (WFS 2.0 `startIndex`; requires a `count` to be honoured). */
   startIndex?: number;
 }

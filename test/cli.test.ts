@@ -29,13 +29,25 @@ test("latest --max builds the WFS query", async () => {
   assert.equal(code, 0);
   const url = new URL(cli.mt.last().url);
   assert.equal(url.searchParams.get("typeName"), "opendata:odlinfo_odl_1h_latest");
-  assert.equal(url.searchParams.get("maxFeatures"), "3");
+  assert.equal(url.searchParams.get("count"), "3");
 });
 
+const oneFeature = {
+  type: "FeatureCollection",
+  features: [{ type: "Feature", id: "x", geometry: null, properties: {} }],
+};
+
 test("station builds a viewparams filter", async () => {
-  const cli = makeCli(() => jsonResponse(fc));
+  const cli = makeCli(() => jsonResponse(oneFeature));
   await run(["station", "091811461"], cli.deps);
   assert.equal(new URL(cli.mt.last().url).searchParams.get("viewparams"), "kenn:091811461");
+});
+
+test("station with no matching feature exits 4 (not found)", async () => {
+  const cli = makeCli(() => jsonResponse(fc));
+  const code = await run(["station", "999999999"], cli.deps);
+  assert.equal(code, 4);
+  assert.match(cli.err.join("\n"), /No station found/);
 });
 
 test("latest --sort and --start propagate to the WFS query", async () => {
@@ -75,4 +87,22 @@ test("a 404 from the API maps to exit code 4", async () => {
   const cli = makeCli(() => jsonResponse({}, 404));
   const code = await run(["latest"], cli.deps);
   assert.equal(code, 4);
+});
+
+test("no arguments prints usage to stdout and exits 0", async () => {
+  const cli = makeCli(() => jsonResponse(fc));
+  const code = await run([], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(cli.err.length, 0);
+  assert.match(cli.out.join("\n"), /Usage: strahlenschutz/);
+  assert.equal(cli.mt.calls.length, 0);
+});
+
+test("--max rejects hex, exponent, empty, and unsafe magnitudes before any request", async () => {
+  for (const bad of ["0x10", "1e3", "", "99999999999999999999", " 5 "]) {
+    const cli = makeCli(() => jsonResponse(fc));
+    const code = await run(["latest", "--max", bad], cli.deps);
+    assert.notEqual(code, 0, `expected --max ${JSON.stringify(bad)} to be rejected`);
+    assert.equal(cli.mt.calls.length, 0);
+  }
 });

@@ -94,7 +94,7 @@ import { StrahlenschutzClient, StrahlApiError } from "strahlenschutz-cli";
 
 const client = new StrahlenschutzClient(); // defaults to https://www.imis.bfs.de
 
-const latest = await client.latest({ maxFeatures: 5 });
+const latest = await client.latest({ maxFeatures: 5 }); // sent as WFS 2.0 `count`
 const one = await client.station("091811461");
 const series = await client.timeseries("091811461", "ts-24h");
 

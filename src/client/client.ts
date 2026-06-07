@@ -1,9 +1,9 @@
 // StrahlenschutzClient — a typed client over the open (no-auth) ODL-Info WFS of
 // the Bundesamt für Strahlenschutz (https://www.imis.bfs.de/ogc/opendata/ows).
 //
-// The service is an OGC WFS; this client fixes the boilerplate WFS parameters
-// (service=WFS, request=GetFeature, outputFormat=json) and exposes the feature
-// types as friendly methods.
+// The service is an OGC WFS 2.0; this client fixes the boilerplate WFS
+// parameters (service=WFS, request=GetFeature, outputFormat=json) and exposes
+// the feature types as friendly methods.
 //
 //   client.latest({ maxFeatures: 5 })
 //   client.station("091811461")
@@ -16,6 +16,13 @@ import { StrahlError } from "./errors.js";
 import type { FeatureCollection, FeatureQuery } from "./types.js";
 
 const OWS = "/ogc/opendata/ows";
+
+// The BfS service speaks WFS 2.0, where the result-limit parameter is `count`
+// (the WFS 1.x `maxFeatures` is silently ignored). Paging with `startIndex` is
+// only honoured when a `count` accompanies it — a bare `startIndex` is rejected
+// with HTTP 400 — so when a caller pages without an explicit limit we fall back
+// to this server-side default page size.
+const DEFAULT_PAGE_COUNT = 1000;
 
 // A BfS `kenn` station id is a fixed-format numeric identifier. We validate the
 // shape (digits only, non-empty) at the domain boundary before splicing it into
@@ -50,7 +57,11 @@ export class StrahlenschutzClient {
     };
     if (query.station !== undefined) params["viewparams"] = `kenn:${assertKenn(query.station)}`;
     if (query.sortBy !== undefined) params["sortBy"] = query.sortBy;
-    if (query.maxFeatures !== undefined) params["maxFeatures"] = query.maxFeatures;
+    // WFS 2.0: the limit is `count` (not the WFS 1.x `maxFeatures`). `startIndex`
+    // is only honoured alongside a `count`, so supply one when paging without an
+    // explicit limit, otherwise the server answers HTTP 400.
+    if (query.maxFeatures !== undefined) params["count"] = query.maxFeatures;
+    else if (query.startIndex !== undefined) params["count"] = DEFAULT_PAGE_COUNT;
     if (query.startIndex !== undefined) params["startIndex"] = query.startIndex;
     return this.engine.getJson(OWS, params);
   }

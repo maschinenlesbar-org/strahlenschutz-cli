@@ -45,5 +45,14 @@ export class StrahlApiError extends StrahlError {
 /** A transport-level failure (DNS, connection reset, timeout, ...). */
 export class StrahlNetworkError extends StrahlError {}
 
+/**
+ * A requested resource does not exist. Raised by the CLI when a lookup for a
+ * single, specific entity (e.g. one station by its `kenn`) comes back empty.
+ * The WFS never answers 404 for an unknown id — it returns an empty
+ * FeatureCollection with status 200 — so we synthesise this so an unknown id is
+ * distinguishable from a request error and maps to the documented exit code 4.
+ */
+export class StrahlNotFoundError extends StrahlError {}
+
 /** The response body could not be parsed as the expected JSON shape. */
 export class StrahlParseError extends StrahlError {}

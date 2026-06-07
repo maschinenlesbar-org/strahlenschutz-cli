@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
-import { StrahlApiError, StrahlError } from "../client/errors.js";
+import { StrahlApiError, StrahlError, StrahlNotFoundError } from "../client/errors.js";
 
 /**
  * Apply exitOverride + output redirection to every command in the tree.
@@ -25,6 +25,13 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
   const program = buildProgram(deps);
   configureTree(program, deps);
 
+  // A bare invocation with no command is a request for usage, not an error:
+  // print help to stdout and exit 0, mirroring `--help`.
+  if (argv.length === 0) {
+    deps.io.out(program.helpInformation().replace(/\n$/, ""));
+    return 0;
+  }
+
   try {
     await program.parseAsync(argv, { from: "user" });
     return 0;
@@ -32,6 +39,10 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     if (err instanceof CommanderError) {
       // Help/version requests exit 0; genuine parse errors carry their own code.
       return err.exitCode;
+    }
+    if (err instanceof StrahlNotFoundError) {
+      deps.io.err(`Error: ${err.message}`);
+      return 4;
     }
     if (err instanceof StrahlApiError) {
       deps.io.err(`Error: ${err.message}`);

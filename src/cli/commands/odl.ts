@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
 import { action, assertEnum, parseIntArg, renderJson } from "../shared.js";
+import { StrahlNotFoundError } from "../../client/errors.js";
 import type { FeatureQuery } from "../../client/types.js";
 
 const RESOLUTIONS = ["ts-1h", "ts-24h"] as const;
@@ -42,7 +43,14 @@ export function registerOdlCommands(program: Command, deps: CliDeps): void {
     .description("Latest reading for a single station by its kenn id")
     .action(
       action(deps, async ({ client, global }, [kenn]) => {
-        renderJson(deps, global, await client.station(kenn!));
+        const result = await client.station(kenn!);
+        // The WFS returns an empty FeatureCollection (HTTP 200) for an unknown
+        // kenn rather than a 404. For a single-station lookup, no features means
+        // the station does not exist — surface it as a not-found (exit 4).
+        if (result.features.length === 0) {
+          throw new StrahlNotFoundError(`No station found for kenn "${kenn}".`);
+        }
+        renderJson(deps, global, result);
       }),
     );
 
