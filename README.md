@@ -90,7 +90,7 @@ Exit codes: `0` success, `4` on a `404` from the API, `1` for any other error, n
 ## Library usage
 
 ```ts
-import { StrahlenschutzClient, StrahlApiError } from "strahlenschutz-cli";
+import { StrahlenschutzClient, StrahlApiError } from "@maschinenlesbar.org/strahlenschutz-cli";
 
 const client = new StrahlenschutzClient(); // defaults to https://www.imis.bfs.de
 
