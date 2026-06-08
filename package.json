@@ -1,6 +1,6 @@
 {
   "name": "@maschinenlesbar.org/strahlenschutz-cli",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "TypeScript API client and CLI for the open BfS ODL-Info radiation API (imis.bfs.de)",
   "type": "module",
   "bin": {
