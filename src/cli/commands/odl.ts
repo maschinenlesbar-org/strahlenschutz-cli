@@ -19,7 +19,7 @@ function addQueryOptions(cmd: Command): Command {
   return cmd
     .option("--max <n>", "max features to return", parseIntArg)
     .option("--start <n>", "offset for paging", parseIntArg)
-    .option("--sort <prop>", 'sort by a property (append "+D" for descending)');
+    .option("--sort <prop>", 'sort by a property (append " D" for descending, e.g. "end_measure D")');
 }
 
 export function registerOdlCommands(program: Command, deps: CliDeps): void {

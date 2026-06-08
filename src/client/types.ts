@@ -36,9 +36,9 @@ export interface FeatureCollection {
 
 /** Common options for a feature query. */
 export interface FeatureQuery {
-  /** Restrict to a station by its `kenn` id (becomes `viewparams=kenn:<id>`). */
+  /** Restrict to a station by its `kenn` id (becomes `CQL_FILTER=kenn='<id>'`). */
   station?: string;
-  /** Property to sort by; append "+D" for descending. */
+  /** Property to sort by; append " D" (a space) for descending, e.g. "end_measure D". */
   sortBy?: string;
   /** Max features to return (sent as the WFS 2.0 `count` parameter). */
   maxFeatures?: number;

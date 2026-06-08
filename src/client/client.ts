@@ -26,9 +26,10 @@ const DEFAULT_PAGE_COUNT = 1000;
 
 // A BfS `kenn` station id is a fixed-format numeric identifier. We validate the
 // shape (digits only, non-empty) at the domain boundary before splicing it into
-// the server-side `viewparams` templating parameter. The value is also
+// the server-side `CQL_FILTER` (e.g. `kenn='<id>'`). The value is also
 // percent-encoded via URLSearchParams downstream — this allow-list is
 // defence in depth, turning the implicit encoding guarantee into an explicit one.
+// Because the filter is restricted to digits the surrounding quotes are safe.
 const KENN_PATTERN = /^\d+$/;
 
 function assertKenn(kenn: string): string {
@@ -55,7 +56,7 @@ export class StrahlenschutzClient {
       typeName: TYPE_NAMES[kind],
       outputFormat: "application/json",
     };
-    if (query.station !== undefined) params["viewparams"] = `kenn:${assertKenn(query.station)}`;
+    if (query.station !== undefined) params["CQL_FILTER"] = `kenn='${assertKenn(query.station)}'`;
     if (query.sortBy !== undefined) params["sortBy"] = query.sortBy;
     // WFS 2.0: the limit is `count` (not the WFS 1.x `maxFeatures`). `startIndex`
     // is only honoured alongside a `count`, so supply one when paging without an

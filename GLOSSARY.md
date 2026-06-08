@@ -59,7 +59,7 @@ cover Germany.
 
 **kenn (station id).** The station identifier (Kennung). A fixed-format **numeric**
 string (digits only), e.g. `091811461`. The client validates the shape (digits
-only, non-empty) before splicing it into the WFS `viewparams` filter. CLI:
+only, non-empty) before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`). CLI:
 `station <kenn>`, `--station <kenn>`, `timeseries <kenn>`.
 
 **GeoJSON Feature.** One element of the response: a station together with its
@@ -112,8 +112,9 @@ parameters `service=WFS`, `request=GetFeature` and
 `opendata:odlinfo_odl_1h_latest`); set from the chosen feature kind via
 `TYPE_NAMES`.
 
-**viewparams.** A server-side templating parameter. Filtering by station is
-expressed as `viewparams=kenn:<id>`.
+**CQL_FILTER.** The OGC CQL filter expression applied server-side. Filtering by
+station is expressed as `CQL_FILTER=kenn='<id>'`. (The earlier `viewparams=kenn:<id>`
+form is silently ignored by this server on the `latest` type, so it is not used.)
 
 **count.** The WFS 2.0 result-limit parameter (the CLI's `--max`). The WFS 1.x
 `maxFeatures` is silently ignored by this server, so the client always sends
@@ -125,7 +126,7 @@ honoured when accompanied by a `count`; a bare `startIndex` is rejected with HTT
 explicit limit.
 
 **sortBy.** The WFS parameter selecting the property to sort results by; append
-`+D` for descending order (CLI: `--sort <prop>`).
+` D` (a space, e.g. `end_measure D`) for descending order (CLI: `--sort <prop>`).
 
 **outputFormat.** Fixed to `application/json` so every response is GeoJSON.
 
@@ -134,7 +135,7 @@ explicit limit.
 ## Client query options
 
 **FeatureQuery.** The query object accepted by the client's methods:
-`station` (→ `viewparams=kenn:<id>`), `sortBy`, `maxFeatures` (→ `count`) and
+`station` (→ `CQL_FILTER=kenn='<id>'`), `sortBy`, `maxFeatures` (→ `count`) and
 `startIndex`.
 
 **maxFeatures (`--max`).** Maximum number of features to return; sent on the wire

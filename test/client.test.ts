@@ -24,10 +24,10 @@ test("latest sets the fixed WFS params and the latest typeName", async () => {
   assert.equal(url.searchParams.get("maxFeatures"), null);
 });
 
-test("station turns a kenn id into a viewparams filter", async () => {
+test("station turns a kenn id into a CQL_FILTER", async () => {
   const mt = constantJson(fc);
   await clientWith(mt).station("091811461");
-  assert.equal(new URL(mt.last().url).searchParams.get("viewparams"), "kenn:091811461");
+  assert.equal(new URL(mt.last().url).searchParams.get("CQL_FILTER"), "kenn='091811461'");
 });
 
 test("timeseries selects the resolution typeName and station", async () => {
@@ -35,7 +35,7 @@ test("timeseries selects the resolution typeName and station", async () => {
   await clientWith(mt).timeseries("091811461", "ts-24h");
   const url = new URL(mt.last().url);
   assert.equal(url.searchParams.get("typeName"), "opendata:odlinfo_timeseries_odl_24h");
-  assert.equal(url.searchParams.get("viewparams"), "kenn:091811461");
+  assert.equal(url.searchParams.get("CQL_FILTER"), "kenn='091811461'");
 });
 
 test("timeseries defaults to the hourly type", async () => {
@@ -49,9 +49,9 @@ test("timeseries defaults to the hourly type", async () => {
 
 test("sortBy and startIndex are propagated to the WFS query", async () => {
   const mt = constantJson(fc);
-  await clientWith(mt).latest({ sortBy: "end_measure+D", startIndex: 10 });
+  await clientWith(mt).latest({ sortBy: "end_measure D", startIndex: 10 });
   const url = new URL(mt.last().url);
-  assert.equal(url.searchParams.get("sortBy"), "end_measure+D");
+  assert.equal(url.searchParams.get("sortBy"), "end_measure D");
   assert.equal(url.searchParams.get("startIndex"), "10");
 });
 
@@ -71,13 +71,13 @@ test("an explicit maxFeatures takes precedence over the default page count", asy
   assert.equal(url.searchParams.get("count"), "5");
 });
 
-test("viewparams is percent-encoded in the URL (no injection)", async () => {
-  // The encoding of the "kenn:<id>" token is the central anti-injection property.
-  // The ":" separator must be percent-encoded so the value cannot start a second
-  // WFS view parameter at the URL level.
+test("CQL_FILTER is percent-encoded in the URL (no injection)", async () => {
+  // The encoding of the "kenn='<id>'" token is the central anti-injection property.
+  // The "=" and "'" characters must be percent-encoded so the value cannot start a
+  // second query parameter or break out of the CQL literal at the URL level.
   const mt = constantJson(fc);
   await clientWith(mt).station("091811461");
-  assert.match(mt.last().url, /viewparams=kenn%3A091811461/);
+  assert.match(mt.last().url, /CQL_FILTER=kenn%3D%27091811461%27/);
 });
 
 test("an empty kenn is rejected with a StrahlError", async () => {

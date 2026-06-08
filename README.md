@@ -41,7 +41,7 @@ the three published feature types as friendly commands. Every response is a
 each feature's `properties`).
 
 A `kenn` is a numeric station id. The client validates it (digits only, non-empty)
-before splicing it into the WFS `viewparams` filter and rejects anything else with
+before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`) and rejects anything else with
 a clear error — defence in depth on top of the percent-encoding the value already
 receives. Cross-origin redirects drop credential-bearing headers
 (`Authorization`/`X-API-Key`/`Cookie`) and `https`→`http` downgrade redirects are
@@ -166,7 +166,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
 - **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, and redirect handling (same-origin follow, cross-origin credential strip, https→http downgrade refusal, missing-Location, too-many-redirects) — mocked transport.
-- **`client.test.ts`** — the fixed WFS params, typeName selection, viewparams mapping and encoding, `sortBy`/`startIndex` propagation, and `kenn` validation — mocked transport.
+- **`client.test.ts`** — the fixed WFS params, typeName selection, `CQL_FILTER` mapping and encoding, `sortBy`/`startIndex` propagation, and `kenn` validation — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 
 ## Continuous integration

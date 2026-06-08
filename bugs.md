@@ -50,6 +50,7 @@ Environment: 2026-06-06, Node v22.14.0, live BfS ODL-Info WFS reachable. Binary 
 
 ### 6. Unknown station returns an empty 200 instead of a not-found signal — ✅ FIXED
 **Fix:** The `station` command in `src/cli/commands/odl.ts` now treats an empty FeatureCollection as not-found: it throws the new `StrahlNotFoundError` (`src/client/errors.ts`), which `src/cli/run.ts` maps to exit code 4 with a clear "No station found for kenn …" message.
+**Also fixed (station filtering):** `src/client/client.ts` now filters by `CQL_FILTER=kenn='<id>'` instead of `viewparams=kenn:<id>` — the latter was silently ignored by the live WFS (returned all ~1682 features), which also defeated the not-found mapping above.
 - Severity: Medium · Confidence: Confirmed
 - Repro: `node dist/src/cli/index.js station 999999999` → exit 0, `{ "type":"FeatureCollection", "features":[…] }` (empty/irrelevant). A typo'd kenn is indistinguishable from a valid station with no current reading; the documented `404 → exit 4` is unreachable for this WFS (it never 404s on unknown ids).
 

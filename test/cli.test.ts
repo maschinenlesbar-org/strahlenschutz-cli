@@ -37,10 +37,10 @@ const oneFeature = {
   features: [{ type: "Feature", id: "x", geometry: null, properties: {} }],
 };
 
-test("station builds a viewparams filter", async () => {
+test("station builds a CQL_FILTER", async () => {
   const cli = makeCli(() => jsonResponse(oneFeature));
   await run(["station", "091811461"], cli.deps);
-  assert.equal(new URL(cli.mt.last().url).searchParams.get("viewparams"), "kenn:091811461");
+  assert.equal(new URL(cli.mt.last().url).searchParams.get("CQL_FILTER"), "kenn='091811461'");
 });
 
 test("station with no matching feature exits 4 (not found)", async () => {
@@ -52,9 +52,9 @@ test("station with no matching feature exits 4 (not found)", async () => {
 
 test("latest --sort and --start propagate to the WFS query", async () => {
   const cli = makeCli(() => jsonResponse(fc));
-  await run(["latest", "--sort", "end_measure+D", "--start", "10"], cli.deps);
+  await run(["latest", "--sort", "end_measure D", "--start", "10"], cli.deps);
   const url = new URL(cli.mt.last().url);
-  assert.equal(url.searchParams.get("sortBy"), "end_measure+D");
+  assert.equal(url.searchParams.get("sortBy"), "end_measure D");
   assert.equal(url.searchParams.get("startIndex"), "10");
 });
 
