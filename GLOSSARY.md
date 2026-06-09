@@ -165,33 +165,7 @@ issues read-only `GET` requests.
 
 ---
 
-## Project / technical terms
-
-**API client.** [`StrahlenschutzClient`](src/client/client.ts) — the typed
-wrapper over the WFS that hides the boilerplate and exposes the feature kinds as
-methods. Usable as a library independently of the CLI.
-
-**Methods.** `getFeature(kind, query)` (generic), `latest(query)`,
-`station(kenn)` and `timeseries(kenn, resolution, query)`.
-
-**Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`http.ts`](src/client/http.ts)). The default uses Node's built-in
-`http`/`https`; tests inject a mock. This is the only HTTP seam.
-
-**Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
-serialises queries, applies retry/backoff, handles redirects, decodes JSON and
-maps errors. Sits between the client's methods and the transport.
-
-**Query-string builder.** [`query.ts`](src/client/query.ts) — a dependency-free
-serialiser: omits `undefined`/`null`, repeats keys for arrays, stringifies
-booleans, ISO-formats `Date`, and encodes spaces as `%20`.
-
-**CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object. Lets the whole
-CLI run in tests with a mocked client and captured output — no subprocess.
-
-**Error types.** [`errors.ts`](src/client/errors.ts): `StrahlApiError` (non-2xx,
-carries `status`/`detail`/`isRetryable`), `StrahlNetworkError` (transport
-failure/timeout), `StrahlParseError` (bad JSON) and `StrahlNotFoundError`
-(synthesised for an unknown id) — all extending `StrahlError`. The CLI maps a
-not-found/`404` to exit code `4`, other errors to `1`.
+> **Library & internals.** Terms for the TypeScript client and its internals —
+> `StrahlenschutzClient`, the request engine, transport, retry/backoff, error
+> types, query builder, `FeatureKindValues`/`TYPE_NAMES`, `kenn` validation —
+> now live in **[DEVELOPING.md](DEVELOPING.md)**.

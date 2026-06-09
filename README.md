@@ -1,182 +1,191 @@
 # strahlenschutz-cli
 
-A TypeScript **API client** and **command-line interface** for the open
-[BfS ODL-Info](https://odlinfo.bfs.de/) open-data WFS (`imis.bfs.de`) operated by
-the **Bundesamt für Strahlenschutz** — Germany's **ambient gamma dose-rate (ODL)**
-measurement network: latest readings and hourly/daily time series, as GeoJSON.
+Query Germany's **ambient gamma dose-rate (ODL) monitoring network** from your
+terminal. `strahlenschutz` is a command-line tool over the open
+[BfS ODL-Info](https://odlinfo.bfs.de/) WFS (`imis.bfs.de`): fetch the latest
+readings across all ~1 700 stations, look up a single station by its `kenn` id,
+or pull hourly/daily time series — all as clean GeoJSON you can pipe straight
+into [`jq`](https://jqlang.github.io/jq/).
 
-- **Zero runtime HTTP dependencies** — built on Node's built-in `http`/`https` (no axios, no fetch polyfill).
-- **One small dependency** for the CLI: [`commander`](https://github.com/tj/commander.js).
-- **Strongly typed** — typed GeoJSON feature collection and the feature-kind enum.
-- **Well tested** — unit tests on Node's built-in test runner (`node --test`), every HTTP response mocked.
-- **Read-only, no auth** — the ODL-Info open-data WFS needs no key; this client only reads.
+- **Works out of the box** — no account, no API key, no configuration. Install and query.
+- **Clean GeoJSON output** — pretty-printed by default, `--compact` for one-line/scripting.
+- **Three commands** — `latest`, `station`, and `timeseries`.
+- **Real open data** — backed by the Bundesamt für Strahlenschutz's public IMIS network.
 
-## Requirements
-
-- Node.js **>= 20** (uses the stable built-in test runner, ESM and top-level `await`).
+> Want to use this as a TypeScript library or understand how it's built?
+> See **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Install
 
 ```bash
-npm install
-npm run build        # compiles TypeScript to dist/
+npm i -g @maschinenlesbar.org/strahlenschutz-cli
 ```
 
-Run the CLI without a global install:
+This installs the **`strahlenschutz`** command. Requires **Node.js 20+**.
+
+Check it works:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link` / global install:
 strahlenschutz --help
 ```
 
----
+## Quickstart
 
-## How the API works
+No setup needed — the ODL-Info service is open data and requires no key. Your
+first command:
 
-The service is an OGC **WFS**. This client fixes the boilerplate parameters
-(`service=WFS`, `request=GetFeature`, `outputFormat=application/json`) and exposes
-the three published feature types as friendly commands. Every response is a
-**GeoJSON FeatureCollection**; a station is identified by its `kenn` id (found in
-each feature's `properties`).
+```bash
+strahlenschutz latest --max 5
+```
 
-A `kenn` is a numeric station id. The client validates it (digits only, non-empty)
-before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`) and rejects anything else with
-a clear error — defence in depth on top of the percent-encoding the value already
-receives. Cross-origin redirects drop credential-bearing headers
-(`Authorization`/`X-API-Key`/`Cookie`) and `https`→`http` downgrade redirects are
-refused.
+That prints a GeoJSON `FeatureCollection` with the five most recent station
+readings. Dose-rate values are in **µSv/h** and live in each feature's
+`properties`. Pull out a station's id and value with `jq`:
 
-### Global options
+```bash
+strahlenschutz --compact latest --max 5 \
+  | jq -r '.features[] | [.properties.kenn, .properties.value] | @tsv'
+```
+
+Look up a single station you already know:
+
+```bash
+strahlenschutz station 091811461
+```
+
+## Commands
+
+```text
+latest                 latest ODL reading per station (GeoJSON FeatureCollection)
+station <kenn>         latest reading for one station
+timeseries <kenn>      hourly or daily time series for a station
+```
+
+### `latest` options
+
+| Flag | Meaning |
+| --- | --- |
+| `--station <kenn>` | restrict to one station by its numeric `kenn` id |
+| `--max <n>` | max features to return (WFS `count`) |
+| `--start <n>` | paging offset (use together with `--max`) |
+| `--sort <prop>` | sort by a feature property; append ` D` for descending, e.g. `"end_measure D"` |
+
+### `station` arguments
+
+| Argument | Meaning |
+| --- | --- |
+| `<kenn>` | numeric station id — must be digits only, non-empty |
+
+No per-command options. An unknown `kenn` exits with code **4**.
+
+### `timeseries` options
+
+| Flag | Meaning |
+| --- | --- |
+| `--resolution ts-1h\|ts-24h` | hourly (default) or daily-averaged series |
+| `--max <n>` | max features to return |
+| `--start <n>` | paging offset |
+| `--sort <prop>` | sort by a feature property |
+
+## Common tasks
+
+A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+use-case-driven set.
+
+```bash
+# Latest reading for every station (the full network)
+strahlenschutz latest
+
+# Sample 5 readings for a quick look
+strahlenschutz latest --max 5
+
+# One station you care about
+strahlenschutz station 091811461
+
+# Hourly time series — last 24 hours of readings
+strahlenschutz timeseries 091811461 --max 24
+
+# Daily time series for a longer-term view
+strahlenschutz timeseries 091811461 --resolution ts-24h
+
+# Page through the network (most-recent first, 10 at a time)
+strahlenschutz latest --sort "end_measure D" --max 10 --start 0
+strahlenschutz latest --sort "end_measure D" --max 10 --start 10
+```
+
+## Output & scripting
+
+Every command prints **pretty GeoJSON to stdout**. Errors and diagnostics go to
+stderr, so piping stdout into `jq` stays clean.
+
+```bash
+# Extract dose rate and station id from a single-station lookup
+strahlenschutz --compact station 091811461 \
+  | jq '.features[0].properties | {kenn, value}'
+
+# Flat TSV table of all stations — kenn and µSv/h value
+strahlenschutz --compact latest \
+  | jq -r '.features[] | [.properties.kenn, .properties.value] | @tsv'
+
+# Plot-ready CSV: timestamp + value for the hourly series
+strahlenschutz --compact timeseries 091811461 --max 48 \
+  | jq -r '.features[] | [.properties.end_measure, .properties.value] | @csv'
+```
+
+Use `--compact` for single-line JSON in pipelines and logs:
+
+```bash
+strahlenschutz --compact latest --max 5
+```
+
+`--compact` (and every global option) works **before or after** the command —
+both `strahlenschutz --compact latest …` and `strahlenschutz latest … --compact`
+do the same thing.
+
+**Exit codes** make the CLI easy to use in scripts:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | success (also `--help` / `--version`) |
+| `1` | error — API error, network failure, parse error, or any other problem |
+| `4` | station not found — the `kenn` returned no features (WFS always returns 200 with an empty collection for unknown ids) |
+| non-zero | usage / argument-validation error (bad flag or argument) |
+
+## Troubleshooting
+
+- **`command not found: strahlenschutz`** — the global npm bin directory isn't on
+  your `PATH`. Run `npm bin -g` to find it and add it, or run via
+  `npx @maschinenlesbar.org/strahlenschutz-cli …`.
+- **Exit `4` / "No station found for kenn …"** — the `kenn` doesn't exist in the
+  network. Re-check the id from a fresh `latest` result; the WFS always returns
+  HTTP 200 with an empty collection for an unknown station rather than a 404.
+- **Non-numeric `kenn` rejected immediately** — `kenn` must be digits only. The
+  client validates this before making any request; no request is sent.
+- **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or
+  raise the limit with `--timeout 60000`.
+- **Unexpectedly large response** — raise or remove the cap with
+  `--max-response-bytes 0` (unlimited).
+
+## Global options
+
+These apply to every command and may be given **before or after** the command:
 
 | Option | Description |
 | --- | --- |
+| `-V, --version` | Print the version number |
+| `-h, --help` | Show help for the program or a command |
+| `--compact` | Print JSON on a single line instead of pretty-printed |
 | `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`) |
-| `--timeout <ms>` | Per-request timeout (default `30000`) |
+| `--timeout <ms>` | Per-request timeout in milliseconds (default `30000`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
-| `--compact` | Print JSON on a single line |
 
-Global options go **before** the command, e.g. `strahlenschutz --compact latest --max 5`.
+## Learn more
 
-### Commands
-
-```text
-latest [--station <kenn>] [--max <n>] [--start <n>] [--sort <prop>]
-       latest ODL reading per station (GeoJSON)
-station <kenn>          latest reading for one station
-timeseries <kenn> [--resolution ts-1h|ts-24h] [--max] [--start] [--sort]
-       hourly (default) or daily time series for a station
-```
-
-### Examples
-
-```bash
-# Five most recent station readings
-strahlenschutz latest --max 5
-
-# One station by its kenn id
-strahlenschutz station 091811461
-
-# Daily time series for a station
-strahlenschutz timeseries 091811461 --resolution ts-24h
-```
-
-Exit codes: `0` success, `4` on a `404` from the API, `1` for any other error, non-zero for usage errors.
-
----
-
-## Library usage
-
-```ts
-import { StrahlenschutzClient, StrahlApiError } from "@maschinenlesbar.org/strahlenschutz-cli";
-
-const client = new StrahlenschutzClient(); // defaults to https://www.imis.bfs.de
-
-const latest = await client.latest({ maxFeatures: 5 }); // sent as WFS 2.0 `count`
-const one = await client.station("091811461");
-const series = await client.timeseries("091811461", "ts-24h");
-
-try {
-  await client.station("nope");
-} catch (err) {
-  if (err instanceof StrahlApiError) console.error(err.status, err.detail);
-}
-```
-
-### Client options
-
-```ts
-new StrahlenschutzClient({
-  baseUrl: "https://www.imis.bfs.de",
-  timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503 are retried with linear backoff
-  maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
-  userAgent: "my-app/1.0",
-  transport: customTransport, // inject your own HTTP transport
-});
-```
-
-### Methods
-
-`client.getFeature(kind, query)` (generic), `client.latest(query)`, `client.station(kenn)`,
-`client.timeseries(kenn, resolution, query)`. The `FeatureKindValues` enum and the
-`TYPE_NAMES` map are exported for reference.
-
----
-
-## Architecture
-
-```
-src/
-  client/
-    enums.ts     # FeatureKind value set + TYPE_NAMES (friendly -> WFS typeName)
-    types.ts     # GeoJSON Feature / FeatureCollection + query object
-    query.ts     # dependency-free query-string builder
-    http.ts      # the Transport interface + default node:http/https transport
-    engine.ts    # URL building, retry/backoff, redirects (with cross-origin credential strip), JSON decoding, error mapping
-    errors.ts    # StrahlError / StrahlApiError / StrahlNetworkError / StrahlParseError
-    client.ts    # StrahlenschutzClient — WFS GetFeature over the engine
-  cli/
-    io.ts        # injectable I/O seam (stdout/stderr/file)
-    shared.ts    # option parsers, global-option resolver, JSON renderer
-    commands/    # latest / station / timeseries
-    program.ts   # assembles the commander program from injectable deps
-    run.ts       # parses argv -> exit code (no process.exit; testable)
-    index.ts     # #! bin shim
-```
-
-**Design notes**
-
-- The HTTP layer is a single `Transport` function (`(req) => Promise<HttpResponse>`). The default
-  uses `node:http`/`node:https`; tests inject a mock. This keeps the client free of any HTTP framework.
-- The CLI is built around injectable `CliDeps` (client factory + I/O), so the whole program can be
-  driven in-process by tests with a mocked client and captured output — no subprocesses.
-- The WFS boilerplate is hidden behind friendly feature-kind methods; GeoJSON is returned faithfully.
-
----
-
-## Testing
-
-```bash
-npm test          # builds, then runs `node --test` over dist/test
-```
-
-- **`query.test.ts`** — query-string serialisation.
-- **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
-- **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, and redirect handling (same-origin follow, cross-origin credential strip, https→http downgrade refusal, missing-Location, too-many-redirects) — mocked transport.
-- **`client.test.ts`** — the fixed WFS params, typeName selection, `CQL_FILTER` mapping and encoding, `sortBy`/`startIndex` propagation, and `kenn` validation — mocked transport.
-- **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
-
-## Continuous integration
-
-GitHub Actions workflows under `.github/workflows/`:
-
-- **ci.yml** — type-check, build and test on Node 20/22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`, and create a GitHub Release with the tarball.
-- **publish.yml** — manual dispatch: publish to npm via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
-- **docs.yml** — build TypeDoc API docs and deploy to GitHub Pages on each `v*` tag.
+- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](GLOSSARY.md)** — domain terms, station identifiers, WFS concepts, exit codes.
+- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## License
 
