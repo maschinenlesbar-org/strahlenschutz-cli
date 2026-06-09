@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/maschinenlesbar-org/strahlenschutz-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/maschinenlesbar-org/strahlenschutz-cli/actions/workflows/ci.yml)
 [![Release](https://github.com/maschinenlesbar-org/strahlenschutz-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/strahlenschutz-cli/actions/workflows/release.yml)
-[![GitHub release](https://img.shields.io/github/v/release/maschinenlesbar-org/strahlenschutz-cli)](https://github.com/maschinenlesbar-org/strahlenschutz-cli/releases/latest)
 [![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/strahlenschutz-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/strahlenschutz-cli)
 
 Query Germany's **ambient gamma dose-rate (ODL) monitoring network** from your
