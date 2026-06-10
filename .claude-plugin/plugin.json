@@ -1,0 +1,23 @@
+{
+  "name": "strahlenschutz",
+  "version": "0.1.0",
+  "description": "Live German radiation-monitoring skills powered by the strahlenschutz-cli (BfS ODL-Info ambient gamma dose-rate network).",
+  "author": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/maschinenlesbar-org/strahlenschutz-cli",
+  "homepage": "https://github.com/maschinenlesbar-org/strahlenschutz-cli#readme",
+  "keywords": [
+    "strahlenschutz",
+    "bfs",
+    "odl",
+    "radiation",
+    "dose-rate",
+    "geojson",
+    "environment",
+    "germany",
+    "bund.dev"
+  ]
+}

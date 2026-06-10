@@ -190,6 +190,8 @@ These apply to every command and may be given **before or after** the command:
 - **[Usage.md](Usage.md)** — full use-case-driven cookbook.
 - **[GLOSSARY.md](GLOSSARY.md)** — domain terms, station identifiers, WFS concepts, exit codes.
 - **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills bundled with this repo (dose-rate
+  snapshot, station trend, GeoJSON export), installable as a plugin.
 
 ## License
 
