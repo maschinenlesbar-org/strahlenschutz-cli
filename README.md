@@ -193,6 +193,15 @@ These apply to every command and may be given **before or after** the command:
 - **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills bundled with this repo (dose-rate
   snapshot, station trend, GeoJSON export), installable as a plugin.
 
+## Data license
+
+This CLI is a **client** — it accesses data it does not own or redistribute. The
+upstream data is © its provider and licensed **separately from this tool's code**.
+See **[DATA_LICENSE.md](DATA_LICENSE.md)**.
+
+> **Bundesamt für Strahlenschutz** — Datenlizenz Deutschland Namensnennung 2.0
+> (`dl-de/by-2-0`). Attribution required; commercial use and modification allowed.
+
 ## License
 
 **Dual-licensed** — use it under **either**:
