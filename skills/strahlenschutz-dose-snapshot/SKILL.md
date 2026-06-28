@@ -4,7 +4,7 @@ description: >
   Produce a ranked snapshot of Germany's live ambient gamma dose rate (ODL) from
   the strahlenschutz-cli. Trigger when the user asks "what's the radiation right
   now in Germany?", "highest dose-rate stations", "is radiation elevated near
-  <place>?", "current ODL readings", "any stations above background?", or wants
+  a place?", "current ODL readings", "any stations above background?", or wants
   the network ranked / filtered to a region. Pulls all ~1700 stations, drops
   dead/null sensors, ranks by µSv/h, can geo-filter to an area, and judges each
   value against normal background.

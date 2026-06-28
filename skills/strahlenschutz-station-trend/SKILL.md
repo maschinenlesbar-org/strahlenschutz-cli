@@ -3,8 +3,8 @@ name: strahlenschutz-station-trend
 description: >
   Analyse the dose-rate trend for one BfS monitoring station over time using the
   strahlenschutz-cli. Trigger when the user asks "how has radiation changed at
-  station X?", "is the dose rate rising near <place>?", "plot the ODL for the last
-  day/week", "trend for kenn <id>", "any spike at this station?", or wants a time
+  station X?", "is the dose rate rising near a place?", "plot the ODL for the last
+  day/week", "trend for a kenn id", "any spike at this station?", or wants a time
   series rather than a single reading. Pulls the hourly series newest-first,
   summarises min/max/mean, and flags any departure from the station's baseline.
 version: 1.0.0

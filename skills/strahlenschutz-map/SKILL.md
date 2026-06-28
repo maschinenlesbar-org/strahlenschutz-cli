@@ -83,8 +83,9 @@ Notes:
 ## Step 3 — Output
 
 Write the FeatureCollection to a file the user can open (default `./odl.geojson`) and
-report the feature count and how many null/defekt stations were dropped or greyed.
-Offer to:
+report **the path you wrote**, the feature count, and how many null/defekt stations were
+dropped or greyed. If a name the user supplied already exists, confirm before overwriting it
+(re-running with the default name to refresh is fine). Offer to:
 - open it at https://geojson.io (drag the file in), or
 - pretty-print vs compact — the full network is ~1600 features, fine for a layer but
   large to paste inline.
