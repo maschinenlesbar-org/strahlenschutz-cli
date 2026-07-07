@@ -106,3 +106,19 @@ test("--max rejects hex, exponent, empty, and unsafe magnitudes before any reque
     assert.equal(cli.mt.calls.length, 0);
   }
 });
+
+test("--base-url rejects a non-http(s) scheme at parse time before any request", async () => {
+  for (const bad of ["file:///etc/passwd", "ftp://host/x", "not a url"]) {
+    const cli = makeCli(() => jsonResponse(fc));
+    const code = await run(["--base-url", bad, "latest"], cli.deps);
+    assert.notEqual(code, 0, `expected --base-url ${JSON.stringify(bad)} to be rejected`);
+    assert.equal(cli.mt.calls.length, 0);
+  }
+});
+
+test("--base-url accepts a well-formed https URL", async () => {
+  const cli = makeCli(() => jsonResponse(fc));
+  const code = await run(["--base-url", "https://example.test", "latest"], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(new URL(cli.mt.last().url).origin, "https://example.test");
+});

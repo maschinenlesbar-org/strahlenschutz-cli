@@ -27,6 +27,27 @@ export function parseIntArg(value: string): number {
 }
 
 /**
+ * commander value-parser for `--base-url`: accept only a well-formed absolute
+ * `http:`/`https:` URL. Rejecting at parse time yields commander's usage error
+ * (exit 2) with a clear message and forecloses a non-http(s) scheme up front —
+ * defense in depth ahead of the transport's own request-time allowlist.
+ * `--base-url` is self-chosen input, so this is a usability/contract guard, not a
+ * trust boundary.
+ */
+export function parseBaseUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new InvalidArgumentError("Expected a valid absolute URL (e.g. https://host).");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new InvalidArgumentError('Only "http:" and "https:" base URLs are supported.');
+  }
+  return value;
+}
+
+/**
  * Validate a positional argument against an allowed set (commander does not
  * support .choices() on positional args). Throws a StrahlError so run() prints a
  * clear message and exits 1.
