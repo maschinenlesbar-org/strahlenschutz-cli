@@ -41,6 +41,32 @@ export interface EngineOptions {
 
 const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
 
+/**
+ * Strip control characters out of a string that originates in an
+ * attacker-controlled response — the error `detail` extracted from a non-2xx
+ * body. `JSON.parse` decodes an escaped ESC in an error body into a real ESC
+ * byte, so without this a hostile or MITM'd endpoint (the user chose the
+ * `--base-url`) could drive ANSI/OSC escape sequences into the terminal when the
+ * message is printed raw to stderr (display spoofing, title/clipboard writes on
+ * permissive terminals). The success path is already safe because
+ * `JSON.stringify` escapes these, so this only needs to cover text that flows
+ * into an error message.
+ *
+ * The filter removes C0 controls except tab/newline, DEL, and all C1 controls
+ * (0x7f-0x9f — this range covers U+009B CSI, which some terminals treat as an
+ * escape-sequence introducer). Built with `codePointAt` so no raw control byte
+ * ever appears in this source.
+ */
+function sanitizeServerText(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const n = ch.codePointAt(0) ?? 0;
+    if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
+    out += ch;
+  }
+  return out;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -178,6 +204,9 @@ export class RequestEngine {
     } catch {
       // Non-JSON error body; leave detail undefined.
     }
+    // `detail` came from the response body; strip control characters so a hostile
+    // endpoint cannot inject terminal escape sequences via the stderr error message.
+    if (detail !== undefined) detail = sanitizeServerText(detail);
     return new StrahlApiError({ status, url, method, body: text, detail });
   }
 }

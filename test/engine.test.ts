@@ -164,3 +164,44 @@ test("exceeding maxRedirects throws a too-many-redirects error", async () => {
     (err) => err instanceof StrahlNetworkError && /Too many redirects/.test(err.message),
   );
 });
+
+// Control chars are built via char codes so no raw control byte ever appears in
+// this source file (an editor would turn a literal escape into a raw byte).
+const ESC = String.fromCharCode(0x1b); // C0 ESC — introduces ANSI/OSC sequences
+const BEL = String.fromCharCode(0x07); // C0 BEL
+const CSI = String.fromCharCode(0x9b); // C1 CSI — a single-byte escape introducer
+
+/** True if the string contains any C0/C1 control char (tab/newline excepted). */
+function hasControlChars(s: string): boolean {
+  return [...s].some((c) => {
+    const n = c.charCodeAt(0);
+    return n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f);
+  });
+}
+
+test("error detail is stripped of C0 and C1 terminal control characters", async () => {
+  // A hostile/MITM'd endpoint plants ESC/CSI/BEL sequences in the error body;
+  // JSON.parse decodes the escapes into real control bytes. The engine must
+  // strip them before they reach the StrahlApiError message printed to stderr.
+  const evil = `boom${ESC}[31mred${BEL}${CSI}2J`;
+  const mt = makeMockTransport(() => jsonResponse({ detail: evil }, 500));
+  const e = new RequestEngine({
+    baseUrl: "https://a.example",
+    transport: mt.transport,
+    maxRetries: 0,
+  });
+
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) => {
+      assert.ok(err instanceof StrahlApiError);
+      // Both the structured detail and the human-readable message that run.ts
+      // prints to stderr are free of control bytes...
+      assert.ok(!hasControlChars(err.detail ?? ""));
+      assert.ok(!hasControlChars(err.message));
+      // ...while the printable text survives (only the control bytes were removed).
+      assert.equal(err.detail, "boom[31mred2J");
+      return true;
+    },
+  );
+});
