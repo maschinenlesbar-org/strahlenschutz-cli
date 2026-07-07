@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { StrahlenschutzClient } from "../src/client/client.js";
-import { StrahlApiError, StrahlError } from "../src/client/errors.js";
+import { StrahlApiError, StrahlError, StrahlParseError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): StrahlenschutzClient {
@@ -100,4 +100,15 @@ test("a 404 raises StrahlApiError with status 404", async () => {
     () => clientWith(mt).latest(),
     (err) => err instanceof StrahlApiError && err.status === 404,
   );
+});
+
+test("a 200 body that is valid JSON but not a FeatureCollection raises StrahlParseError", async () => {
+  // A hostile/MITM'd or merely buggy endpoint returns well-formed JSON whose
+  // shape is not a GeoJSON FeatureCollection. The shape guard must turn each of
+  // these into a typed StrahlParseError rather than letting an untyped TypeError
+  // surface later when a caller dereferences `features.length`.
+  for (const body of [{}, { features: null }, { features: "nope" }, [], 42, "str", null]) {
+    const mt = makeMockTransport(() => jsonResponse(body));
+    await assert.rejects(() => clientWith(mt).latest(), StrahlParseError);
+  }
 });

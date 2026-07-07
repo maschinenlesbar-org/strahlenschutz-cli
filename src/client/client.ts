@@ -12,7 +12,7 @@
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import { TYPE_NAMES, type FeatureKind } from "./enums.js";
-import { StrahlError } from "./errors.js";
+import { StrahlError, StrahlParseError } from "./errors.js";
 import type { FeatureCollection, FeatureQuery } from "./types.js";
 
 const OWS = "/ogc/opendata/ows";
@@ -41,6 +41,28 @@ function assertKenn(kenn: string): string {
   return kenn;
 }
 
+/**
+ * Runtime shape guard for the WFS response. `getJson` casts the parsed body to
+ * `T` with no runtime check, so a 200 reply that is valid JSON but not a
+ * FeatureCollection (`{}`, `{"features":null}`) would otherwise flow through as
+ * a `FeatureCollection` and only fail later when a caller dereferences
+ * `features.length` — surfacing as an untyped "Unexpected error". Validating the
+ * one field every caller relies on turns that into a typed StrahlParseError.
+ */
+function assertFeatureCollection(value: unknown): FeatureCollection {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !Array.isArray((value as { features?: unknown }).features)
+  ) {
+    throw new StrahlParseError(
+      "Unexpected response shape from the WFS: expected a GeoJSON FeatureCollection " +
+        "(an object with a `features` array).",
+    );
+  }
+  return value as FeatureCollection;
+}
+
 export class StrahlenschutzClient {
   private readonly engine: RequestEngine;
 
@@ -64,7 +86,7 @@ export class StrahlenschutzClient {
     if (query.maxFeatures !== undefined) params["count"] = query.maxFeatures;
     else if (query.startIndex !== undefined) params["count"] = DEFAULT_PAGE_COUNT;
     if (query.startIndex !== undefined) params["startIndex"] = query.startIndex;
-    return this.engine.getJson(OWS, params);
+    return assertFeatureCollection(await this.engine.getJson<unknown>(OWS, params));
   }
 
   /** The latest ODL reading per station (optionally filtered/limited). */
