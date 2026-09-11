@@ -52,6 +52,10 @@
     "url": "https://github.com/maschinenlesbar-org/strahlenschutz-cli/issues"
   },
   "homepage": "https://github.com/maschinenlesbar-org/strahlenschutz-cli#readme",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/sebs"
+  },
   "publishConfig": {
     "access": "public"
   },
