@@ -1,0 +1,16 @@
+# The only repo-specific texts of the website. Everything else comes from the
+# repository: the English intro from README.md, the commands from the built CLI.
+
+# How the API is accessed: open | key (env: VAR) | account (token, user, password: VARs)
+access:
+  type: open
+
+de:
+  # German version of the README's intro paragraph. Keep it in step with README.md.
+  intro: >-
+    Das **Messnetz für die Umgebungs-Gammadosisleistung (ODL)** in Deutschland direkt im
+    Terminal abfragen. `strahlenschutz` ist ein Kommandozeilen-Tool für den offenen WFS von
+    [ODL-Info des BfS](https://odlinfo.bfs.de/) (`imis.bfs.de`): die neuesten Messwerte aller
+    rund 1.700 Messstellen abrufen, eine einzelne Messstelle über ihre `kenn`-ID nachschlagen
+    oder stündliche und tägliche Zeitreihen laden – alles als sauberes GeoJSON, das Sie direkt
+    an [`jq`](https://jqlang.github.io/jq/) weitergeben können.
