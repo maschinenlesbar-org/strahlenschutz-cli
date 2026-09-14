@@ -176,6 +176,9 @@ GitHub Actions workflows under `.github/workflows/`:
 - **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`, and create a GitHub Release with the tarball.
 - **publish.yml** — manual dispatch: publish to npm via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
 - **docs.yml** — build TypeDoc API docs and deploy to GitHub Pages on each `v*` tag.
+  TypeDoc runs from the isolated, lockfile-pinned `tools/docs/` toolchain because it
+  needs the TypeScript 6 compiler API, which TypeScript 7 no longer ships; locally,
+  run `npm ci --prefix tools/docs` once before `npm run docs`.
 
 ## License
 
