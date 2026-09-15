@@ -99,7 +99,8 @@ exported) translates each friendly kind to its WFS `typeName`.
 (version **2.0**). The client fixes the boilerplate parameters so callers never
 set them by hand.
 
-**OGC — Open Geospatial Consortium.** The standards body behind WFS and GeoJSON.
+**OGC — Open Geospatial Consortium.** The standards body behind WFS. (GeoJSON is not an
+OGC standard; it is specified by the IETF in RFC 7946.)
 
 **ows endpoint.** The single service path the client targets:
 `/ogc/opendata/ows` on `https://www.imis.bfs.de`.

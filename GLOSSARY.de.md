@@ -96,7 +96,8 @@ Diese Werte bilden das const-Array `FeatureKindValues`; die Map `TYPE_NAMES` (be
 (Version **2.0**). Der Client setzt die immer gleichen Standardparameter selbst, sodass Aufrufer
 sie nie von Hand angeben müssen.
 
-**OGC – Open Geospatial Consortium.** Das Standardisierungsgremium hinter WFS und GeoJSON.
+**OGC – Open Geospatial Consortium.** Das Standardisierungsgremium hinter WFS. (GeoJSON ist
+kein OGC-Standard, sondern von der IETF in RFC 7946 festgelegt.)
 
 **ows-Endpoint.** Der einzige Dienstpfad, den der Client anspricht:
 `/ogc/opendata/ows` auf `https://www.imis.bfs.de`.
