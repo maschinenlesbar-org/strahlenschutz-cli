@@ -73,6 +73,9 @@ strahlenschutz --compact latest \
 
 Notes:
 - Keep `geometry` as-is — don't rebuild coordinates; they're correct already.
+- **Coordinates are rounded to two decimals** (`[8.81, 51.36]`, i.e. 0.01° ≈ 1 km).
+  Fine for a national layer, but tell a user who zooms in to street level, snaps points
+  to addresses or measures distances that the dot marks the station only to about 1 km.
 - `value` is the field to color on; the meaningful range is ~0.05–0.25 µSv/h (most
   stations about 0.07–0.15, a few high-elevation / granite sites 0.20–0.25, live network
   15 Sep 2026), so a color ramp clamped to roughly that span reads best (a 0–1 default
