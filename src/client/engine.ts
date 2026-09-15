@@ -48,9 +48,9 @@ const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
  * byte, so without this a hostile or MITM'd endpoint (the user chose the
  * `--base-url`) could drive ANSI/OSC escape sequences into the terminal when the
  * message is printed raw to stderr (display spoofing, title/clipboard writes on
- * permissive terminals). The success path is already safe because
- * `JSON.stringify` escapes these, so this only needs to cover text that flows
- * into an error message.
+ * permissive terminals). This only covers text that flows into an error message;
+ * the CLI's JSON output is escaped separately (escapeControlChars in
+ * cli/shared.ts), since `JSON.stringify` alone leaves DEL and the C1 range raw.
  *
  * The filter removes C0 controls except tab/newline, DEL, and all C1 controls
  * (0x7f-0x9f — this range covers U+009B CSI, which some terminals treat as an
