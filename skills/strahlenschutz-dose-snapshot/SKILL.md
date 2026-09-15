@@ -49,7 +49,7 @@ Each feature has `geometry.coordinates` = `[lon, lat]` and a `properties` object
 | `unit` | always `µSv/h` |
 | `site_status` / `site_status_text` | `1`/`in Betrieb`, `2`/`defekt`, `3`/`Testbetrieb` |
 | `validated` | `1` if the reading is validated, else `null` |
-| `start_measure` / `end_measure` | ISO window of the reading (UTC, `Z`) |
+| `start_measure` / `end_measure` | ISO window of the reading (UTC, `Z`) — **not the same hour for every station** (Step 5) |
 | `height_above_sea` | metres — elevation drives terrestrial dose, useful context |
 | `nuclide` | `Gamma-ODL-Brutto` (gross gamma) |
 
@@ -66,7 +66,7 @@ strahlenschutz --compact latest \
            | map(.properties | select(.value != null))
            | sort_by(.value) | reverse
            | .[:10][]
-           | [.kenn, .name, .value, .site_status_text] | @tsv'
+           | [.kenn, .name, .value, .site_status_text, .end_measure] | @tsv'
 ```
 
 Only keep `value != null` (equivalently `site_status == 1` / `in Betrieb`). For a
@@ -119,6 +119,7 @@ Lead with a verdict, then a short ranked table, then context:
 ```
 German ODL network — 1682 stations, 1589 reporting (93 defekt / Testbetrieb, skipped)
 Verdict: ✓ all readings at normal background (max 0.215 µSv/h). Nothing elevated.
+Readings: 1497 for the hour ending 2026-06-10T21:00Z, 80 for 20:00Z, 12 older.
 
 Highest current dose rate (µSv/h):
   0.215  Herrischried OT Großherrischwand  (083370490)  in Betrieb
@@ -132,6 +133,18 @@ Rules:
   ~90 stations is misleading.
 - Show `kenn` next to each station so the user can drill in with the
   **strahlenschutz-station-trend** skill (`timeseries <kenn>`).
-- Give units (`µSv/h`) and the measurement time window (`end_measure`); these readings
-  are hourly snapshots, not live-streaming.
+- Give units (`µSv/h`) and the measurement time; these readings are hourly snapshots,
+  not live-streaming. **`latest` is each station's latest reading, not one common
+  hour.** On 15 Sep 2026 about 94 % of the reporting stations had the newest hour,
+  ~5 % the hour before, and a handful were hours old while still `in Betrieb`. Count
+  the hours before you report:
+
+  ```bash
+  strahlenschutz --compact latest \
+    | jq -r '[.features[].properties | select(.value != null) | .end_measure]
+             | group_by(.) | map([.[0], length]) | reverse[] | @tsv'
+  ```
+
+  Say which hour most readings are for and how many are older, and mark any ranked
+  station whose `end_measure` is older than that hour (e.g. "reading from 14:00Z").
 - Offer a map (`strahlenschutz-map` skill) or a per-station trend as the next step.

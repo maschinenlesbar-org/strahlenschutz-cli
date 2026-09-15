@@ -103,6 +103,8 @@ skills encode the non-obvious parts of this API, for example:
   **0** — the same as a real station with no series — so the trend skill checks the id with
   `station` before reporting "no data"; a non-numeric `kenn` is rejected before any request
   with exit **1**;
+- `latest` gives each station's *latest* reading, not one common hour — a few stations lag
+  by one or more hours, so the snapshot counts the hours it covers;
 - "high" stations (~0.2–0.25 µSv/h) are almost always high-elevation / granite sites — that
   is **normal background**, not an alarm; the skills judge values against ~0.05–0.25 µSv/h
   and each station's own baseline, and avoid over-stating a public-reassurance network's
