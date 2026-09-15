@@ -148,9 +148,13 @@ rejects anything else with a clear error — defence in depth on top of the
 percent-encoding the value already receives.
 
 **Empty result vs. not-found.** The WFS returns an empty FeatureCollection with
-HTTP **200** for an unknown `kenn`, never a 404. For a single-station lookup the
-CLI treats "no features" as not-found and raises `StrahlNotFoundError`, mapping
-it to exit code **4**.
+HTTP **200** for an unknown `kenn`, never a 404. For a single-station lookup
+(`station <kenn>`) the CLI treats "no features" as not-found and raises
+`StrahlNotFoundError`, mapping it to exit code **4**. `timeseries <kenn>` and
+`latest --station <kenn>` do not: a real station can also return an empty
+series (a `defekt` station, or `ts-24h`), so they print the empty collection
+and exit `0`. Telling the two apart would take a second `station` request on
+an empty result.
 
 **`FeatureKindValues` / `TYPE_NAMES`.** The const array of valid feature kinds
 (`latest`, `ts-1h`, `ts-24h`) and the map that translates each to its WFS

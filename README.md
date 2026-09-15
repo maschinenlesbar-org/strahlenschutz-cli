@@ -82,7 +82,9 @@ timeseries <kenn>      hourly or daily time series for a station
 | --- | --- |
 | `<kenn>` | numeric station id — must be digits only, non-empty |
 
-No per-command options. An unknown `kenn` exits with code **4**.
+No per-command options. An unknown `kenn` exits with code **4**. (Only `station` does
+this: `timeseries <kenn>` and `latest --station <kenn>` print an empty collection and
+exit `0`, because a real station can have an empty series too.)
 
 ### `timeseries` options
 
@@ -154,7 +156,7 @@ do the same thing.
 | --- | --- |
 | `0` | success (also `--help` / `--version`) |
 | `1` | error — API error, network failure, parse error, or any other problem |
-| `4` | station not found — the `kenn` returned no features (WFS always returns 200 with an empty collection for unknown ids) |
+| `4` | station not found — `station <kenn>` returned no features (WFS always returns 200 with an empty collection for unknown ids; `timeseries` and `latest --station` exit `0` with the empty collection) |
 | non-zero | usage / argument-validation error (bad flag or argument) |
 
 ## Troubleshooting
@@ -165,6 +167,10 @@ do the same thing.
 - **Exit `4` / "No station found for kenn …"** — the `kenn` doesn't exist in the
   network. Re-check the id from a fresh `latest` result; the WFS always returns
   HTTP 200 with an empty collection for an unknown station rather than a 404.
+- **Empty `timeseries` (exit `0`)** — either the `kenn` doesn't exist or the station
+  has no series (e.g. it is `defekt`, or you asked for `ts-24h`). `timeseries` can't
+  tell these apart; run `strahlenschutz station <kenn>` — exit `4` means the id is
+  unknown.
 - **Non-numeric `kenn` rejected immediately** — `kenn` must be digits only. The
   client validates this before making any request; no request is sent.
 - **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or

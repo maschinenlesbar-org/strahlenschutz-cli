@@ -98,8 +98,11 @@ skills encode the non-obvious parts of this API, for example:
   view by averaging the hourly series rather than reporting "no data";
 - the CLI has **no bbox/radius parameter**, so geo-filtering to a region is done
   client-side on `geometry.coordinates` (already `[lon, lat]`, EPSG:4326 — no flipping);
-- a lookup for an unknown `kenn` exits **4** ("No station found"); a non-numeric `kenn`
-  is rejected before any request with exit **1**;
+- `station <kenn>` exits **4** ("No station found") for an unknown `kenn`, but
+  `timeseries <kenn>` and `latest --station <kenn>` return an empty collection with exit
+  **0** — the same as a real station with no series — so the trend skill checks the id with
+  `station` before reporting "no data"; a non-numeric `kenn` is rejected before any request
+  with exit **1**;
 - "high" stations (~0.2 µSv/h) are almost always high-elevation / granite sites — that is
   **normal background**, not an alarm; the skills judge values against ~0.05–0.20 µSv/h and
   avoid over-stating a public-reassurance network's readings.

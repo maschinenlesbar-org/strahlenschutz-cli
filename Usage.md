@@ -66,6 +66,11 @@ If the `kenn` does not exist the WFS returns an empty collection; the CLI
 surfaces that as a not-found error and exits with code **4**. A non-numeric
 `kenn` is rejected before any request is made.
 
+Only `station` does this check. `latest --station <kenn>` and
+`timeseries <kenn>` print the empty collection and exit `0` for an unknown id,
+the same as for a real station without readings (e.g. a `defekt` one). If they
+come back empty, run `station <kenn>` to find out which it is.
+
 You can also restrict the `latest` command to one station instead of using the
 dedicated `station` command:
 
@@ -173,8 +178,8 @@ strahlenschutz --max-retries 4 --max-response-bytes 52428800 --compact latest
 
 Transient `429`/`503` responses are retried up to `--max-retries` times;
 `--max-response-bytes` aborts responses larger than the given size (`0` =
-unlimited). Exit codes: `0` success, `4` on a not-found station, `1` for any
-other error, and a non-zero code for usage errors.
+unlimited). Exit codes: `0` success, `4` on a not-found station (`station`
+only), `1` for any other error, and a non-zero code for usage errors.
 
 ## Global options recap
 

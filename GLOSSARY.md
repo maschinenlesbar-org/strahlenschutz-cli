@@ -149,9 +149,12 @@ as the WFS 2.0 `count` parameter.
 ## Search & API concepts
 
 **Empty result vs. not-found.** The WFS returns an empty FeatureCollection with
-HTTP **200** for an unknown `kenn`, never a 404. For a single-station lookup the
-CLI treats "no features" as not-found and raises `StrahlNotFoundError`, mapping it
-to exit code **4**.
+HTTP **200** for an unknown `kenn`, never a 404. For a single-station lookup
+(`station <kenn>`) the CLI treats "no features" as not-found and raises
+`StrahlNotFoundError`, mapping it to exit code **4**. `timeseries <kenn>` and
+`latest --station <kenn>` pass the empty collection through with exit **0**: a real
+station can have an empty series as well (a `defekt` station, or `ts-24h`), so an
+empty result there doesn't prove the id is unknown.
 
 **Rate limiting / transient errors.** Statuses **429** and **503** are treated as
 transient and retried automatically with linear backoff (`--max-retries`,

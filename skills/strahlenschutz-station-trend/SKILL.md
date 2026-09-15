@@ -35,8 +35,21 @@ strahlenschutz --compact latest \
 ```
 
 `kenn` must be **digits only**; a non-numeric id is rejected before any request
-(exit `1`). An id that doesn't exist returns exit `4` ("No station found") — re-check
-it from a fresh `latest`.
+(exit `1`).
+
+**An unknown id is not an error for `timeseries`.** Only `station <kenn>` exits `4`
+("No station found"). `timeseries <kenn>` (and `latest --station <kenn>`) print an
+empty `FeatureCollection` (`"features":[]`) and exit `0` — exactly what a real station
+with no series returns (a `defekt` station, or `--resolution ts-24h`). So when the
+series comes back empty, tell the two apart before saying "no data":
+
+```bash
+strahlenschutz --compact station <kenn>
+```
+
+Exit `4` (`Error: No station found for kenn …` on stderr) means the id doesn't exist —
+re-check it from a fresh `latest`. Otherwise the station exists and simply has no
+readings; report its `name` and `site_status_text`.
 
 ## Step 2 — Pull the series, NEWEST FIRST (the ordering trap)
 
