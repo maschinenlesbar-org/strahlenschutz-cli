@@ -95,11 +95,19 @@ strahlenschutz --compact timeseries <kenn> --sort "end_measure D" --max 48 \
 
 Then read it:
 
+- **Judge against the station's own baseline, not the national range.** Each site has
+  its own flat level. In the week to 15 Sep 2026 most stations read about
+  0.07–0.15 µSv/h, the offshore platforms just under 0.05, and a few high-elevation /
+  granite sites 0.20–0.26 all week (Herrischried, `083370490`, never went below 0.222).
+  A flat series above 0.20 is that site's normal level, not a rise.
 - **Steady** if max−min is small (hourly ODL normally wobbles only a few hundredths
-  of a µSv/h around a flat baseline of ~0.05–0.20 µSv/h).
+  of a µSv/h around the station's baseline).
 - **Rising / spike** only if the most recent values sit clearly above the prior
   baseline (e.g. a sustained jump well beyond the window's normal scatter). Rain can
   cause small, transient bumps in terrestrial dose — note that as a benign cause.
+- A genuinely elevated reading would be well above ~0.3 µSv/h and stand out from the
+  station's own history. If the whole window is at or below ~0.26 with no step change,
+  say plainly that the station is at normal background.
 - Drop or flag any `value: null` step (gaps happen) so they don't skew min/mean.
 - A few hundredths of a µSv/h is **noise, not a trend**. Don't manufacture alarm; this
   is a public-reassurance network and most "spikes" are weather or sensor noise.
@@ -119,5 +127,6 @@ Rules:
 - For a chart, offer a CSV extract:
   `… | jq -r '.features[] | [.properties.end_measure, .properties.value] | @csv'`
   (sort ascending by time for plotting — drop the `D` or reverse).
-- Put any "high" reading in context against ~0.05–0.20 µSv/h background; explain
-  benign causes (elevation, rain) before suggesting anything unusual.
+- Put any "high" reading in context against the station's own baseline and the
+  network's usual ~0.05–0.25 µSv/h; explain benign causes (elevation, geology, rain)
+  before suggesting anything unusual.

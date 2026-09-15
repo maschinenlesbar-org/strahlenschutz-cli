@@ -99,9 +99,11 @@ The CLI has **no bbox / radius parameter** — geo filtering is on you, using
 Put each value in context — this is a radiation-protection tool, the headline is
 "is anything wrong?", not a bare table.
 
-- **Normal background is roughly 0.05–0.20 µSv/h.** Across the network the highest
-  *real* readings are typically ~0.2 µSv/h, at high-elevation / granite sites
-  (more terrestrial + cosmic dose) — that is **normal**, not an alarm.
+- **Normal background is roughly 0.05–0.25 µSv/h.** Most stations read about
+  0.07–0.15; the highest *real* readings are typically 0.20–0.25 µSv/h, at a few
+  high-elevation / granite sites that sit there all the time (more terrestrial +
+  cosmic dose), and the offshore platforms read just under 0.05 (live network,
+  15 Sep 2026). A reading at the top of that range is **normal**, not an alarm.
 - A genuinely elevated reading would be well above ~0.3 µSv/h and stand out sharply
   from neighbours. If everything is ≤0.25, say plainly: **all stations at normal
   background, nothing elevated.**

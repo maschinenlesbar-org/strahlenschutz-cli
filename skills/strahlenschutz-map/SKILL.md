@@ -73,9 +73,11 @@ strahlenschutz --compact latest \
 
 Notes:
 - Keep `geometry` as-is — don't rebuild coordinates; they're correct already.
-- `value` is the field to color on; the meaningful range is ~0.05–0.20 µSv/h, so a
-  color ramp clamped to roughly that span reads best (a 0–1 default ramp makes every
-  station look identical).
+- `value` is the field to color on; the meaningful range is ~0.05–0.25 µSv/h (most
+  stations about 0.07–0.15, a few high-elevation / granite sites 0.20–0.25, live network
+  15 Sep 2026), so a color ramp clamped to roughly that span reads best (a 0–1 default
+  ramp makes every station look identical). Check the file's actual min/max before
+  choosing the clamp.
 - A `timeseries` export is single-point (one station, many timesteps at the same
   coordinate) — not useful as a map; steer those to the **strahlenschutz-station-trend**
   skill instead.
