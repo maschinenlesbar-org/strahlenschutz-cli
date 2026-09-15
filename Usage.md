@@ -160,8 +160,8 @@ strahlenschutz --base-url https://www.imis.bfs.de \
                latest --max 5
 ```
 
-`--base-url` overrides the API host, `--timeout` sets the per-request timeout in
-milliseconds, and `--user-agent` sets the request `User-Agent`.
+`--base-url` overrides the API host, `--timeout` sets the time limit per request in
+milliseconds (reading the whole response included), and `--user-agent` sets the request `User-Agent`.
 
 ### 10. Robust automation: retries and a response-size cap
 
@@ -184,7 +184,7 @@ Global options go **before** the command (e.g. `strahlenschutz --compact latest 
 | --- | --- |
 | `-V, --version` | print the version |
 | `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`) |
-| `--timeout <ms>` | per-request timeout in milliseconds |
+| `--timeout <ms>` | time limit per request in milliseconds, whole response included |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | retries for transient `429`/`503` responses |
 | `--max-response-bytes <n>` | cap response body size in bytes (`0` = unlimited; default 100 MiB) |
