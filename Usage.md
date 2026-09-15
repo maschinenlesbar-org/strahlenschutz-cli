@@ -184,7 +184,7 @@ Global options go **before** the command (e.g. `strahlenschutz --compact latest 
 | --- | --- |
 | `-V, --version` | print the version |
 | `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`) |
-| `--timeout <ms>` | time limit per request in milliseconds, whole response included |
+| `--timeout <ms>` | time limit per request in milliseconds, whole response included (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | retries for transient `429`/`503` responses |
 | `--max-response-bytes <n>` | cap response body size in bytes (`0` = unlimited; default 100 MiB) |

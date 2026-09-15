@@ -133,6 +133,17 @@ test("--max rejects hex, exponent, empty, and unsafe magnitudes before any reque
   }
 });
 
+test("--timeout accepts up to the largest timer Node supports", async () => {
+  const cli = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["--timeout", "2147483647", "latest"], cli.deps), 0);
+  assert.equal(cli.mt.last().timeoutMs, 2_147_483_647);
+
+  const over = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["--timeout", "2147483648", "latest"], over.deps), 1);
+  assert.equal(over.mt.calls.length, 0); // rejected before any request
+  assert.match(over.err.join("\n"), /Must be <= 2147483647/);
+});
+
 test("--base-url rejects a non-http(s) scheme at parse time before any request", async () => {
   for (const bad of ["file:///etc/passwd", "ftp://host/x", "not a url"]) {
     const cli = makeCli(() => jsonResponse(fc));

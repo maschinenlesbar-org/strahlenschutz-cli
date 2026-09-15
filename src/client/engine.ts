@@ -24,7 +24,7 @@ export interface EngineOptions {
   userAgent?: string;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
-   * only idle gaps (0 disables). Defaults to 30 s.
+   * only idle gaps (0 disables; capped at MAX_TIMEOUT_MS, 2^31 - 1 ms). Defaults to 30 s.
    */
   timeoutMs?: number;
   /** Number of automatic retries for transient (429/503) responses. */

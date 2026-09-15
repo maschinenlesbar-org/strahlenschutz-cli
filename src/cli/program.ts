@@ -8,7 +8,8 @@ import { Command } from "commander";
 import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { StrahlenschutzClient } from "../client/client.js";
-import { parseIntArg, parseBaseUrl } from "./shared.js";
+import { MAX_TIMEOUT_MS } from "../client/http.js";
+import { parseBoundedInt, parseIntArg, parseBaseUrl } from "./shared.js";
 import { registerOdlCommands } from "./commands/odl.js";
 
 /**
@@ -46,7 +47,11 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     )
     .version(VERSION)
     .option("--base-url <url>", "API base URL", parseBaseUrl, "https://www.imis.bfs.de")
-    .option("--timeout <ms>", "time limit per request in milliseconds, whole response included", parseIntArg)
+    .option(
+      "--timeout <ms>",
+      "time limit per request in milliseconds, whole response included",
+      parseBoundedInt(0, MAX_TIMEOUT_MS),
+    )
     .option("--user-agent <ua>", "User-Agent header value")
     .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg)
     .option(
