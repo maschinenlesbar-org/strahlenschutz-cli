@@ -183,13 +183,14 @@ GitHub Actions workflows under `.github/workflows/`:
 
 ## Website
 
-The project website — <https://maschinenlesbar-org.github.io/strahlenschutz-cli/> in English and
-<https://maschinenlesbar-org.github.io/strahlenschutz-cli/de/> in German — is built from `site/`
-with [Jekyll](https://jekyllrb.com/), [banira](https://sebs.github.io/banira/) web components
-and [Fylgja](https://fylgja.dev/) CSS, and deployed by `docs.yml` together with the TypeDoc API
-reference under `/api/`. Its content comes from this repository: the README intro and quick
-start, the command tree of the built CLI (`site/scripts/cli-reference.mjs`), `Usage.md`,
-`GLOSSARY.md` and the skills. The only repo-specific files are `site/_config.yml` and
+The project website — <https://maschinenlesbar-org.github.io/strahlenschutz-cli/> in English
+and <https://maschinenlesbar-org.github.io/strahlenschutz-cli/de/> in German — is built from
+`site/` with [Jekyll](https://jekyllrb.com/), [banira](https://sebs.github.io/banira/) web
+components and [Fylgja](https://fylgja.dev/) CSS, and deployed by `docs.yml` together with the
+TypeDoc API reference under `/api/`. Its content comes from this repository: the README intro
+and quick start, the command tree of the built CLI (`site/scripts/cli-reference.mjs`),
+`Usage.md`, `GLOSSARY.md`, the skills, and the skill examples in `EXAMPLE.md` (German:
+`EXAMPLE.de.md`). The only repo-specific files are `site/_config.yml` and
 `site/_data/project.yml` (the German intro and the access requirements); the rest of `site/` is
 identical in every maschinenlesbar.org CLI, so change it in all of them together. When the
 README intro changes, update the German intro in `site/_data/project.yml`.
