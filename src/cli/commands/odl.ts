@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, assertEnum, parseIntArg, renderJson } from "../shared.js";
+import { action, assertEnum, parseIntArg, parseNonEmpty, renderJson } from "../shared.js";
 import { StrahlNotFoundError } from "../../client/errors.js";
 import type { FeatureQuery } from "../../client/types.js";
 
@@ -19,7 +19,7 @@ function addQueryOptions(cmd: Command): Command {
   return cmd
     .option("--max <n>", "max features to return", parseIntArg)
     .option("--start <n>", "offset for paging", parseIntArg)
-    .option("--sort <prop>", 'sort by a property (append " D" for descending, e.g. "end_measure D")');
+    .option("--sort <prop>", 'sort by a property (append " D" for descending, e.g. "end_measure D")', parseNonEmpty);
 }
 
 export function registerOdlCommands(program: Command, deps: CliDeps): void {

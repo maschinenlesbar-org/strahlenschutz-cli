@@ -159,3 +159,17 @@ test("--base-url accepts a well-formed https URL", async () => {
   assert.equal(code, 0);
   assert.equal(new URL(cli.mt.last().url).origin, "https://example.test");
 });
+
+test("blank --sort values are rejected at parse time before any request", async () => {
+  const cases: string[][] = [
+    ["latest", "--sort", ""],
+    ["latest", "--sort", "   "],
+    ["timeseries", "091811461", "--sort", ""],
+  ];
+  for (const argv of cases) {
+    const cli = makeCli(() => jsonResponse(fc));
+    const code = await run(argv, cli.deps);
+    assert.notEqual(code, 0, `expected non-zero exit for ${JSON.stringify(argv)}`);
+    assert.equal(cli.mt.calls.length, 0, `expected no request for ${JSON.stringify(argv)}`);
+  }
+});

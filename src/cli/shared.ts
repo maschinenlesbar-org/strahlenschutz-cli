@@ -37,6 +37,17 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
 }
 
 /**
+ * commander value-parser: a value that is not blank. A blank filter would
+ * otherwise be dropped and the command would silently run unfiltered.
+ */
+export function parseNonEmpty(value: string): string {
+  if (value.trim() === "") {
+    throw new InvalidArgumentError("Expected a non-empty value.");
+  }
+  return value;
+}
+
+/**
  * commander value-parser for `--base-url`: accept only a well-formed absolute
  * `http:`/`https:` URL. Rejecting at parse time yields commander's usage error
  * (exit 2) with a clear message and forecloses a non-http(s) scheme up front —
