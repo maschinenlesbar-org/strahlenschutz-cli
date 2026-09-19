@@ -112,3 +112,14 @@ test("a 200 body that is valid JSON but not a FeatureCollection raises StrahlPar
     await assert.rejects(() => clientWith(mt).latest(), StrahlParseError);
   }
 });
+
+test("the client rejects a non-http(s) base URL even with a custom transport", () => {
+  for (const baseUrl of ["file:///etc/passwd", "ftp://example.org"]) {
+    const mt = makeMockTransport(() => jsonResponse(fc));
+    assert.throws(
+      () => new StrahlenschutzClient({ baseUrl, transport: mt.transport }),
+      (err) => err instanceof StrahlError && /Unsupported protocol/.test(err.message),
+    );
+    assert.equal(mt.calls.length, 0);
+  }
+});

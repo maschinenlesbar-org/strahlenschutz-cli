@@ -205,3 +205,23 @@ test("error detail is stripped of C0 and C1 terminal control characters", async 
     },
   );
 });
+
+test("a non-http(s) base URL is rejected at construction, before any request", () => {
+  for (const baseUrl of ["file:///etc/passwd", "ftp://example.org"]) {
+    const mt = makeMockTransport(() => jsonResponse({}));
+    assert.throws(
+      () => new RequestEngine({ baseUrl, transport: mt.transport }),
+      (err) => err instanceof StrahlNetworkError && /Unsupported protocol/.test(err.message),
+    );
+    assert.equal(mt.calls.length, 0);
+  }
+});
+
+test("an unparseable base URL is rejected at construction", () => {
+  const mt = makeMockTransport(() => jsonResponse({}));
+  assert.throws(
+    () => new RequestEngine({ baseUrl: "not a url", transport: mt.transport }),
+    (err) => err instanceof StrahlNetworkError && /Invalid base URL/.test(err.message),
+  );
+  assert.equal(mt.calls.length, 0);
+});
