@@ -156,3 +156,26 @@ test("a base URL with a query or fragment is rejected at construction (userinfo 
     );
   }
 });
+
+test("maxFeatures and startIndex must be non-negative safe integers (no request otherwise)", async () => {
+  for (const [query, message] of [
+    [{ maxFeatures: Number.NaN }, "Invalid maxFeatures: expected a non-negative integer, got NaN."],
+    [{ maxFeatures: -5 }, "Invalid maxFeatures: expected a non-negative integer, got -5."],
+    [{ maxFeatures: 1.5 }, "Invalid maxFeatures: expected a non-negative integer, got 1.5."],
+    [{ maxFeatures: 2 ** 53 }, "Invalid maxFeatures: expected a non-negative integer, got 9007199254740992."],
+    [{ startIndex: -1 }, "Invalid startIndex: expected a non-negative integer, got -1."],
+    [{ startIndex: "10" as unknown as number }, 'Invalid startIndex: expected a non-negative integer, got "10".'],
+  ] as const) {
+    const mt = constantJson(fc);
+    await assert.rejects(
+      () => clientWith(mt).latest(query),
+      (err: unknown) => err instanceof StrahlError && err.message === message,
+    );
+    assert.equal(mt.calls.length, 0);
+  }
+  const mt = constantJson(fc);
+  await clientWith(mt).latest({ maxFeatures: 0, startIndex: 0 });
+  const url = new URL(mt.last().url);
+  assert.equal(url.searchParams.get("count"), "0");
+  assert.equal(url.searchParams.get("startIndex"), "0");
+});

@@ -55,6 +55,20 @@ function assertKenn(kenn: string): string {
 }
 
 /**
+ * A paging value (`maxFeatures` → `count`, `startIndex`) must be a non-negative
+ * safe integer: the query builder would otherwise send `count=NaN`, `count=-5` or
+ * `count=1.5` as typed. The CLI's parsers already guard this; library callers get
+ * the same check here, before any request.
+ */
+function assertPagingInt(name: string, value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    const got = typeof value === "string" ? JSON.stringify(value) : String(value);
+    throw new StrahlError(`Invalid ${name}: expected a non-negative integer, got ${got}.`);
+  }
+  return value;
+}
+
+/**
  * Runtime shape guard for the WFS response. `getJson` casts the parsed body to
  * `T` with no runtime check, so a 200 reply that is valid JSON but not a
  * FeatureCollection (`{}`, `{"features":null}`) would otherwise flow through as
@@ -95,8 +109,8 @@ export class StrahlenschutzClient {
     params["sortBy"] = query.sortBy ?? DEFAULT_SORT_BY[kind];
     // WFS 2.0: the limit is `count` (not the WFS 1.x `maxFeatures`). A `startIndex`
     // without one returns the rest of the collection from that offset.
-    if (query.maxFeatures !== undefined) params["count"] = query.maxFeatures;
-    if (query.startIndex !== undefined) params["startIndex"] = query.startIndex;
+    if (query.maxFeatures !== undefined) params["count"] = assertPagingInt("maxFeatures", query.maxFeatures);
+    if (query.startIndex !== undefined) params["startIndex"] = assertPagingInt("startIndex", query.startIndex);
     return assertFeatureCollection(await this.engine.getJson<unknown>(OWS, params));
   }
 
