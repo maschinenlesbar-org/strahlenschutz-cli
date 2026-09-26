@@ -70,6 +70,11 @@ new StrahlenschutzClient({
 `client.station(kenn)`, `client.timeseries(kenn, resolution, query)`.
 The `FeatureKindValues` enum and the `TYPE_NAMES` map are exported for reference.
 
+Every query is sent with a `sortBy`: the caller's, or `DEFAULT_SORT_BY[kind]`
+(`kenn` for `latest`, `kenn,end_measure` for the time series). The BfS layers have
+no primary key, and GeoServer refuses any `startIndex` on an unsorted query with
+HTTP 400 ("Cannot do natural order without a primary key").
+
 ## Architecture
 
 ```

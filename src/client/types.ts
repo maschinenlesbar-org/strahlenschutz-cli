@@ -38,7 +38,12 @@ export interface FeatureCollection {
 export interface FeatureQuery {
   /** Restrict to a station by its `kenn` id (becomes `CQL_FILTER=kenn='<id>'`). */
   station?: string;
-  /** Property to sort by; append " D" (a space) for descending, e.g. "end_measure D". */
+  /**
+   * Property to sort by; append " D" (a space) for descending, e.g. "end_measure D";
+   * several keys are comma-separated ("end_measure D,kenn"). Defaults to
+   * `DEFAULT_SORT_BY[kind]` (`kenn`, or `kenn,end_measure` for a time series), since
+   * the service can only page a sorted result.
+   */
   sortBy?: string;
   /** Max features to return (sent as the WFS 2.0 `count` parameter). */
   maxFeatures?: number;

@@ -1,6 +1,6 @@
 // Public entry point for the API client library.
 
-export { StrahlenschutzClient } from "./client.js";
+export { StrahlenschutzClient, DEFAULT_SORT_BY } from "./client.js";
 export { RequestEngine, DEFAULT_BASE_URL } from "./engine.js";
 export type { EngineOptions, RawResponse } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";

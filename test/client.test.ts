@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { StrahlenschutzClient } from "../src/client/client.js";
+import { DEFAULT_SORT_BY, StrahlenschutzClient } from "../src/client/client.js";
 import { StrahlApiError, StrahlError, StrahlParseError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
@@ -53,6 +53,25 @@ test("sortBy and startIndex are propagated to the WFS query", async () => {
   const url = new URL(mt.last().url);
   assert.equal(url.searchParams.get("sortBy"), "end_measure D");
   assert.equal(url.searchParams.get("startIndex"), "10");
+});
+
+test("every query is sorted by a stable default key unless the caller sorts", async () => {
+  // The layers have no primary key: GeoServer refuses a startIndex on an unsorted
+  // query with HTTP 400, so the client always sends a sortBy.
+  const cases: Array<[(c: StrahlenschutzClient) => Promise<unknown>, string]> = [
+    [(c) => c.latest(), "kenn"],
+    [(c) => c.latest({ startIndex: 10, maxFeatures: 5 }), "kenn"],
+    [(c) => c.station("091811461"), "kenn"],
+    [(c) => c.timeseries("091811461"), "kenn,end_measure"],
+    [(c) => c.timeseries("091811461", "ts-24h", { startIndex: 2 }), "kenn,end_measure"],
+    [(c) => c.latest({ sortBy: "end_measure D", startIndex: 10 }), "end_measure D"],
+  ];
+  for (const [call, expected] of cases) {
+    const mt = constantJson(fc);
+    await call(clientWith(mt));
+    assert.equal(new URL(mt.last().url).searchParams.get("sortBy"), expected);
+  }
+  assert.deepEqual(DEFAULT_SORT_BY, { latest: "kenn", "ts-1h": "kenn,end_measure", "ts-24h": "kenn,end_measure" });
 });
 
 test("startIndex without an explicit limit gets a default count (WFS 2.0 paging)", async () => {

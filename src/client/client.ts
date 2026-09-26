@@ -24,6 +24,21 @@ const OWS = "/ogc/opendata/ows";
 // to this server-side default page size.
 const DEFAULT_PAGE_COUNT = 1000;
 
+/**
+ * The sort the client sends when the caller gives none. The BfS layers have no
+ * primary key, so GeoServer refuses any `startIndex` on an unsorted query with
+ * HTTP 400 ("Cannot do natural order without a primary key"). Sorting every
+ * query by a stable key makes paging work and keeps pages consistent with an
+ * unpaged `--max` request: `kenn` is unique per station in `latest`, and
+ * `kenn,end_measure` orders a time series oldest first, station by station (the
+ * order the service used anyway). A caller's own `sortBy` replaces it.
+ */
+export const DEFAULT_SORT_BY: Record<FeatureKind, string> = {
+  latest: "kenn",
+  "ts-1h": "kenn,end_measure",
+  "ts-24h": "kenn,end_measure",
+};
+
 // A BfS `kenn` station id is a fixed-format numeric identifier. We validate the
 // shape (digits only, non-empty) at the domain boundary before splicing it into
 // the server-side `CQL_FILTER` (e.g. `kenn='<id>'`). The value is also
@@ -79,7 +94,7 @@ export class StrahlenschutzClient {
       outputFormat: "application/json",
     };
     if (query.station !== undefined) params["CQL_FILTER"] = `kenn='${assertKenn(query.station)}'`;
-    if (query.sortBy !== undefined) params["sortBy"] = query.sortBy;
+    params["sortBy"] = query.sortBy ?? DEFAULT_SORT_BY[kind];
     // WFS 2.0: the limit is `count` (not the WFS 1.x `maxFeatures`). `startIndex`
     // is only honoured alongside a `count`, so supply one when paging without an
     // explicit limit, otherwise the server answers HTTP 400.

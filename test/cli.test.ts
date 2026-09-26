@@ -58,6 +58,14 @@ test("latest --sort and --start propagate to the WFS query", async () => {
   assert.equal(url.searchParams.get("startIndex"), "10");
 });
 
+test("latest --start without --sort sends the default kenn sort, so the service can page", async () => {
+  const cli = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["latest", "--max", "2", "--start", "2"], cli.deps), 0);
+  const url = new URL(cli.mt.last().url);
+  assert.equal(url.searchParams.get("sortBy"), "kenn");
+  assert.equal(url.searchParams.get("startIndex"), "2");
+});
+
 test("station rejects a non-numeric kenn before any request", async () => {
   const cli = makeCli(() => jsonResponse(fc));
   const code = await run(["station", "x;drop"], cli.deps);

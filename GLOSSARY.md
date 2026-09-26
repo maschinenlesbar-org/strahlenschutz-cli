@@ -121,13 +121,17 @@ form is silently ignored by this server on the `latest` type, so it is not used.
 `maxFeatures` is silently ignored by this server, so the client always sends
 `count`.
 
-**startIndex.** The WFS 2.0 paging offset (the CLI's `--start`). It is only
-honoured when accompanied by a `count`; a bare `startIndex` is rejected with HTTP
-400, so the client supplies a default page size (`1000`) when paging without an
-explicit limit.
+**startIndex.** The WFS 2.0 paging offset (the CLI's `--start`). The BfS layers
+have no primary key, so the server can only page a **sorted** result: a
+`startIndex` without a `sortBy` is rejected with HTTP 400 ("Cannot do natural order
+without a primary key"). The client therefore always sends a `sortBy` (see below).
+When paging without an explicit limit it also supplies a default page size (`1000`).
 
 **sortBy.** The WFS parameter selecting the property to sort results by; append
-` D` (a space, e.g. `end_measure D`) for descending order (CLI: `--sort <prop>`).
+` D` (a space, e.g. `end_measure D`) for descending order, and separate several
+keys with commas (`end_measure D,kenn`) (CLI: `--sort <prop>`). Without `--sort`
+the client sorts by `kenn` (`latest`) or `kenn,end_measure` (time series, i.e.
+oldest first) — the `DEFAULT_SORT_BY` map — so every query can be paged.
 
 **outputFormat.** Fixed to `application/json` so every response is GeoJSON.
 

@@ -118,14 +118,17 @@ ignoriert dieser Server beim Typ `latest` stillschweigend, deshalb wird sie nich
 `maxFeatures` aus WFS 1.x ignoriert dieser Server stillschweigend, deshalb sendet der Client
 immer `count`.
 
-**startIndex.** Der Paginierungs-Offset in WFS 2.0 (`--start` in der CLI). Er wird nur
-zusammen mit einem `count` berücksichtigt; ein alleinstehender `startIndex` wird mit HTTP 400
-abgelehnt, deshalb setzt der Client beim Blättern ohne ausdrückliches Limit eine
-Standard-Seitengröße (`1000`).
+**startIndex.** Der Paginierungs-Offset in WFS 2.0 (`--start` in der CLI). Die BfS-Layer
+haben keinen Primärschlüssel, deshalb kann der Server nur ein **sortiertes** Ergebnis
+blättern: Ein `startIndex` ohne `sortBy` wird mit HTTP 400 abgelehnt („Cannot do natural
+order without a primary key“). Der Client sendet deshalb immer ein `sortBy` (siehe unten).
+Beim Blättern ohne ausdrückliches Limit setzt er außerdem eine Standard-Seitengröße (`1000`).
 
 **sortBy.** Der WFS-Parameter, der die Eigenschaft bestimmt, nach der sortiert wird; für
-absteigende Reihenfolge hängen Sie ` D` an (mit Leerzeichen, z. B. `end_measure D`)
-(CLI: `--sort <prop>`).
+absteigende Reihenfolge hängen Sie ` D` an (mit Leerzeichen, z. B. `end_measure D`), mehrere
+Schlüssel trennen Sie mit Kommas (`end_measure D,kenn`) (CLI: `--sort <prop>`). Ohne `--sort`
+sortiert der Client nach `kenn` (`latest`) bzw. `kenn,end_measure` (Zeitreihen, also älteste
+zuerst) – die Tabelle `DEFAULT_SORT_BY` –, damit sich jede Abfrage blättern lässt.
 
 **outputFormat.** Fest auf `application/json` gesetzt, damit jede Antwort GeoJSON ist.
 
