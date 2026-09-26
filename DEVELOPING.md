@@ -138,7 +138,8 @@ CLI run in tests with a mocked client and captured output — no subprocess.
 **Error types.** [`errors.ts`](src/client/errors.ts): `StrahlApiError` (non-2xx,
 or a 2xx OGC `ExceptionReport` where GeoJSON was expected; carries
 `status`/`detail`/`isRetryable`), `StrahlNetworkError` (transport
-failure/timeout), `StrahlParseError` (bad JSON) and `StrahlNotFoundError`
+failure/timeout), `StrahlParseError` (bad JSON, or a 2xx body that is not a FeatureCollection
+whose every feature is a JSON object with a `properties` object) and `StrahlNotFoundError`
 (synthesised for an unknown id) — all extending `StrahlError`. The CLI maps
 `StrahlNotFoundError` to exit code `4`; all other errors map to `1`, an HTTP 404
 included: every command requests the one fixed WFS path, so a 404 means that

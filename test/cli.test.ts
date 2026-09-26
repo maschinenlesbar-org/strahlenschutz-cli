@@ -256,3 +256,11 @@ test("--user-agent rejects blank, control-character and non-Latin-1 values befor
   assert.equal(await run(["--user-agent", "odl-t\u00fcv\t1", "latest", "--max", "1"], cli.deps), 0);
   assert.equal(cli.mt.last().headers?.["User-Agent"], "odl-t\u00fcv\t1");
 });
+
+test("station on a feature list of non-objects exits 1, not a found station", async () => {
+  const cli = makeCli(() => jsonResponse({ type: "FeatureCollection", features: [null] }));
+  const code = await run(["station", "091811461"], cli.deps);
+  assert.equal(code, 1);
+  assert.equal(cli.out.length, 0);
+  assert.match(cli.err.join("\n"), /feature 0 is null\.$/);
+});

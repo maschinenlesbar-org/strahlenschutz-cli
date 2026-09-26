@@ -73,21 +73,39 @@ function assertPagingInt(name: string, value: unknown): number {
  * `T` with no runtime check, so a 200 reply that is valid JSON but not a
  * FeatureCollection (`{}`, `{"features":null}`) would otherwise flow through as
  * a `FeatureCollection` and only fail later when a caller dereferences
- * `features.length` — surfacing as an untyped "Unexpected error". Validating the
- * one field every caller relies on turns that into a typed StrahlParseError.
+ * `features.length` — surfacing as an untyped "Unexpected error". Each feature
+ * must also be a JSON object with a `properties` object (callers read
+ * `f.properties.value`, and `station` must not report `[null]` as a found
+ * station). Only this top-level shape is checked, never the property schema.
  */
 function assertFeatureCollection(value: unknown): FeatureCollection {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !Array.isArray((value as { features?: unknown }).features)
-  ) {
+  if (!isObject(value) || !Array.isArray(value["features"])) {
     throw new StrahlParseError(
       "Unexpected response shape from the WFS: expected a GeoJSON FeatureCollection " +
         "(an object with a `features` array).",
     );
   }
-  return value as FeatureCollection;
+  value["features"].forEach((feature: unknown, i) => {
+    const problem = !isObject(feature) ? `is ${kindOf(feature)}` : !isObject(feature["properties"]) ? "has none" : undefined;
+    if (problem !== undefined) {
+      throw new StrahlParseError(
+        "Unexpected response shape from the WFS: expected every feature to be a JSON object " +
+          `with a properties object, feature ${i} ${problem}.`,
+      );
+    }
+  });
+  return value as unknown as FeatureCollection;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** A short description of a JSON value for a shape error ("null", "a string", …). */
+function kindOf(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "an array";
+  return `a ${typeof value}`;
 }
 
 export class StrahlenschutzClient {

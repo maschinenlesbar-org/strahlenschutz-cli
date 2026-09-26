@@ -179,3 +179,22 @@ test("maxFeatures and startIndex must be non-negative safe integers (no request 
   assert.equal(url.searchParams.get("count"), "0");
   assert.equal(url.searchParams.get("startIndex"), "0");
 });
+
+test("every feature must be a JSON object with a properties object", async () => {
+  for (const [features, message] of [
+    [["a", 1, null], "feature 0 is a string."],
+    [[{ type: "Feature", properties: {} }, null], "feature 1 is null."],
+    [[[1]], "feature 0 is an array."],
+    [[{ type: "Feature", geometry: null }], "feature 0 has none."],
+    [[{ type: "Feature", properties: null }], "feature 0 has none."],
+  ] as const) {
+    const mt = makeMockTransport(() => jsonResponse({ type: "FeatureCollection", features }));
+    await assert.rejects(
+      () => clientWith(mt).latest(),
+      (err: unknown) =>
+        err instanceof StrahlParseError &&
+        err.message ===
+          `Unexpected response shape from the WFS: expected every feature to be a JSON object with a properties object, ${message}`,
+    );
+  }
+});
