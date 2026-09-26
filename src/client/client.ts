@@ -18,11 +18,9 @@ import type { FeatureCollection, FeatureQuery } from "./types.js";
 const OWS = "/ogc/opendata/ows";
 
 // The BfS service speaks WFS 2.0, where the result-limit parameter is `count`
-// (the WFS 1.x `maxFeatures` is silently ignored). Paging with `startIndex` is
-// only honoured when a `count` accompanies it — a bare `startIndex` is rejected
-// with HTTP 400 — so when a caller pages without an explicit limit we fall back
-// to this server-side default page size.
-const DEFAULT_PAGE_COUNT = 1000;
+// (the WFS 1.x `maxFeatures` is silently ignored). A `startIndex` needs no
+// `count`: with a `sortBy` (always sent, see below) the server returns everything
+// from the offset on.
 
 /**
  * The sort the client sends when the caller gives none. The BfS layers have no
@@ -95,11 +93,9 @@ export class StrahlenschutzClient {
     };
     if (query.station !== undefined) params["CQL_FILTER"] = `kenn='${assertKenn(query.station)}'`;
     params["sortBy"] = query.sortBy ?? DEFAULT_SORT_BY[kind];
-    // WFS 2.0: the limit is `count` (not the WFS 1.x `maxFeatures`). `startIndex`
-    // is only honoured alongside a `count`, so supply one when paging without an
-    // explicit limit, otherwise the server answers HTTP 400.
+    // WFS 2.0: the limit is `count` (not the WFS 1.x `maxFeatures`). A `startIndex`
+    // without one returns the rest of the collection from that offset.
     if (query.maxFeatures !== undefined) params["count"] = query.maxFeatures;
-    else if (query.startIndex !== undefined) params["count"] = DEFAULT_PAGE_COUNT;
     if (query.startIndex !== undefined) params["startIndex"] = query.startIndex;
     return assertFeatureCollection(await this.engine.getJson<unknown>(OWS, params));
   }

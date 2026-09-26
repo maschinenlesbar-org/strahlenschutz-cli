@@ -116,7 +116,8 @@ strahlenschutz latest --sort "end_measure D" --start 10 --max 10
 
 `--sort <prop>` sorts by a feature property; append a space and `D` (i.e.
 `"<prop> D"`, quoted) for descending, and separate several keys with commas
-(`"end_measure D,kenn"`). `--start` is the paging offset. The service can only
+(`"end_measure D,kenn"`). `--start` is the paging offset; without `--max` you
+get everything from that offset on. The service can only
 page a sorted result, so without `--sort` the CLI sorts by `kenn` (`latest`) or
 `kenn,end_measure` (`timeseries`, oldest first).
 

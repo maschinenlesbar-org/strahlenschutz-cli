@@ -74,16 +74,17 @@ test("every query is sorted by a stable default key unless the caller sorts", as
   assert.deepEqual(DEFAULT_SORT_BY, { latest: "kenn", "ts-1h": "kenn,end_measure", "ts-24h": "kenn,end_measure" });
 });
 
-test("startIndex without an explicit limit gets a default count (WFS 2.0 paging)", async () => {
-  // WFS 2.0 rejects a bare startIndex with HTTP 400; a count must accompany it.
+test("startIndex without an explicit limit sends no count, so the rest of the collection comes back", async () => {
+  // A made-up count (it used to be 1000) silently cut `--start 600` of 1676 stations
+  // to 1000; with the sortBy the server honours a bare startIndex.
   const mt = constantJson(fc);
   await clientWith(mt).latest({ startIndex: 10 });
   const url = new URL(mt.last().url);
   assert.equal(url.searchParams.get("startIndex"), "10");
-  assert.equal(url.searchParams.get("count"), "1000");
+  assert.equal(url.searchParams.get("count"), null);
 });
 
-test("an explicit maxFeatures takes precedence over the default page count", async () => {
+test("an explicit maxFeatures is sent as count next to startIndex", async () => {
   const mt = constantJson(fc);
   await clientWith(mt).latest({ startIndex: 10, maxFeatures: 5 });
   const url = new URL(mt.last().url);

@@ -47,6 +47,6 @@ export interface FeatureQuery {
   sortBy?: string;
   /** Max features to return (sent as the WFS 2.0 `count` parameter). */
   maxFeatures?: number;
-  /** Offset for paging (WFS 2.0 `startIndex`; requires a `count` to be honoured). */
+  /** Offset for paging (WFS 2.0 `startIndex`); without `maxFeatures`, everything from it on. */
   startIndex?: number;
 }

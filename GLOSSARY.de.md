@@ -122,7 +122,7 @@ immer `count`.
 haben keinen Primärschlüssel, deshalb kann der Server nur ein **sortiertes** Ergebnis
 blättern: Ein `startIndex` ohne `sortBy` wird mit HTTP 400 abgelehnt („Cannot do natural
 order without a primary key“). Der Client sendet deshalb immer ein `sortBy` (siehe unten).
-Beim Blättern ohne ausdrückliches Limit setzt er außerdem eine Standard-Seitengröße (`1000`).
+Ohne `count` (`--max`) liefert der Server alles ab dem Offset.
 
 **sortBy.** Der WFS-Parameter, der die Eigenschaft bestimmt, nach der sortiert wird; für
 absteigende Reihenfolge hängen Sie ` D` an (mit Leerzeichen, z. B. `end_measure D`), mehrere

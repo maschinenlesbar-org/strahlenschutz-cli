@@ -125,7 +125,7 @@ form is silently ignored by this server on the `latest` type, so it is not used.
 have no primary key, so the server can only page a **sorted** result: a
 `startIndex` without a `sortBy` is rejected with HTTP 400 ("Cannot do natural order
 without a primary key"). The client therefore always sends a `sortBy` (see below).
-When paging without an explicit limit it also supplies a default page size (`1000`).
+Without a `count` (`--max`), the server returns everything from the offset on.
 
 **sortBy.** The WFS parameter selecting the property to sort results by; append
 ` D` (a space, e.g. `end_measure D`) for descending order, and separate several
