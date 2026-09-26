@@ -144,6 +144,10 @@ it as the `detail`, for a non-2xx status and for a 2xx body that is not JSON.
 Every detail is stripped of control characters, flattened to one line and cut at
 `MAX_DETAIL_LENGTH` (500) characters; the full body stays on `StrahlApiError.body`.
 
+**Userinfo redaction.** A base URL may carry `user:password@` (Node sends it as
+Basic auth, e.g. for a mirror). Error messages and `StrahlApiError.url` show it as
+`***@` (the exported `redactUrl`); the request itself keeps it.
+
 **Cross-origin credential strip.** On a redirect to a different origin, the
 engine drops credential-bearing headers (`Authorization`/`X-API-Key`/`Cookie`);
 an `https`→`http` downgrade redirect is refused outright.

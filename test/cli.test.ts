@@ -204,3 +204,13 @@ test("a WFS ExceptionReport shows its reason on stderr, exit 1", async () => {
     /^Error: HTTP 400 for GET https:\/\/www\.imis\.bfs\.de\/ogc\/opendata\/ows\?.*sortBy=bogus_prop.*: Illegal property name: bogus_prop for feature type opendata:odlinfo_odl_1h_latest$/,
   );
 });
+
+test("userinfo in --base-url is sent but redacted in error messages", async () => {
+  const cli = makeCli(() => jsonResponse({ detail: "boom" }, 500));
+  const code = await run(["--base-url", "http://user:s3cretpw@127.0.0.1:18133/e500", "latest", "--max", "1"], cli.deps);
+  assert.equal(code, 1);
+  assert.ok(cli.mt.last().url.startsWith("http://user:s3cretpw@127.0.0.1:18133/e500/"));
+  const stderr = cli.err.join("\n");
+  assert.ok(!stderr.includes("s3cretpw"), stderr);
+  assert.match(stderr, /^Error: HTTP 500 for GET http:\/\/\*\*\*@127\.0\.0\.1:18133\/e500\/ogc\/opendata\/ows\?.*: boom$/);
+});

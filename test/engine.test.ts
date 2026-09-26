@@ -339,3 +339,22 @@ test("a non-JSON, non-ExceptionReport 200 body stays a StrahlParseError", async 
   const e = new RequestEngine({ transport: mt.transport });
   await assert.rejects(() => e.getJson("/ows"), StrahlParseError);
 });
+
+test("redirect and base-URL errors redact userinfo", async () => {
+  const noLocation = makeMockTransport(() => ({ status: 302, headers: {}, body: Buffer.alloc(0) }));
+  const e = new RequestEngine({ baseUrl: "https://u:s3cretpw@a.example", transport: noLocation.transport });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) => err instanceof StrahlNetworkError && /https:\/\/\*\*\*@a\.example\/x/.test(err.message) && !err.message.includes("s3cretpw"),
+  );
+  const downgrade = makeMockTransport(() => ({ status: 302, headers: { location: "http://v:pw2@b.example/y" }, body: Buffer.alloc(0) }));
+  const d = new RequestEngine({ baseUrl: "https://u:s3cretpw@a.example", transport: downgrade.transport });
+  await assert.rejects(
+    () => d.getJson("/x"),
+    (err: unknown) => err instanceof StrahlNetworkError && !err.message.includes("s3cretpw") && !err.message.includes("pw2"),
+  );
+  assert.throws(
+    () => new RequestEngine({ baseUrl: "ftp://u:s3cretpw@a.example" }),
+    (err: unknown) => err instanceof StrahlNetworkError && !err.message.includes("s3cretpw"),
+  );
+});

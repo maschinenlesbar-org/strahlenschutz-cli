@@ -19,6 +19,7 @@ export {
   StrahlApiError,
   StrahlNetworkError,
   StrahlParseError,
+  redactUrl,
 } from "./errors.js";
 
 export * from "./enums.js";

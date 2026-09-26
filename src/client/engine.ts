@@ -4,7 +4,7 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { StrahlApiError, StrahlNetworkError, StrahlParseError } from "./errors.js";
+import { StrahlApiError, StrahlNetworkError, StrahlParseError, redactUrl } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://www.imis.bfs.de";
 const DEFAULT_USER_AGENT = "strahlenschutz-cli";
@@ -166,11 +166,11 @@ function assertHttpScheme(baseUrl: string): void {
   try {
     url = new URL(baseUrl);
   } catch {
-    throw new StrahlNetworkError(`Invalid base URL: ${baseUrl}`);
+    throw new StrahlNetworkError(`Invalid base URL: ${redactUrl(baseUrl)}`);
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new StrahlNetworkError(
-      `Unsupported protocol "${url.protocol}" in base URL: ${baseUrl}`,
+      `Unsupported protocol "${url.protocol}" in base URL: ${redactUrl(baseUrl)}`,
     );
   }
 }
@@ -250,13 +250,13 @@ export class RequestEngine {
       if (status >= 300 && status < 400) {
         if (redirects >= this.maxRedirects) {
           throw new StrahlNetworkError(
-            `Too many redirects (>${this.maxRedirects}) for ${method} ${url}`,
+            `Too many redirects (>${this.maxRedirects}) for ${method} ${redactUrl(url)}`,
           );
         }
         const location = response.headers["location"];
         if (typeof location !== "string" || location.length === 0) {
           throw new StrahlNetworkError(
-            `Redirect status ${status} for ${method} ${url} without a Location header`,
+            `Redirect status ${status} for ${method} ${redactUrl(url)} without a Location header`,
           );
         }
 
@@ -267,7 +267,7 @@ export class RequestEngine {
         // redirect that strips transport security).
         if (from.protocol === "https:" && to.protocol === "http:") {
           throw new StrahlNetworkError(
-            `Refusing to follow https->http downgrade redirect from ${url} to ${to.toString()}`,
+            `Refusing to follow https->http downgrade redirect from ${redactUrl(url)} to ${redactUrl(to.toString())}`,
           );
         }
 
