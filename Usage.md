@@ -110,9 +110,18 @@ strahlenschutz --compact latest \
 You can also ask the WFS to sort server-side and page through results:
 
 ```bash
-# Most recent readings first, then skip the first 10 (paging)
-strahlenschutz latest --sort "end_measure D" --start 10 --max 10
+# Page through the network in a stable order (by station id), 10 at a time
+strahlenschutz latest --sort kenn --max 10
+strahlenschutz latest --sort kenn --max 10 --start 10
 ```
+
+Page on a unique key such as `kenn`. Many stations share the same `end_measure`
+(the same hour), so a sort on it alone leaves the order within that hour open,
+and a station can move between pages; add `kenn` as a tie-breaker
+(`--sort "end_measure D,kenn"`). A **descending** sort also lists the stations
+without a reading first: the WFS sorts `null` highest, so `"end_measure D"` and
+`"value D"` start with the roughly 90 `defekt` / `Testbetrieb` stations whose
+`end_measure` and `value` are `null`. For a ranking, sort client-side as above.
 
 `--sort <prop>` sorts by a feature property; append a space and `D` (i.e.
 `"<prop> D"`, quoted) for descending, and separate several keys with commas

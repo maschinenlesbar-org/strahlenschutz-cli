@@ -117,9 +117,11 @@ strahlenschutz timeseries 091811461 --sort "end_measure D" --max 24
 # Daily time series for a longer-term view
 strahlenschutz timeseries 091811461 --resolution ts-24h
 
-# Page through the network (most-recent first, 10 at a time)
-strahlenschutz latest --sort "end_measure D" --max 10 --start 0
-strahlenschutz latest --sort "end_measure D" --max 10 --start 10
+# Page through the network in a stable order (by station id), 10 at a time
+strahlenschutz latest --sort kenn --max 10 --start 0
+strahlenschutz latest --sort kenn --max 10 --start 10
+# (a descending sort such as "end_measure D" or "value D" lists the ~90 defekt
+#  stations first: their end_measure and value are null, which the WFS sorts highest)
 ```
 
 ## Output & scripting
