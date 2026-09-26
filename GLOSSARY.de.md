@@ -83,7 +83,9 @@ WFS-`typeName`: `opendata:odlinfo_timeseries_odl_1h`. CLI:
 
 **ts-24h (tägliche Zeitreihe).** Die ODL-Zeitreihe einer Messstelle aus Tagesmittelwerten.
 WFS-`typeName`: `opendata:odlinfo_timeseries_odl_24h`. CLI:
-`timeseries --resolution ts-24h`.
+`timeseries --resolution ts-24h`. Der Layer enthält derzeit nur eine Messstelle, Flensburg
+(`010010001`, etwa ein Jahr Tageswerte; Stand 26.09.2026); für jede andere Messstelle kommt
+eine leere Collection zurück.
 
 Diese Werte bilden das const-Array `FeatureKindValues`; die Map `TYPE_NAMES` (beide exportiert)
 übersetzt jede Feature-Art in ihren WFS-`typeName`.

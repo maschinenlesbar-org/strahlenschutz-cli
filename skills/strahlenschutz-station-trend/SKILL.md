@@ -58,8 +58,8 @@ readings; report its `name` and `site_status_text`.
 
 ## Step 2 — Pull the series, NEWEST FIRST (the ordering trap)
 
-The hourly series is the default and the only one with data (see the ts-24h note
-below). **It comes back oldest-first**, so a bare `--max 24` gives you the *oldest*
+The hourly series is the default and the one with data for every station (see the
+ts-24h note below). **It comes back oldest-first**, so a bare `--max 24` gives you the *oldest*
 24 hours, not the latest. To get the most recent window, sort descending on
 `end_measure`:
 
@@ -69,10 +69,11 @@ strahlenschutz --compact timeseries <kenn> --sort "end_measure D" --max 48
 
 - Default resolution is `ts-1h` (hourly). The full series is ~1 week (~167 points).
 - `--max` caps the window; `--start` pages. For a longer pull, raise `--max`.
-- **`--resolution ts-24h` currently returns an empty collection for every station
-  tested** — the daily-averaged series is dormant upstream. If a user asks for a
-  daily view, fetch `ts-1h` and average it yourself per day, and say the native
-  daily series is empty rather than reporting "no data".
+- **`--resolution ts-24h` currently has data for one station only** — Flensburg,
+  `010010001` (about a year of daily values, 26 Sep 2026); every other station
+  returns an empty collection. If a user asks for a daily view of another station,
+  fetch `ts-1h` and average it yourself per day, and say the native daily series is
+  empty for that station rather than reporting "no data".
 
 Each feature's `properties`:
 

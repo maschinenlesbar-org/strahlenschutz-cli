@@ -151,8 +151,12 @@ strahlenschutz timeseries 091811461 --sort "end_measure D" --max 24
 Look at the longer-term daily-averaged trend instead of hourly noise.
 
 ```bash
-strahlenschutz timeseries 091811461 --resolution ts-24h
+strahlenschutz timeseries 010010001 --resolution ts-24h --sort "end_measure D" --max 30
 ```
+
+The daily layer currently holds a series for **one station only**, Flensburg
+(`010010001`: 364 daily values, checked 26 Sep 2026). Every other station returns
+an empty collection with `ts-24h`; for them, average the hourly series per day.
 
 Only `ts-1h` and `ts-24h` are accepted for `--resolution`; anything else is
 rejected with a clear error.

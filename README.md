@@ -114,8 +114,9 @@ strahlenschutz station 091811461
 # (the series is oldest first, so a bare --max 24 gives the oldest 24 hours of the week)
 strahlenschutz timeseries 091811461 --sort "end_measure D" --max 24
 
-# Daily time series for a longer-term view
-strahlenschutz timeseries 091811461 --resolution ts-24h
+# Daily time series for a longer-term view — upstream currently has one only for
+# Flensburg (010010001, about a year of daily values); other stations come back empty
+strahlenschutz timeseries 010010001 --resolution ts-24h --sort "end_measure D" --max 30
 
 # Page through the network in a stable order (by station id), 10 at a time
 strahlenschutz latest --sort kenn --max 10 --start 0

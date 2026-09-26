@@ -94,8 +94,9 @@ skills encode the non-obvious parts of this API, for example:
 - the hourly time series comes back **oldest-first**, so a bare `--max 24` returns the
   *oldest* 24 hours; use `--sort "end_measure D"` to get the latest window (see
   **strahlenschutz-station-trend**);
-- the **`ts-24h` daily series is empty upstream** on every station tested — derive a daily
-  view by averaging the hourly series rather than reporting "no data";
+- the **`ts-24h` daily series covers one station only** (Flensburg, `010010001`) and is
+  empty for every other one — derive a daily view by averaging the hourly series rather
+  than reporting "no data";
 - the CLI has **no bbox/radius parameter**, so geo-filtering to a region is done
   client-side on `geometry.coordinates` (already `[lon, lat]`, EPSG:4326 — no flipping);
 - `station <kenn>` exits **4** ("No station found") for an unknown `kenn`, but

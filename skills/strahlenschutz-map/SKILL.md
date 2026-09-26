@@ -108,5 +108,6 @@ Validity checklist before handing it over:
 
 ## Known data gap
 
-- The `ts-24h` (daily) feature type is empty upstream, so daily map snapshots aren't
-  available; map the hourly `latest` instead.
+- The `ts-24h` (daily) feature type holds one station only (Flensburg, `010010001`),
+  so daily map snapshots of the network aren't available; map the hourly `latest`
+  instead.

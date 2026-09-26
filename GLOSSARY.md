@@ -86,7 +86,9 @@ WFS `typeName`: `opendata:odlinfo_timeseries_odl_1h`. CLI:
 
 **ts-24h (daily time series).** The daily-averaged ODL time series for a station.
 WFS `typeName`: `opendata:odlinfo_timeseries_odl_24h`. CLI:
-`timeseries --resolution ts-24h`.
+`timeseries --resolution ts-24h`. The layer currently holds one station only,
+Flensburg (`010010001`, about a year of daily values; checked 26 Sep 2026); every
+other station returns an empty collection.
 
 These values are the `FeatureKindValues` const array; the `TYPE_NAMES` map (both
 exported) translates each friendly kind to its WFS `typeName`.
