@@ -4,7 +4,7 @@ import { run } from "../src/cli/run.js";
 import { StrahlenschutzClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, jsonResponse } from "./helpers.js";
+import { LIVE_EXCEPTION_REPORT, makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 const fc = { type: "FeatureCollection", features: [] };
 
@@ -192,4 +192,15 @@ test("--max-retries is bounded to 0..10", async () => {
       assert.equal(cli.mt.calls.length, 0);
     }
   }
+});
+
+test("a WFS ExceptionReport shows its reason on stderr, exit 1", async () => {
+  const cli = makeCli(() => rawResponse(LIVE_EXCEPTION_REPORT, "application/xml", 400));
+  const code = await run(["--compact", "timeseries", "091811461", "--max", "2", "--sort", "bogus_prop"], cli.deps);
+  assert.equal(code, 1);
+  assert.equal(cli.err.length, 1);
+  assert.match(
+    cli.err[0] ?? "",
+    /^Error: HTTP 400 for GET https:\/\/www\.imis\.bfs\.de\/ogc\/opendata\/ows\?.*sortBy=bogus_prop.*: Illegal property name: bogus_prop for feature type opendata:odlinfo_odl_1h_latest$/,
+  );
 });

@@ -13,6 +13,8 @@ export interface RawResponse {
   data: Buffer;
   contentType: string;
   status: number;
+  /** The URL that answered (after any redirects). */
+  url: string;
 }
 
 export interface EngineOptions {
@@ -106,6 +108,51 @@ function sanitizeServerText(text: string): string {
     out += ch;
   }
   return out;
+}
+
+/** Longest error detail kept in a message; the full body stays on `StrahlApiError.body`. */
+export const MAX_DETAIL_LENGTH = 500;
+
+/**
+ * Make server text fit for a one-line error message: control characters stripped,
+ * every run of whitespace (newlines included, so no forged "Error:" line) turned
+ * into one space, and cut at MAX_DETAIL_LENGTH characters.
+ */
+function cleanDetail(text: string): string | undefined {
+  const flat = sanitizeServerText(text).replace(/\s+/g, " ").trim();
+  if (flat === "") return undefined;
+  return flat.length > MAX_DETAIL_LENGTH ? `${flat.slice(0, MAX_DETAIL_LENGTH)}…` : flat;
+}
+
+const XML_ENTITIES: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
+
+/** Decode the five predefined XML entities, character references and CDATA sections. */
+function decodeXmlText(text: string): string {
+  return text
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&(?:#x([0-9a-fA-F]{1,6})|#([0-9]{1,7})|(lt|gt|amp|quot|apos));/g, (whole, hex, dec, name) => {
+      if (name !== undefined) return XML_ENTITIES[name as string] ?? whole;
+      const code = Number.parseInt((hex ?? dec) as string, hex !== undefined ? 16 : 10);
+      return code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+    });
+}
+
+/**
+ * The reason text of an OGC `ows:ExceptionReport` — the XML document GeoServer
+ * answers a bad WFS request with (HTTP 400, and for some errors HTTP 200), e.g.
+ * `Illegal property name: bogus_prop for feature type …`. Returns the
+ * `ExceptionText` elements (any namespace prefix) joined with "; ", else the
+ * `exceptionCode` attribute, cleaned for a one-line message; `undefined` when the
+ * body is not an ExceptionReport. A regex is enough here: no XML dependency.
+ */
+export function owsExceptionText(body: string): string | undefined {
+  if (!/<(?:[\w.-]+:)?ExceptionReport[\s>]/.test(body)) return undefined;
+  const texts = [...body.matchAll(/<((?:[\w.-]+:)?ExceptionText)\b[^>]*>([\s\S]*?)<\/\1\s*>/g)]
+    .map((m) => cleanDetail(decodeXmlText(m[2] ?? "")))
+    .filter((t): t is string => t !== undefined);
+  if (texts.length > 0) return cleanDetail([...new Set(texts)].join("; "));
+  const code = /\bexceptionCode\s*=\s*"([^"]*)"/.exec(body)?.[1];
+  return code === undefined ? undefined : cleanDetail(decodeXmlText(code));
 }
 
 /**
@@ -246,7 +293,7 @@ export class RequestEngine {
         throw this.toApiError(method, url, status, response.body);
       }
 
-      return { data: response.body, contentType, status };
+      return { data: response.body, contentType, status, url };
     }
   }
 
@@ -257,6 +304,12 @@ export class RequestEngine {
     try {
       return JSON.parse(text) as T;
     } catch (cause) {
+      // GeoServer answers some bad requests with HTTP 200 and an OGC
+      // ExceptionReport (XML) instead of GeoJSON: report its reason, not a parse error.
+      const exception = owsExceptionText(text);
+      if (exception !== undefined) {
+        throw new StrahlApiError({ status: res.status, url: res.url, method: "GET", body: text, detail: exception });
+      }
       throw new StrahlParseError(`Failed to parse JSON response from ${path}`, { cause });
     }
   }
@@ -269,11 +322,13 @@ export class RequestEngine {
       if (parsed && typeof parsed.detail === "string") detail = parsed.detail;
       else if (parsed && typeof parsed.message === "string") detail = parsed.message;
     } catch {
-      // Non-JSON error body; leave detail undefined.
+      // Not JSON: GeoServer's errors are an OGC ExceptionReport (XML).
+      detail = owsExceptionText(text);
     }
     // `detail` came from the response body; strip control characters so a hostile
-    // endpoint cannot inject terminal escape sequences via the stderr error message.
-    if (detail !== undefined) detail = sanitizeServerText(detail);
+    // endpoint cannot inject terminal escape sequences via the stderr error message,
+    // and keep it to one bounded line.
+    if (detail !== undefined) detail = cleanDetail(detail);
     return new StrahlApiError({ status, url, method, body: text, detail });
   }
 }

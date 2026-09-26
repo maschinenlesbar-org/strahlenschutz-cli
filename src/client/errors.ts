@@ -10,8 +10,10 @@ export class StrahlError extends Error {
 }
 
 /**
- * The API responded with a non-2xx status code. `detail` holds a human-readable
- * message extracted from the response body when one is present.
+ * The API reported an error: a non-2xx status code, or (with a 2xx `status`) an
+ * OGC ExceptionReport where GeoJSON was expected. `detail` holds a human-readable
+ * message extracted from the response body when one is present (a JSON
+ * `detail`/`message`, or the ExceptionReport's `ExceptionText`).
  */
 export class StrahlApiError extends StrahlError {
   readonly status: number;
@@ -28,7 +30,9 @@ export class StrahlApiError extends StrahlError {
     detail?: string;
   }) {
     const detailPart = args.detail ? `: ${args.detail}` : "";
-    super(`HTTP ${args.status} for ${args.method} ${args.url}${detailPart}`);
+    const head =
+      args.status >= 200 && args.status < 300 ? `WFS exception (HTTP ${args.status})` : `HTTP ${args.status}`;
+    super(`${head} for ${args.method} ${args.url}${detailPart}`);
     this.status = args.status;
     this.url = args.url;
     this.method = args.method;

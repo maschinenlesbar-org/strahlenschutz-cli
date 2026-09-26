@@ -60,3 +60,12 @@ export function makeMockTransport(
 export function constantJson(body: unknown, status = 200): MockTransport {
   return makeMockTransport(() => jsonResponse(body, status));
 }
+
+/** The body the live GeoServer sent for `sortBy=bogus_prop` (2026-09-26). */
+export const LIVE_EXCEPTION_REPORT =
+  '<?xml version="1.0" encoding="UTF-8"?><ows:ExceptionReport xmlns:xs="http://www.w3.org/2001/XMLSchema" ' +
+  'xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.0.0" ' +
+  'xsi:schemaLocation="http://www.opengis.net/ows/1.1 https://www.imis.bfs.de/geoserver-public/schemas/ows/1.1.0/owsAll.xsd">\n' +
+  '  <ows:Exception exceptionCode="InvalidParameterValue" locator="GetFeature">\n' +
+  "    <ows:ExceptionText>Illegal property name: bogus_prop for feature type opendata:odlinfo_odl_1h_latest</ows:ExceptionText>\n" +
+  "  </ows:Exception>\n</ows:ExceptionReport>\n";

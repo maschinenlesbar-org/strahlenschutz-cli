@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_RETRY_AFTER_MS, RequestEngine, parseRetryAfter } from "../src/client/engine.js";
+import { MAX_RETRY_AFTER_MS, RequestEngine, owsExceptionText, parseRetryAfter } from "../src/client/engine.js";
 import { StrahlApiError, StrahlNetworkError, StrahlParseError } from "../src/client/errors.js";
 import type { HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
+import { LIVE_EXCEPTION_REPORT, makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 /** A 30x redirect response pointing at `location`. */
 function redirectResponse(location: string, status = 302): HttpResponse {
@@ -283,4 +283,59 @@ test("parseRetryAfter reads delay-seconds and IMF-fixdate HTTP-dates", () => {
     assert.equal(parseRetryAfter(bad, now), undefined, String(bad));
   }
   assert.equal(MAX_RETRY_AFTER_MS, 30_000);
+});
+
+// ---- OGC ExceptionReport ----
+
+test("a 400 ExceptionReport puts its ExceptionText into the error detail", async () => {
+  const mt = makeMockTransport(() => rawResponse(LIVE_EXCEPTION_REPORT, "application/xml", 400));
+  const e = new RequestEngine({ baseUrl: "https://a.example", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/ows", { sortBy: "bogus_prop" }),
+    (err: unknown) =>
+      err instanceof StrahlApiError &&
+      err.status === 400 &&
+      err.detail === "Illegal property name: bogus_prop for feature type opendata:odlinfo_odl_1h_latest" &&
+      err.message ===
+        "HTTP 400 for GET https://a.example/ows?sortBy=bogus_prop: " +
+          "Illegal property name: bogus_prop for feature type opendata:odlinfo_odl_1h_latest",
+  );
+});
+
+test("a 200 ExceptionReport is a StrahlApiError with its reason, not a JSON parse error", async () => {
+  const mt = makeMockTransport(() => rawResponse(LIVE_EXCEPTION_REPORT, "application/xml", 200));
+  const e = new RequestEngine({ baseUrl: "https://a.example", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/ows"),
+    (err: unknown) =>
+      err instanceof StrahlApiError &&
+      err.status === 200 &&
+      !err.isRetryable &&
+      err.message ===
+        "WFS exception (HTTP 200) for GET https://a.example/ows: " +
+          "Illegal property name: bogus_prop for feature type opendata:odlinfo_odl_1h_latest",
+  );
+});
+
+test("owsExceptionText decodes entities, joins texts, flattens lines and strips controls", () => {
+  const esc = String.fromCharCode(0x1b);
+  const report = (inner: string) => `<ExceptionReport><Exception exceptionCode="NoApplicableCode">${inner}</Exception></ExceptionReport>`;
+  assert.equal(
+    owsExceptionText(report("<ExceptionText>a &lt;b&gt; &amp; &#x41;&#66;\nError: forged</ExceptionText><ExceptionText>two</ExceptionText>")),
+    "a <b> & AB Error: forged; two",
+  );
+  assert.equal(owsExceptionText(report(`<ows:ExceptionText><![CDATA[x ${esc}[31my]]></ows:ExceptionText>`)), "x [31my");
+  assert.equal(owsExceptionText(report("")), "NoApplicableCode");
+  const long = owsExceptionText(report(`<ExceptionText>${"x".repeat(5000)}</ExceptionText>`)) ?? "";
+  assert.equal(long.length, 501);
+  assert.ok(long.endsWith("…"));
+  for (const notAReport of ["<html><body>Bad Request</body></html>", "", "{}"]) {
+    assert.equal(owsExceptionText(notAReport), undefined, notAReport);
+  }
+});
+
+test("a non-JSON, non-ExceptionReport 200 body stays a StrahlParseError", async () => {
+  const mt = makeMockTransport(() => rawResponse("<html>oops</html>", "text/html"));
+  const e = new RequestEngine({ transport: mt.transport });
+  await assert.rejects(() => e.getJson("/ows"), StrahlParseError);
 });

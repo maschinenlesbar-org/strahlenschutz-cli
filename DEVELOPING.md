@@ -131,10 +131,18 @@ booleans, ISO-formats `Date`, and encodes spaces as `%20`.
 CLI run in tests with a mocked client and captured output — no subprocess.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `StrahlApiError` (non-2xx,
-carries `status`/`detail`/`isRetryable`), `StrahlNetworkError` (transport
+or a 2xx OGC `ExceptionReport` where GeoJSON was expected; carries
+`status`/`detail`/`isRetryable`), `StrahlNetworkError` (transport
 failure/timeout), `StrahlParseError` (bad JSON) and `StrahlNotFoundError`
 (synthesised for an unknown id) — all extending `StrahlError`. The CLI maps
 `StrahlNotFoundError`/HTTP 404 to exit code `4`; all other errors map to `1`.
+
+**Error detail.** GeoServer reports a bad request as an OGC `ows:ExceptionReport`
+(XML). The engine's exported `owsExceptionText` pulls its `ExceptionText` (any
+namespace prefix, entities decoded) out with a regex — no XML dependency — and uses
+it as the `detail`, for a non-2xx status and for a 2xx body that is not JSON.
+Every detail is stripped of control characters, flattened to one line and cut at
+`MAX_DETAIL_LENGTH` (500) characters; the full body stays on `StrahlApiError.body`.
 
 **Cross-origin credential strip.** On a redirect to a different origin, the
 engine drops credential-bearing headers (`Authorization`/`X-API-Key`/`Cookie`);

@@ -135,6 +135,12 @@ oldest first) — the `DEFAULT_SORT_BY` map — so every query can be paged.
 
 **outputFormat.** Fixed to `application/json` so every response is GeoJSON.
 
+**ExceptionReport.** The OGC XML document the WFS answers a bad request with
+(usually HTTP 400, for some errors HTTP 200), e.g. for an unknown `--sort`
+property. The CLI shows its `ExceptionText` after the status:
+`Error: HTTP 400 for GET …: Illegal property name: bogus_prop for feature type …`
+(exit `1`); a `200` one reads `WFS exception (HTTP 200) for GET …`.
+
 ---
 
 ## Client query options
