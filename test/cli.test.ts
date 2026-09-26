@@ -238,3 +238,21 @@ test("--base-url with a query, fragment or surrounding whitespace is a usage err
   assert.equal(await run(["--base-url", "https://mirror.example/bfs/", "latest"], prefixed.deps), 0);
   assert.equal(new URL(prefixed.mt.last().url).pathname, "/bfs/ogc/opendata/ows");
 });
+
+test("--user-agent rejects blank, control-character and non-Latin-1 values before any request", async () => {
+  for (const [ua, msg] of [
+    ["", /Expected a non-empty value\./],
+    ["  ", /Expected a non-empty value\./],
+    ["a\r\nX-Evil: 1", /Value contains control characters\./],
+    ["odl \u{1F642}", /Value contains characters outside Latin-1 \(above U\+00FF\)\./],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse(fc));
+    const code = await run(["--user-agent", ua, "latest", "--max", "1"], cli.deps);
+    assert.equal(code, 1, JSON.stringify(ua));
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), msg);
+  }
+  const cli = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["--user-agent", "odl-t\u00fcv\t1", "latest", "--max", "1"], cli.deps), 0);
+  assert.equal(cli.mt.last().headers?.["User-Agent"], "odl-t\u00fcv\t1");
+});

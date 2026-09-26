@@ -193,7 +193,7 @@ These apply to every command and may be given **before or after** the command:
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`); `http(s)` only, a path prefix is fine, no `?query` or `#fragment` |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; at most `2147483647`) |
-| `--user-agent <ua>` | `User-Agent` header value |
+| `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters, Latin-1 only) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (`0`–`10`, default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried), else 200 ms, 400 ms, … |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
