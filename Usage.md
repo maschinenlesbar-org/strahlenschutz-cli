@@ -129,10 +129,12 @@ Inspect short-term trend for one station — the default resolution is hourly.
 strahlenschutz timeseries 091811461
 ```
 
-This is equivalent to `--resolution ts-1h`. Cap the window with `--max`:
+This is equivalent to `--resolution ts-1h`. The series covers about a week and
+comes back **oldest first**, so `--max` alone gives the *oldest* hours. For the
+latest 24 hours, sort newest first and cap the window with `--max`:
 
 ```bash
-strahlenschutz timeseries 091811461 --max 24
+strahlenschutz timeseries 091811461 --sort "end_measure D" --max 24
 ```
 
 ### 7. Daily (24h-averaged) time series
@@ -151,11 +153,13 @@ rejected with a clear error.
 Reduce the hourly series to a time/value list a chart tool can read.
 
 ```bash
-strahlenschutz --compact timeseries 091811461 --resolution ts-1h --max 48 \
-  | jq -r '.features[] | [.properties.end_measure, .properties.value] | @csv'
+strahlenschutz --compact timeseries 091811461 --resolution ts-1h --sort "end_measure D" --max 48 \
+  | jq -r '.features | reverse[] | [.properties.end_measure, .properties.value] | @csv'
 ```
 
 `end_measure` is the timestamp of each reading; `value` is the µSv/h dose rate.
+`--sort "end_measure D" --max 48` picks the latest 48 hours, and `reverse` puts
+them back in time order for the chart.
 
 ### 9. Run against a custom endpoint or with a longer timeout
 

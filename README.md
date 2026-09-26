@@ -110,8 +110,9 @@ strahlenschutz latest --max 5
 # One station you care about
 strahlenschutz station 091811461
 
-# Hourly time series — last 24 hours of readings
-strahlenschutz timeseries 091811461 --max 24
+# Hourly time series — last 24 hours of readings, newest first
+# (the series is oldest first, so a bare --max 24 gives the oldest 24 hours of the week)
+strahlenschutz timeseries 091811461 --sort "end_measure D" --max 24
 
 # Daily time series for a longer-term view
 strahlenschutz timeseries 091811461 --resolution ts-24h
@@ -135,9 +136,9 @@ strahlenschutz --compact station 091811461 \
 strahlenschutz --compact latest \
   | jq -r '.features[] | [.properties.kenn, .properties.value] | @tsv'
 
-# Plot-ready CSV: timestamp + value for the hourly series
-strahlenschutz --compact timeseries 091811461 --max 48 \
-  | jq -r '.features[] | [.properties.end_measure, .properties.value] | @csv'
+# Plot-ready CSV: timestamp + value for the last 48 hours, oldest row first
+strahlenschutz --compact timeseries 091811461 --sort "end_measure D" --max 48 \
+  | jq -r '.features | reverse[] | [.properties.end_measure, .properties.value] | @csv'
 ```
 
 Use `--compact` for single-line JSON in pipelines and logs:
