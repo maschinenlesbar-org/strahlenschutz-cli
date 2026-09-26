@@ -203,7 +203,8 @@ each after the server's `Retry-After` (up to 30 s; a longer one is reported at
 once), or else after 200 ms, 400 ms, …;
 `--max-response-bytes` aborts responses larger than the given size (`0` =
 unlimited). Exit codes: `0` success, `4` on a not-found station (`station`
-only), `1` for any other error, and a non-zero code for usage errors.
+only), `1` for any other error (an HTTP `404` included: the WFS endpoint itself
+is missing, e.g. a wrong `--base-url`), and a non-zero code for usage errors.
 
 ## Global options recap
 

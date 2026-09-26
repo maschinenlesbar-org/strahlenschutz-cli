@@ -159,7 +159,7 @@ do the same thing.
 | Code | Meaning |
 | --- | --- |
 | `0` | success (also `--help` / `--version`) |
-| `1` | error — API error, network failure, parse error, or any other problem |
+| `1` | error — API error (an HTTP `404` too: it means the WFS endpoint is missing, e.g. a wrong `--base-url`), network failure, parse error, or any other problem |
 | `4` | station not found — `station <kenn>` returned no features (WFS always returns 200 with an empty collection for unknown ids; `timeseries` and `latest --station` exit `0` with the empty collection) |
 | non-zero | usage / argument-validation error (bad flag or argument) |
 

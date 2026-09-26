@@ -117,10 +117,17 @@ test("DEL and C1 control characters in server data are escaped in the JSON outpu
   }
 });
 
-test("a 404 from the API maps to exit code 4", async () => {
-  const cli = makeCli(() => jsonResponse({}, 404));
-  const code = await run(["latest"], cli.deps);
-  assert.equal(code, 4);
+test("an HTTP 404 exits 1 with an endpoint note, not 4 (station not found)", async () => {
+  for (const argv of [["latest", "--max", "1"], ["station", "091811461"], ["timeseries", "091811461"]]) {
+    const cli = makeCli(() => jsonResponse({}, 404));
+    const code = await run(["--base-url", "http://127.0.0.1:18133/e404", ...argv], cli.deps);
+    assert.equal(code, 1, argv.join(" "));
+    assert.equal(cli.err.length, 1);
+    assert.match(
+      cli.err[0] ?? "",
+      /^Error: HTTP 404 for GET http:\/\/127\.0\.0\.1:18133\/e404\/ogc\/opendata\/ows\?\S+ \(the WFS endpoint itself was not found: a wrong --base-url, or the API moved\)$/,
+    );
+  }
 });
 
 test("no arguments prints usage to stdout and exits 0", async () => {

@@ -135,7 +135,10 @@ or a 2xx OGC `ExceptionReport` where GeoJSON was expected; carries
 `status`/`detail`/`isRetryable`), `StrahlNetworkError` (transport
 failure/timeout), `StrahlParseError` (bad JSON) and `StrahlNotFoundError`
 (synthesised for an unknown id) — all extending `StrahlError`. The CLI maps
-`StrahlNotFoundError`/HTTP 404 to exit code `4`; all other errors map to `1`.
+`StrahlNotFoundError` to exit code `4`; all other errors map to `1`, an HTTP 404
+included: every command requests the one fixed WFS path, so a 404 means that
+path is missing (a wrong `--base-url`, or the API moved), never an unknown
+station, and the CLI appends a note saying so.
 
 **Error detail.** GeoServer reports a bad request as an OGC `ows:ExceptionReport`
 (XML). The engine's exported `owsExceptionText` pulls its `ExceptionText` (any

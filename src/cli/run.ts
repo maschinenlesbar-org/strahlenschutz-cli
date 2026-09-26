@@ -45,9 +45,14 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return 4;
     }
     if (err instanceof StrahlApiError) {
-      deps.io.err(`Error: ${err.message}`);
-      // Map a few notable statuses to distinct exit codes for scripting.
-      if (err.status === 404) return 4;
+      // Exit 4 means "station not found", which the WFS never answers with a 404
+      // (an unknown kenn is an empty collection). Every command requests the one
+      // fixed WFS path, so a 404 means that path is missing: exit 1, and say so.
+      const note =
+        err.status === 404
+          ? " (the WFS endpoint itself was not found: a wrong --base-url, or the API moved)"
+          : "";
+      deps.io.err(`Error: ${err.message}${note}`);
       return 1;
     }
     if (err instanceof StrahlError) {
