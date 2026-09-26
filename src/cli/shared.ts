@@ -65,6 +65,16 @@ export function parseBaseUrl(value: string): string {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new InvalidArgumentError('Only "http:" and "https:" base URLs are supported.');
   }
+  // The WFS path is appended to the base URL as a string, so a query or fragment
+  // would swallow it ("http://h/#f" sends neither the path nor the station filter).
+  if (/[?#]/.test(value)) {
+    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
+  }
+  // new URL() trims surrounding whitespace silently; the raw value is what the
+  // engine uses, so reject it rather than guess.
+  if (value !== value.trim()) {
+    throw new InvalidArgumentError("A base URL cannot have surrounding whitespace.");
+  }
   return value;
 }
 

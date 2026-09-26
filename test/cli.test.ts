@@ -214,3 +214,20 @@ test("userinfo in --base-url is sent but redacted in error messages", async () =
   assert.ok(!stderr.includes("s3cretpw"), stderr);
   assert.match(stderr, /^Error: HTTP 500 for GET http:\/\/\*\*\*@127\.0\.0\.1:18133\/e500\/ogc\/opendata\/ows\?.*: boom$/);
 });
+
+test("--base-url with a query, fragment or surrounding whitespace is a usage error before any request", async () => {
+  for (const [base, msg] of [
+    ["http://127.0.0.1:18133/echo#frag", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    ["http://127.0.0.1:18133/echo?a=1", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    [" https://www.imis.bfs.de", /A base URL cannot have surrounding whitespace\./],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse(fc));
+    const code = await run(["--base-url", base, "latest", "--station", "123", "--max", "1"], cli.deps);
+    assert.equal(code, 1, base);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), msg);
+  }
+  const prefixed = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["--base-url", "https://mirror.example/bfs/", "latest"], prefixed.deps), 0);
+  assert.equal(new URL(prefixed.mt.last().url).pathname, "/bfs/ogc/opendata/ows");
+});

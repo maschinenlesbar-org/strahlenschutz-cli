@@ -143,3 +143,16 @@ test("the client rejects a non-http(s) base URL even with a custom transport", (
     assert.equal(mt.calls.length, 0);
   }
 });
+
+test("a base URL with a query or fragment is rejected at construction (userinfo redacted)", () => {
+  for (const baseUrl of ["https://www.imis.bfs.de/?x=1", "https://u:s3cretpw@www.imis.bfs.de/#f"]) {
+    assert.throws(
+      () => new StrahlenschutzClient({ baseUrl, transport: constantJson(fc).transport }),
+      (err: unknown) =>
+        err instanceof StrahlError &&
+        /^Base URL must not contain a query or fragment: /.test(err.message) &&
+        !err.message.includes("s3cretpw"),
+      baseUrl,
+    );
+  }
+});

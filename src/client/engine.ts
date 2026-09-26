@@ -156,7 +156,9 @@ export function owsExceptionText(body: string): string | undefined {
 }
 
 /**
- * Reject a base URL whose scheme is not http(s). The default transport already
+ * Reject a base URL whose scheme is not http(s), or that has a query or fragment
+ * (the WFS path is appended to it as a string, so a `?` or `#` would swallow the
+ * path and its query: `http://h/#f` requests `/`). The default transport already
  * gates this per hop, but the engine is exported as a library and may be handed a
  * custom transport that does no such check, so gate the configured base URL here
  * too (a `file:`/`ftp:` base URL fails fast with a typed error).
@@ -172,6 +174,9 @@ function assertHttpScheme(baseUrl: string): void {
     throw new StrahlNetworkError(
       `Unsupported protocol "${url.protocol}" in base URL: ${redactUrl(baseUrl)}`,
     );
+  }
+  if (/[?#]/.test(baseUrl)) {
+    throw new StrahlNetworkError(`Base URL must not contain a query or fragment: ${redactUrl(baseUrl)}`);
   }
 }
 
