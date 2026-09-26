@@ -57,7 +57,7 @@ try {
 new StrahlenschutzClient({
   baseUrl: "https://www.imis.bfs.de",
   timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503 are retried with linear backoff
+  maxRetries: 3,              // 429 / 503 are retried after Retry-After (<= 30 s), else linear backoff
   maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
@@ -141,7 +141,11 @@ engine drops credential-bearing headers (`Authorization`/`X-API-Key`/`Cookie`);
 an `https`→`http` downgrade redirect is refused outright.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
-retried automatically with linear backoff, up to `--max-retries`.
+retried automatically, up to `--max-retries` (`0`–`10`). Each retry waits the
+response's `Retry-After` — delay-seconds or an IMF-fixdate HTTP-date, parsed
+strictly by the exported `parseRetryAfter` — or, without a usable one,
+`retryDelayMs * attempt` (200 ms, 400 ms, …). A `Retry-After` above
+`MAX_RETRY_AFTER_MS` (30 s) is not retried: the `StrahlApiError` surfaces at once.
 `StrahlApiError.isRetryable` is `true` for those two statuses.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;

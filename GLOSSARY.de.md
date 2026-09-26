@@ -158,8 +158,10 @@ echte Messstelle kann eine leere Zeitreihe haben (eine `defekt`-Messstelle oder 
 leeres Ergebnis beweist dort also nicht, dass die Kennung unbekannt ist.
 
 **Rate Limiting / vorübergehende Fehler.** Die Status **429** und **503** gelten als
-vorübergehend und werden automatisch mit linearem Backoff wiederholt (`--max-retries`,
-`StrahlApiError.isRetryable`).
+vorübergehend und werden automatisch wiederholt (`--max-retries`, `0`–`10`, Standard `2`;
+`StrahlApiError.isRetryable`). Jede Wiederholung wartet das `Retry-After` des Servers ab
+(Sekunden oder ein HTTP-Datum), sonst einen linear wachsenden Abstand (200 ms, 400 ms, …).
+Ein `Retry-After` über 30 s wird nicht wiederholt: Der Fehler wird sofort gemeldet.
 
 **Entfernen von Zugangsdaten beim Wechsel des Origins.** Bei einer Weiterleitung auf einen anderen
 Origin entfernt die Engine Header mit Zugangsdaten (`Authorization`/`X-API-Key`/`Cookie`);

@@ -181,3 +181,15 @@ test("blank --sort values are rejected at parse time before any request", async 
     assert.equal(cli.mt.calls.length, 0, `expected no request for ${JSON.stringify(argv)}`);
   }
 });
+
+test("--max-retries is bounded to 0..10", async () => {
+  for (const [value, ok] of [["0", true], ["10", true], ["11", false], ["999999999999", false]] as const) {
+    const cli = makeCli(() => jsonResponse(fc));
+    const code = await run(["--max-retries", value, "latest", "--max", "1"], cli.deps);
+    assert.equal(code, ok ? 0 : 1, value);
+    if (!ok) {
+      assert.match(cli.err.join("\n"), /Must be <= 10\./);
+      assert.equal(cli.mt.calls.length, 0);
+    }
+  }
+});

@@ -161,8 +161,10 @@ station can have an empty series as well (a `defekt` station, or `ts-24h`), so a
 empty result there doesn't prove the id is unknown.
 
 **Rate limiting / transient errors.** Statuses **429** and **503** are treated as
-transient and retried automatically with linear backoff (`--max-retries`,
-`StrahlApiError.isRetryable`).
+transient and retried automatically (`--max-retries`, `0`–`10`, default `2`;
+`StrahlApiError.isRetryable`). Each retry waits the server's `Retry-After`
+(seconds or an HTTP date), or else backs off linearly (200 ms, 400 ms, …). A
+`Retry-After` above 30 s is not retried: the error is reported at once.
 
 **Cross-origin credential strip.** On a redirect to a different origin, the engine
 drops credential-bearing headers (`Authorization`/`X-API-Key`/`Cookie`); an
