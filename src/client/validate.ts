@@ -21,3 +21,16 @@ export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
   if (reason !== undefined) throw new StrahlValidationError(`Invalid ${name}: ${reason}`);
   return value;
 }
+
+/** True for an empty or whitespace-only string. */
+export function isBlank(value: string): boolean {
+  return value.trim() === "";
+}
+
+/**
+ * A query value given explicitly must be a non-blank string. A blank `sortBy` would
+ * be sent as `sortBy=` and replace the default sort, which GeoServer needs to page
+ * (`startIndex` on an unsorted query is an HTTP 400) and to give a stable order.
+ */
+export const nonEmptyProblem: Problem<unknown> = (value) =>
+  typeof value !== "string" || isBlank(value) ? "Expected a non-empty value." : undefined;

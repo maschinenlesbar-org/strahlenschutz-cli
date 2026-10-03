@@ -130,7 +130,9 @@ Ohne `count` (`--max`) liefert der Server alles ab dem Offset.
 absteigende Reihenfolge hängen Sie ` D` an (mit Leerzeichen, z. B. `end_measure D`), mehrere
 Schlüssel trennen Sie mit Kommas (`end_measure D,kenn`) (CLI: `--sort <prop>`). Ohne `--sort`
 sortiert der Client nach `kenn` (`latest`) bzw. `kenn,end_measure` (Zeitreihen, also älteste
-zuerst) – die Tabelle `DEFAULT_SORT_BY` –, damit sich jede Abfrage blättern lässt.
+zuerst) – die Tabelle `DEFAULT_SORT_BY` –, damit sich jede Abfrage blättern lässt. Eine
+leere Sortierung (`""` oder nur Leerzeichen) lehnen CLI und Bibliothek vor jeder Anfrage ab,
+weil sie diesen Standard ersetzen würde.
 
 **outputFormat.** Fest auf `application/json` gesetzt, damit jede Antwort GeoJSON ist.
 

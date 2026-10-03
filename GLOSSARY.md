@@ -133,7 +133,9 @@ Without a `count` (`--max`), the server returns everything from the offset on.
 ` D` (a space, e.g. `end_measure D`) for descending order, and separate several
 keys with commas (`end_measure D,kenn`) (CLI: `--sort <prop>`). Without `--sort`
 the client sorts by `kenn` (`latest`) or `kenn,end_measure` (time series, i.e.
-oldest first) — the `DEFAULT_SORT_BY` map — so every query can be paged.
+oldest first) — the `DEFAULT_SORT_BY` map — so every query can be paged. A blank
+sort (`""` or whitespace) is rejected before any request, by the CLI and the library
+alike, since it would replace that default.
 
 **outputFormat.** Fixed to `application/json` so every response is GeoJSON.
 

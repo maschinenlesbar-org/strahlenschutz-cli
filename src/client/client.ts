@@ -13,6 +13,7 @@ import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import { TYPE_NAMES, type FeatureKind } from "./enums.js";
 import { StrahlError, StrahlParseError } from "./errors.js";
+import { assertValid, nonEmptyProblem } from "./validate.js";
 import type { FeatureCollection, FeatureQuery } from "./types.js";
 
 const OWS = "/ogc/opendata/ows";
@@ -124,7 +125,11 @@ export class StrahlenschutzClient {
       outputFormat: "application/json",
     };
     if (query.station !== undefined) params["CQL_FILTER"] = `kenn='${assertKenn(query.station)}'`;
-    params["sortBy"] = query.sortBy ?? DEFAULT_SORT_BY[kind];
+    // A sortBy given explicitly must not be blank: `sortBy=` would replace the
+    // default sort that paging needs (GeoServer answers HTTP 400 to a `startIndex`
+    // on an unsorted query). Only `undefined` selects the default.
+    params["sortBy"] =
+      query.sortBy === undefined ? DEFAULT_SORT_BY[kind] : assertValid("sortBy", query.sortBy, nonEmptyProblem);
     // WFS 2.0: the limit is `count` (not the WFS 1.x `maxFeatures`). A `startIndex`
     // without one returns the rest of the collection from that offset.
     if (query.maxFeatures !== undefined) params["count"] = assertPagingInt("maxFeatures", query.maxFeatures);

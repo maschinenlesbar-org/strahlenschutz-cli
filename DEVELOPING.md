@@ -78,7 +78,10 @@ request.
 Every query is sent with a `sortBy`: the caller's, or `DEFAULT_SORT_BY[kind]`
 (`kenn` for `latest`, `kenn,end_measure` for the time series). The BfS layers have
 no primary key, and GeoServer refuses any `startIndex` on an unsorted query with
-HTTP 400 ("Cannot do natural order without a primary key").
+HTTP 400 ("Cannot do natural order without a primary key"). A blank `sortBy` (`""`
+or whitespace) is a `StrahlValidationError` (`Invalid sortBy: Expected a non-empty
+value.`) before any request, rather than an empty `sortBy=` that would replace the
+default sort; only an omitted `sortBy` selects the default.
 
 ## Architecture
 

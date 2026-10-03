@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, type Problem } from "../src/client/validate.js";
+import { assertValid, nonEmptyProblem, type Problem } from "../src/client/validate.js";
 import { StrahlError, StrahlValidationError } from "../src/client/errors.js";
 import * as library from "../src/index.js";
 import { StrahlenschutzClient } from "../src/client/client.js";
@@ -60,4 +60,12 @@ test("parity() runs one input through run() and the library on one recording tra
   assert.equal(failing.lib.ok, false);
   assert.ok(failing.lib.error instanceof StrahlValidationError);
   assert.deepEqual(failing.lib.requests, []);
+});
+
+test("nonEmptyProblem rejects blank and non-string values", () => {
+  assert.equal(nonEmptyProblem("kenn"), undefined);
+  assert.equal(nonEmptyProblem(" kenn "), undefined);
+  for (const bad of ["", " ", "\t\n", undefined, null, 5]) {
+    assert.equal(nonEmptyProblem(bad), "Expected a non-empty value.", JSON.stringify(bad));
+  }
 });
