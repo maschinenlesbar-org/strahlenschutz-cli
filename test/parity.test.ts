@@ -176,3 +176,23 @@ test("parity: a valid User-Agent (Latin-1, tab, padding) is sent unchanged by bo
     assert.deepEqual(cli.requests, lib.requests);
   }
 });
+
+test("parity: a base URL with whitespace is rejected by the CLI and the library before any request", async () => {
+  for (const baseUrl of ["https://example.org ", " https://example.org", "https://example.org\t", "https://example.org/ ", "https://exa\nmple.org", "https://example.org/a b"]) {
+    const result = await parity(["--base-url", baseUrl, "latest"], (transport) =>
+      new StrahlenschutzClient({ transport, baseUrl }).latest(),
+    );
+    assertBothReject(JSON.stringify(baseUrl), result);
+  }
+});
+
+test("parity: a well-formed base URL with a path prefix and userinfo is used the same by both", async () => {
+  for (const baseUrl of ["https://mirror.example/bfs/", "https://u:pw@mirror.example"]) {
+    const { cli, lib } = await parity(["--base-url", baseUrl, "latest"], (transport) =>
+      new StrahlenschutzClient({ transport, baseUrl }).latest(),
+    );
+    assert.equal(cli.code, 0);
+    assert.equal(lib.ok, true);
+    assert.deepEqual(cli.requests, lib.requests);
+  }
+});

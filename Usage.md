@@ -189,7 +189,7 @@ strahlenschutz --base-url https://www.imis.bfs.de \
 
 `--base-url` overrides the API host (an `http(s)` URL, optionally with a path
 prefix; a `?query` or `#fragment` is refused, since the WFS path is appended to
-it), `--timeout` sets the time limit per request in
+it, and so is any whitespace or control character), `--timeout` sets the time limit per request in
 milliseconds (reading the whole response included), and `--user-agent` sets the request `User-Agent`.
 
 ### 10. Robust automation: retries and a response-size cap

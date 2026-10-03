@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   assertValid,
+  baseUrlWhitespaceProblem,
   featureKindProblem,
   headerValueProblem,
   intRangeProblem,
@@ -111,5 +112,19 @@ test("headerValueProblem rejects blank, control-character and non-Latin-1 values
   }
   for (const wide of ["Ā", "bot☃", "\u{1F642}"]) {
     assert.equal(headerValueProblem(wide), "Value contains characters outside Latin-1 (above U+00FF).");
+  }
+});
+
+test("baseUrlWhitespaceProblem rejects surrounding and inner whitespace or control characters", () => {
+  for (const ok of ["https://www.imis.bfs.de", "https://h/p/", "https://u:pw@h"]) assert.equal(baseUrlWhitespaceProblem(ok), undefined);
+  for (const padded of [" https://h", "https://h ", "https://h/ ", "https://h\t", "\nhttps://h"]) {
+    assert.equal(baseUrlWhitespaceProblem(padded), "A base URL cannot have surrounding whitespace.", JSON.stringify(padded));
+  }
+  for (const inner of ["https://h/a b", "https://h/a\tb", "https://exa\nmple.org", "https://h/\u007f"]) {
+    assert.equal(
+      baseUrlWhitespaceProblem(inner),
+      "A base URL cannot contain whitespace or control characters.",
+      JSON.stringify(inner),
+    );
   }
 });

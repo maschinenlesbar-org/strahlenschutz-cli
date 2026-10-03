@@ -27,6 +27,7 @@ export {
 } from "./errors.js";
 export {
   assertValid,
+  baseUrlWhitespaceProblem,
   featureKindProblem,
   headerValueProblem,
   intRangeProblem,

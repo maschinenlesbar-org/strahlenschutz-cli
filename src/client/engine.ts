@@ -5,7 +5,7 @@
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { StrahlApiError, StrahlNetworkError, StrahlParseError, redactUrl } from "./errors.js";
-import { assertValid, headerValueProblem, intRangeProblem } from "./validate.js";
+import { assertValid, baseUrlWhitespaceProblem, headerValueProblem, intRangeProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://www.imis.bfs.de";
 const DEFAULT_USER_AGENT = "strahlenschutz-cli";
@@ -222,7 +222,13 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    // Check the raw value, before the trailing-slash strip: "https://h/ " must not
+    // get past it, and new URL() would hide the whitespace from the scheme check.
+    const baseUrl =
+      options.baseUrl === undefined
+        ? DEFAULT_BASE_URL
+        : assertValid("baseUrl", options.baseUrl, baseUrlWhitespaceProblem);
+    this.baseUrl = baseUrl.replace(/\/+$/, "");
     assertHttpScheme(this.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
     // Only `undefined` selects the default. A blank value would go out as an empty

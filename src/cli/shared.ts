@@ -5,7 +5,12 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { EngineOptions } from "../client/engine.js";
-import { headerValueProblem, intRangeProblem, nonEmptyProblem } from "../client/validate.js";
+import {
+  baseUrlWhitespaceProblem,
+  headerValueProblem,
+  intRangeProblem,
+  nonEmptyProblem,
+} from "../client/validate.js";
 
 /**
  * commander value-parser: a non-negative integer.
@@ -73,6 +78,11 @@ export function parseHeaderValue(value: string): string {
  * trust boundary.
  */
 export function parseBaseUrl(value: string): string {
+  // new URL() trims surrounding whitespace and strips an inner tab or newline
+  // silently; the raw value is what the engine uses, which rejects it with the same
+  // library rule (baseUrlWhitespaceProblem).
+  const whitespace = baseUrlWhitespaceProblem(value);
+  if (whitespace !== undefined) throw new InvalidArgumentError(whitespace);
   let url: URL;
   try {
     url = new URL(value);
@@ -86,11 +96,6 @@ export function parseBaseUrl(value: string): string {
   // would swallow it ("http://h/#f" sends neither the path nor the station filter).
   if (/[?#]/.test(value)) {
     throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
-  }
-  // new URL() trims surrounding whitespace silently; the raw value is what the
-  // engine uses, so reject it rather than guess.
-  if (value !== value.trim()) {
-    throw new InvalidArgumentError("A base URL cannot have surrounding whitespace.");
   }
   return value;
 }

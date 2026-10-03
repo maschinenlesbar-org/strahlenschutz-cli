@@ -74,6 +74,13 @@ integers. Anything else (`-1`, `1.5`, `NaN`, `Infinity`, `11` retries) throws a
 disabling the timeout or the size cap. The CLI's `--timeout`, `--max-retries` and
 `--max-response-bytes` apply the same bounds.
 
+`baseUrl` must not contain whitespace or control characters, surrounding or inner:
+`new URL()` would trim or strip them silently, but the WFS path is appended to the
+raw string (`"https://h/ "` would request `/%20/ogc/...`). The client rejects such a
+value with a `StrahlValidationError` (`Invalid baseUrl: A base URL cannot have
+surrounding whitespace.`) before the trailing-slash strip and before any request;
+the CLI's `--base-url` uses the same rule (`baseUrlWhitespaceProblem`).
+
 `userAgent` must be a usable header value: not blank, no control character other
 than tab, nothing above U+00FF. Anything else throws a `StrahlValidationError`
 (`Invalid userAgent: Value contains control characters.`) when the client is built,

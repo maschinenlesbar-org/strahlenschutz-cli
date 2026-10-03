@@ -95,3 +95,16 @@ export const headerValueProblem: Problem<unknown> = (value) => {
   }
   return undefined;
 };
+
+/**
+ * Whitespace and control characters in a base URL. `new URL()` silently trims
+ * surrounding whitespace and strips an inner tab or newline, so the URL checks
+ * pass, but the engine appends the WFS path to the raw string: `"https://h/ "`
+ * would request `/%20/ogc/...`, and a custom transport would get the padded value.
+ */
+export const baseUrlWhitespaceProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "string") return "Expected a string.";
+  if (value !== value.trim()) return "A base URL cannot have surrounding whitespace.";
+  if (/[\s\u0000-\u001f\u007f]/.test(value)) return "A base URL cannot contain whitespace or control characters.";
+  return undefined;
+};
