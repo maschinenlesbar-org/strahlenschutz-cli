@@ -22,7 +22,14 @@ export {
   StrahlValidationError,
   redactUrl,
 } from "./errors.js";
-export { assertValid, isBlank, nonEmptyProblem } from "./validate.js";
+export {
+  assertValid,
+  featureKindProblem,
+  isBlank,
+  nonEmptyProblem,
+  oneOfProblem,
+  timeseriesResolutionProblem,
+} from "./validate.js";
 export type { Problem } from "./validate.js";
 
 export * from "./enums.js";

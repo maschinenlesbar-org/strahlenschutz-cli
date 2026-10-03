@@ -159,7 +159,9 @@ The daily layer currently holds a series for **one station only**, Flensburg
 an empty collection with `ts-24h`; for them, average the hourly series per day.
 
 Only `ts-1h` and `ts-24h` are accepted for `--resolution`; anything else is
-rejected with a clear error.
+rejected before any request (`Error: Invalid resolution: Expected one of: ts-1h,
+ts-24h (got "weekly").`, exit `1`). The library's `timeseries()` applies the same
+rule, so a library caller gets the same `StrahlValidationError`.
 
 ### 8. Plot-ready time series extract
 

@@ -88,7 +88,11 @@ WFS-`typeName`: `opendata:odlinfo_timeseries_odl_24h`. CLI:
 eine leere Collection zurück.
 
 Diese Werte bilden das const-Array `FeatureKindValues`; die Map `TYPE_NAMES` (beide exportiert)
-übersetzt jede Feature-Art in ihren WFS-`typeName`.
+übersetzt jede Feature-Art in ihren WFS-`typeName`. Die beiden Zeitreihen-Arten sind zusätzlich
+als `TimeseriesResolutionValues` exportiert. Die Bibliothek prüft jede Art vor jeder Anfrage
+gegen diese Listen: `getFeature()` lehnt alles außerhalb von `FeatureKindValues` ab,
+`timeseries()` (CLI: `--resolution`) alles außerhalb von `TimeseriesResolutionValues`, auch
+`latest`, jeweils mit einem `StrahlValidationError`.
 
 ---
 

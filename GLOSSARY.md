@@ -91,7 +91,11 @@ Flensburg (`010010001`, about a year of daily values; checked 26 Sep 2026); ever
 other station returns an empty collection.
 
 These values are the `FeatureKindValues` const array; the `TYPE_NAMES` map (both
-exported) translates each friendly kind to its WFS `typeName`.
+exported) translates each friendly kind to its WFS `typeName`. The two time-series
+kinds are also exported as `TimeseriesResolutionValues`. The library checks every
+kind against these lists before any request: `getFeature()` rejects anything outside
+`FeatureKindValues`, and `timeseries()` (CLI: `--resolution`) anything outside
+`TimeseriesResolutionValues`, `latest` included, with a `StrahlValidationError`.
 
 ---
 

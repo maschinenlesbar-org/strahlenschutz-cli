@@ -68,7 +68,13 @@ new StrahlenschutzClient({
 
 `client.getFeature(kind, query)` (generic), `client.latest(query)`,
 `client.station(kenn)`, `client.timeseries(kenn, resolution, query)`.
-The `FeatureKindValues` enum and the `TYPE_NAMES` map are exported for reference.
+The `FeatureKindValues` enum, its time-series subset `TimeseriesResolutionValues`
+and the `TYPE_NAMES` map are exported for reference. `getFeature()` rejects a
+`kind` outside `FeatureKindValues`, and `timeseries()` a `resolution` outside
+`TimeseriesResolutionValues` (so `"latest"` too), with a `StrahlValidationError`
+(`Invalid resolution: Expected one of: ts-1h, ts-24h (got "latest").`) before any
+request. The check is a membership test on the value list, so inherited names such
+as `__proto__` or `constructor` are rejected as well.
 
 `maxFeatures` (sent as `count`) and `startIndex` must be non-negative safe
 integers; anything else (`NaN`, `-5`, `1.5`) is a `StrahlError`

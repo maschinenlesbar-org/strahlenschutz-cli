@@ -50,3 +50,43 @@ test("parity: a padded but non-blank sortBy is sent unchanged by both", async ()
   assert.equal(lib.ok, true);
   assert.deepEqual(cli.requests.map((r) => r.url), lib.requests.map((r) => r.url));
 });
+
+test("parity: an invalid timeseries resolution is rejected by the CLI and the library before any request", async () => {
+  for (const res of ["latest", "ts-7d", "TS-1H", " ts-1h", "", "bogus", "__proto__", "toString", "constructor"]) {
+    const result = await parity(["--compact", "timeseries", "091811461", "--resolution", res], (transport) =>
+      new StrahlenschutzClient({ transport }).timeseries("091811461", res as never),
+    );
+    assertBothReject(JSON.stringify(res), result);
+    assert.equal(
+      (result.lib.error as Error).message,
+      `Invalid resolution: Expected one of: ts-1h, ts-24h (got ${JSON.stringify(res)}).`,
+    );
+    assert.equal(result.cli.err, `Error: ${(result.lib.error as Error).message}`);
+  }
+});
+
+test("parity: a valid resolution sends the identical request from both sides", async () => {
+  for (const res of ["ts-1h", "ts-24h"] as const) {
+    const { cli, lib } = await parity(["timeseries", "091811461", "--resolution", res], (transport) =>
+      new StrahlenschutzClient({ transport }).timeseries("091811461", res),
+    );
+    assert.equal(cli.code, 0);
+    assert.equal(lib.ok, true);
+    assert.deepEqual(cli.requests.map((r) => r.url), lib.requests.map((r) => r.url));
+  }
+});
+
+test("getFeature rejects an unknown feature kind, inherited names included, before any request", async () => {
+  for (const kind of ["bogus", "", "constructor", "__proto__", "toString", "LATEST"]) {
+    const { lib } = await parity(["latest"], (transport) =>
+      new StrahlenschutzClient({ transport }).getFeature(kind as never),
+    );
+    assert.equal(lib.ok, false, kind);
+    assert.ok(lib.error instanceof StrahlValidationError, kind);
+    assert.equal(
+      (lib.error as Error).message,
+      `Invalid kind: Expected one of: latest, ts-1h, ts-24h (got ${JSON.stringify(kind)}).`,
+    );
+    assert.deepEqual(lib.requests, []);
+  }
+});

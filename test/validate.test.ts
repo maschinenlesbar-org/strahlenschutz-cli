@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, nonEmptyProblem, type Problem } from "../src/client/validate.js";
+import {
+  assertValid,
+  featureKindProblem,
+  nonEmptyProblem,
+  timeseriesResolutionProblem,
+  type Problem,
+} from "../src/client/validate.js";
+import { FeatureKindValues, TimeseriesResolutionValues } from "../src/client/enums.js";
 import { StrahlError, StrahlValidationError } from "../src/client/errors.js";
 import * as library from "../src/index.js";
 import { StrahlenschutzClient } from "../src/client/client.js";
@@ -67,5 +74,18 @@ test("nonEmptyProblem rejects blank and non-string values", () => {
   assert.equal(nonEmptyProblem(" kenn "), undefined);
   for (const bad of ["", " ", "\t\n", undefined, null, 5]) {
     assert.equal(nonEmptyProblem(bad), "Expected a non-empty value.", JSON.stringify(bad));
+  }
+});
+
+test("featureKindProblem and timeseriesResolutionProblem accept only their own values", () => {
+  for (const kind of FeatureKindValues) assert.equal(featureKindProblem(kind), undefined);
+  for (const res of TimeseriesResolutionValues) assert.equal(timeseriesResolutionProblem(res), undefined);
+  assert.deepEqual([...TimeseriesResolutionValues], ["ts-1h", "ts-24h"]);
+  assert.equal(
+    timeseriesResolutionProblem("latest"),
+    'Expected one of: ts-1h, ts-24h (got "latest").',
+  );
+  for (const bad of ["__proto__", "constructor", "toString", "hasOwnProperty", "", " latest", 1, undefined]) {
+    assert.match(featureKindProblem(bad) ?? "", /^Expected one of: latest, ts-1h, ts-24h \(got .*\)\.$/, String(bad));
   }
 });

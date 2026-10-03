@@ -4,7 +4,6 @@
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
-import { StrahlError } from "../client/errors.js";
 import type { EngineOptions } from "../client/engine.js";
 import { nonEmptyProblem } from "../client/validate.js";
 
@@ -100,22 +99,6 @@ export function parseBaseUrl(value: string): string {
     throw new InvalidArgumentError("A base URL cannot have surrounding whitespace.");
   }
   return value;
-}
-
-/**
- * Validate a positional argument against an allowed set (commander does not
- * support .choices() on positional args). Throws a StrahlError so run() prints a
- * clear message and exits 1.
- */
-export function assertEnum<T extends string>(
-  value: string,
-  allowed: readonly T[],
-  argName: string,
-): T {
-  if (!(allowed as readonly string[]).includes(value)) {
-    throw new StrahlError(`Invalid ${argName} "${value}". Expected one of: ${allowed.join(", ")}.`);
-  }
-  return value as T;
 }
 
 export interface GlobalOptions {

@@ -1,10 +1,9 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, assertEnum, parseIntArg, parseNonEmpty, renderJson } from "../shared.js";
+import { action, parseIntArg, parseNonEmpty, renderJson } from "../shared.js";
 import { StrahlNotFoundError } from "../../client/errors.js";
 import type { FeatureQuery } from "../../client/types.js";
-
-const RESOLUTIONS = ["ts-1h", "ts-24h"] as const;
+import type { TimeseriesResolution } from "../../client/enums.js";
 
 /** Pull the shared query options off a parsed-options object. */
 function queryFrom(opts: Record<string, unknown>): FeatureQuery {
@@ -61,7 +60,8 @@ export function registerOdlCommands(program: Command, deps: CliDeps): void {
       .option("--resolution <res>", "ts-1h | ts-24h", "ts-1h"),
   ).action(
     action(deps, async ({ client, global, opts }, [kenn]) => {
-      const resolution = assertEnum(String(opts["resolution"]), RESOLUTIONS, "resolution");
+      // The library checks the resolution (StrahlValidationError -> exit 1).
+      const resolution = opts["resolution"] as TimeseriesResolution;
       renderJson(deps, global, await client.timeseries(kenn!, resolution, queryFrom(opts)));
     }),
   );

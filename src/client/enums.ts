@@ -1,5 +1,5 @@
-// Enum-like value sets. These const arrays double as runtime CLI choice
-// validators and as TS union types.
+// Enum-like value sets. These const arrays double as the runtime value lists the
+// library validates against (validate.ts) and as TS union types.
 
 /**
  * The WFS feature types published by the BfS ODL-Info open-data service:
@@ -16,3 +16,7 @@ export const TYPE_NAMES: Record<FeatureKind, string> = {
   "ts-1h": "opendata:odlinfo_timeseries_odl_1h",
   "ts-24h": "opendata:odlinfo_timeseries_odl_24h",
 };
+
+/** The feature kinds that are a time series: what `timeseries()` accepts as its resolution. */
+export const TimeseriesResolutionValues = ["ts-1h", "ts-24h"] as const satisfies readonly FeatureKind[];
+export type TimeseriesResolution = (typeof TimeseriesResolutionValues)[number];

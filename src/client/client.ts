@@ -11,9 +11,9 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { TYPE_NAMES, type FeatureKind } from "./enums.js";
+import { TYPE_NAMES, type FeatureKind, type TimeseriesResolution } from "./enums.js";
 import { StrahlError, StrahlParseError } from "./errors.js";
-import { assertValid, nonEmptyProblem } from "./validate.js";
+import { assertValid, featureKindProblem, nonEmptyProblem, timeseriesResolutionProblem } from "./validate.js";
 import type { FeatureCollection, FeatureQuery } from "./types.js";
 
 const OWS = "/ogc/opendata/ows";
@@ -116,8 +116,12 @@ export class StrahlenschutzClient {
     this.engine = new RequestEngine(options);
   }
 
-  /** Generic WFS GetFeature for one of the published feature kinds. */
+  /**
+   * Generic WFS GetFeature for one of the published feature kinds. A `kind`
+   * outside `FeatureKindValues` is a `StrahlValidationError` before any request.
+   */
   async getFeature(kind: FeatureKind, query: FeatureQuery = {}): Promise<FeatureCollection> {
+    assertValid("kind", kind, featureKindProblem);
     const params: QueryParams = {
       service: "WFS",
       request: "GetFeature",
@@ -147,12 +151,17 @@ export class StrahlenschutzClient {
     return this.getFeature("latest", { station: kenn });
   }
 
-  /** The hourly (default) or daily time series for a single station. */
-  timeseries(
+  /**
+   * The hourly (default) or daily time series for a single station. A
+   * `resolution` outside `TimeseriesResolutionValues` (`latest` included) is a
+   * `StrahlValidationError` before any request.
+   */
+  async timeseries(
     kenn: string,
-    resolution: Extract<FeatureKind, "ts-1h" | "ts-24h"> = "ts-1h",
+    resolution: TimeseriesResolution = "ts-1h",
     query: FeatureQuery = {},
   ): Promise<FeatureCollection> {
+    assertValid("resolution", resolution, timeseriesResolutionProblem);
     return this.getFeature(resolution, { ...query, station: kenn });
   }
 }

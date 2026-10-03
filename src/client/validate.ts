@@ -4,6 +4,7 @@
 // commander parsers call the same functions and turn the reason into a usage
 // error, so a rule is written once and the CLI and the library cannot drift apart.
 
+import { FeatureKindValues, TimeseriesResolutionValues } from "./enums.js";
 import { StrahlValidationError } from "./errors.js";
 
 /** A rule: the reason `value` is invalid (e.g. `"Expected a non-empty value."`), or `undefined` when it is valid. */
@@ -34,3 +35,30 @@ export function isBlank(value: string): boolean {
  */
 export const nonEmptyProblem: Problem<unknown> = (value) =>
   typeof value !== "string" || isBlank(value) ? "Expected a non-empty value." : undefined;
+
+/** A short description of a rejected value for a message: a string quoted, anything else as is. */
+function describe(value: unknown): string {
+  return typeof value === "string" ? JSON.stringify(value) : String(value);
+}
+
+/**
+ * A value must be one of `allowed`. Checked with `includes()` on the value list,
+ * never by a keyed table lookup, so inherited names such as `__proto__`,
+ * `toString` or `constructor` are rejected too.
+ */
+export function oneOfProblem(allowed: readonly string[]): Problem<unknown> {
+  return (value) =>
+    (allowed as readonly unknown[]).includes(value)
+      ? undefined
+      : `Expected one of: ${allowed.join(", ")} (got ${describe(value)}).`;
+}
+
+/** The feature kind of `getFeature()`: one of `FeatureKindValues`. */
+export const featureKindProblem: Problem<unknown> = oneOfProblem(FeatureKindValues);
+
+/**
+ * The resolution of `timeseries()`: one of `TimeseriesResolutionValues` (`ts-1h`,
+ * `ts-24h`). `latest` is a feature kind but not a time series: it would silently
+ * return the latest-reading layer in the shape of a one-point series.
+ */
+export const timeseriesResolutionProblem: Problem<unknown> = oneOfProblem(TimeseriesResolutionValues);
