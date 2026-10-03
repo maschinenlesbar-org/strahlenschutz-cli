@@ -5,7 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { StrahlenschutzClient } from "../src/client/client.js";
-import { StrahlNotFoundError, StrahlValidationError } from "../src/client/errors.js";
+import { StrahlNetworkError, StrahlNotFoundError, StrahlValidationError } from "../src/client/errors.js";
+import { validateBaseUrl } from "../src/client/engine.js";
 import * as library from "../src/index.js";
 import { MAX_RETRIES, MAX_TIMEOUT_MS } from "../src/index.js";
 import type { Transport } from "../src/client/http.js";
@@ -195,4 +196,30 @@ test("parity: a well-formed base URL with a path prefix and userinfo is used the
     assert.equal(lib.ok, true);
     assert.deepEqual(cli.requests, lib.requests);
   }
+});
+
+test("parity: an invalid base URL is the same validation error, with the same reason, on both sides", async () => {
+  for (const [baseUrl, reason] of [
+    ["ftp://example.org", 'Only "http:" and "https:" base URLs are supported.'],
+    ["file:///etc/passwd", 'Only "http:" and "https:" base URLs are supported.'],
+    ["https://h.example/?q=1", "A base URL cannot have a query (?) or fragment (#)."],
+    ["https://u:s3cretpw@h.example/#f", "A base URL cannot have a query (?) or fragment (#)."],
+    ["notaurl", "Expected a valid absolute URL (e.g. https://host)."],
+    ["", "Expected a valid absolute URL (e.g. https://host)."],
+  ] as const) {
+    const result = await parity(["--base-url", baseUrl, "latest"], (transport) =>
+      new StrahlenschutzClient({ transport, baseUrl }).latest(),
+    );
+    assertBothReject(JSON.stringify(baseUrl), result);
+    assert.ok(!(result.lib.error instanceof StrahlNetworkError), baseUrl);
+    assert.equal((result.lib.error as Error).message, `Invalid baseUrl: ${reason}`);
+    assert.ok(result.cli.err.includes(reason), result.cli.err);
+    assert.ok(!(result.lib.error as Error).message.includes("s3cretpw"));
+  }
+});
+
+test("validateBaseUrl returns the base URL without trailing slashes, or throws StrahlValidationError", () => {
+  assert.equal(validateBaseUrl("https://mirror.example/bfs//"), "https://mirror.example/bfs");
+  assert.throws(() => validateBaseUrl("ftp://x"), StrahlValidationError);
+  assert.equal(library.validateBaseUrl, validateBaseUrl);
 });

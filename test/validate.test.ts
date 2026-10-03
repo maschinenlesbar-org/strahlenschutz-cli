@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   assertValid,
+  baseUrlProblem,
   baseUrlWhitespaceProblem,
   featureKindProblem,
   headerValueProblem,
@@ -127,4 +128,15 @@ test("baseUrlWhitespaceProblem rejects surrounding and inner whitespace or contr
       JSON.stringify(inner),
     );
   }
+});
+
+test("baseUrlProblem checks whitespace, parse, scheme and query/fragment in that order", () => {
+  for (const ok of ["https://www.imis.bfs.de", "http://127.0.0.1:8080/bfs/", "https://u:pw@h"]) {
+    assert.equal(baseUrlProblem(ok), undefined, ok);
+  }
+  assert.equal(baseUrlProblem(" ftp://x"), "A base URL cannot have surrounding whitespace.");
+  assert.equal(baseUrlProblem("notaurl"), "Expected a valid absolute URL (e.g. https://host).");
+  assert.equal(baseUrlProblem("ftp://x?q"), 'Only "http:" and "https:" base URLs are supported.');
+  assert.equal(baseUrlProblem("https://h#"), "A base URL cannot have a query (?) or fragment (#).");
+  assert.equal(baseUrlProblem(42), "Expected a string.");
 });

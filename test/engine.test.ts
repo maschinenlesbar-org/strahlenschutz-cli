@@ -219,7 +219,10 @@ test("a non-http(s) base URL is rejected at construction, before any request", (
     const mt = makeMockTransport(() => jsonResponse({}));
     assert.throws(
       () => new RequestEngine({ baseUrl, transport: mt.transport }),
-      (err) => err instanceof StrahlNetworkError && /Unsupported protocol/.test(err.message),
+      (err) =>
+        err instanceof StrahlValidationError &&
+        !(err instanceof StrahlNetworkError) &&
+        err.message === 'Invalid baseUrl: Only "http:" and "https:" base URLs are supported.',
     );
     assert.equal(mt.calls.length, 0);
   }
@@ -229,7 +232,9 @@ test("an unparseable base URL is rejected at construction", () => {
   const mt = makeMockTransport(() => jsonResponse({}));
   assert.throws(
     () => new RequestEngine({ baseUrl: "not-a-url", transport: mt.transport }),
-    (err) => err instanceof StrahlNetworkError && /Invalid base URL/.test(err.message),
+    (err) =>
+      err instanceof StrahlValidationError &&
+      err.message === "Invalid baseUrl: Expected a valid absolute URL (e.g. https://host).",
   );
   assert.equal(mt.calls.length, 0);
 });
@@ -363,7 +368,7 @@ test("redirect and base-URL errors redact userinfo", async () => {
   );
   assert.throws(
     () => new RequestEngine({ baseUrl: "ftp://u:s3cretpw@a.example" }),
-    (err: unknown) => err instanceof StrahlNetworkError && !err.message.includes("s3cretpw"),
+    (err: unknown) => err instanceof StrahlValidationError && !err.message.includes("s3cretpw"),
   );
 });
 

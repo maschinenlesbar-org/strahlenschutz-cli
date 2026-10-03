@@ -4,6 +4,7 @@ export { StrahlenschutzClient, DEFAULT_SORT_BY } from "./client.js";
 export {
   RequestEngine,
   DEFAULT_BASE_URL,
+  validateBaseUrl,
   MAX_REDIRECTS,
   MAX_RETRIES,
   MAX_DETAIL_LENGTH,
@@ -27,6 +28,7 @@ export {
 } from "./errors.js";
 export {
   assertValid,
+  baseUrlProblem,
   baseUrlWhitespaceProblem,
   featureKindProblem,
   headerValueProblem,

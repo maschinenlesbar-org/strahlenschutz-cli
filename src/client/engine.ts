@@ -5,7 +5,7 @@
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { StrahlApiError, StrahlNetworkError, StrahlParseError, redactUrl } from "./errors.js";
-import { assertValid, baseUrlWhitespaceProblem, headerValueProblem, intRangeProblem } from "./validate.js";
+import { assertValid, baseUrlProblem, headerValueProblem, intRangeProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://www.imis.bfs.de";
 const DEFAULT_USER_AGENT = "strahlenschutz-cli";
@@ -175,28 +175,16 @@ export function owsExceptionText(body: string): string | undefined {
 }
 
 /**
- * Reject a base URL whose scheme is not http(s), or that has a query or fragment
- * (the WFS path is appended to it as a string, so a `?` or `#` would swallow the
- * path and its query: `http://h/#f` requests `/`). The default transport already
- * gates this per hop, but the engine is exported as a library and may be handed a
- * custom transport that does no such check, so gate the configured base URL here
- * too (a `file:`/`ftp:` base URL fails fast with a typed error).
+ * Check a base URL against every base-URL rule (`baseUrlProblem`: no whitespace or
+ * control characters, an absolute `http:`/`https:` URL, no query or fragment) and
+ * return it without trailing slashes. The WFS path is appended to it as a string,
+ * so a `?` or `#` would swallow the path (`http://h/#f` requests `/`). The default
+ * transport also gates the scheme per hop, but the engine may be handed a custom
+ * transport that does no such check. A bad value is a configuration error, so it
+ * throws `StrahlValidationError` (`Invalid baseUrl: …`), never a network error.
  */
-function assertHttpScheme(baseUrl: string): void {
-  let url: URL;
-  try {
-    url = new URL(baseUrl);
-  } catch {
-    throw new StrahlNetworkError(`Invalid base URL: ${redactUrl(baseUrl)}`);
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new StrahlNetworkError(
-      `Unsupported protocol "${url.protocol}" in base URL: ${redactUrl(baseUrl)}`,
-    );
-  }
-  if (/[?#]/.test(baseUrl)) {
-    throw new StrahlNetworkError(`Base URL must not contain a query or fragment: ${redactUrl(baseUrl)}`);
-  }
+export function validateBaseUrl(baseUrl: string): string {
+  return assertValid("baseUrl", baseUrl, baseUrlProblem).replace(/\/+$/, "");
 }
 
 /**
@@ -224,12 +212,7 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     // Check the raw value, before the trailing-slash strip: "https://h/ " must not
     // get past it, and new URL() would hide the whitespace from the scheme check.
-    const baseUrl =
-      options.baseUrl === undefined
-        ? DEFAULT_BASE_URL
-        : assertValid("baseUrl", options.baseUrl, baseUrlWhitespaceProblem);
-    this.baseUrl = baseUrl.replace(/\/+$/, "");
-    assertHttpScheme(this.baseUrl);
+    this.baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
     this.transport = options.transport ?? nodeHttpTransport;
     // Only `undefined` selects the default. A blank value would go out as an empty
     // User-Agent, and a control or non-Latin-1 character would reach a custom

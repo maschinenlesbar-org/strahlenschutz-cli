@@ -6,7 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { EngineOptions } from "../client/engine.js";
 import {
-  baseUrlWhitespaceProblem,
+  baseUrlProblem,
   headerValueProblem,
   intRangeProblem,
   nonEmptyProblem,
@@ -70,33 +70,15 @@ export function parseHeaderValue(value: string): string {
 }
 
 /**
- * commander value-parser for `--base-url`: accept only a well-formed absolute
- * `http:`/`https:` URL. Rejecting at parse time yields commander's usage error
- * (exit 2) with a clear message and forecloses a non-http(s) scheme up front —
- * defense in depth ahead of the transport's own request-time allowlist.
- * `--base-url` is self-chosen input, so this is a usability/contract guard, not a
- * trust boundary.
+ * commander value-parser for `--base-url`: the library's `baseUrlProblem` (no
+ * whitespace, an absolute `http:`/`https:` URL, no query or fragment), the rule the
+ * engine applies to `baseUrl`, reported here as a usage error (exit 1) before any
+ * request. `--base-url` is self-chosen input, so this is a usability/contract
+ * guard, not a trust boundary.
  */
 export function parseBaseUrl(value: string): string {
-  // new URL() trims surrounding whitespace and strips an inner tab or newline
-  // silently; the raw value is what the engine uses, which rejects it with the same
-  // library rule (baseUrlWhitespaceProblem).
-  const whitespace = baseUrlWhitespaceProblem(value);
-  if (whitespace !== undefined) throw new InvalidArgumentError(whitespace);
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new InvalidArgumentError("Expected a valid absolute URL (e.g. https://host).");
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new InvalidArgumentError('Only "http:" and "https:" base URLs are supported.');
-  }
-  // The WFS path is appended to the base URL as a string, so a query or fragment
-  // would swallow it ("http://h/#f" sends neither the path nor the station filter).
-  if (/[?#]/.test(value)) {
-    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
-  }
+  const reason = baseUrlProblem(value);
+  if (reason !== undefined) throw new InvalidArgumentError(reason);
   return value;
 }
 

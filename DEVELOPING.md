@@ -74,12 +74,15 @@ integers. Anything else (`-1`, `1.5`, `NaN`, `Infinity`, `11` retries) throws a
 disabling the timeout or the size cap. The CLI's `--timeout`, `--max-retries` and
 `--max-response-bytes` apply the same bounds.
 
-`baseUrl` must not contain whitespace or control characters, surrounding or inner:
-`new URL()` would trim or strip them silently, but the WFS path is appended to the
-raw string (`"https://h/ "` would request `/%20/ogc/...`). The client rejects such a
-value with a `StrahlValidationError` (`Invalid baseUrl: A base URL cannot have
-surrounding whitespace.`) before the trailing-slash strip and before any request;
-the CLI's `--base-url` uses the same rule (`baseUrlWhitespaceProblem`).
+`baseUrl` is checked by the exported `validateBaseUrl` (rule: `baseUrlProblem`) when
+the client is built: no whitespace or control characters, surrounding or inner
+(`new URL()` would trim or strip them silently, but the WFS path is appended to the
+raw string, so `"https://h/ "` would request `/%20/ogc/...`); an absolute URL; an
+`http:`/`https:` scheme; no `?query` or `#fragment` (they would swallow the WFS
+path). A path prefix and userinfo are fine. A bad value is a configuration error,
+so it throws `StrahlValidationError` (`Invalid baseUrl: Only "http:" and "https:"
+base URLs are supported.`), never `StrahlNetworkError`, and the message never
+repeats the URL. The CLI's `--base-url` calls the same rule.
 
 `userAgent` must be a usable header value: not blank, no control character other
 than tab, nothing above U+00FF. Anything else throws a `StrahlValidationError`
@@ -174,7 +177,8 @@ CLI run in tests with a mocked client and captured output — no subprocess.
 **Error types.** [`errors.ts`](src/client/errors.ts): `StrahlApiError` (non-2xx,
 or a 2xx OGC `ExceptionReport` where GeoJSON was expected; carries
 `status`/`detail`/`isRetryable`), `StrahlNetworkError` (transport
-failure/timeout), `StrahlParseError` (bad JSON, or a 2xx body that is not a FeatureCollection
+failure/timeout, a redirect the engine refuses, or a non-http(s) URL at a hop of the
+default transport), `StrahlParseError` (bad JSON, or a 2xx body that is not a FeatureCollection
 whose every feature is a JSON object with a `properties` object) and `StrahlNotFoundError`
 (raised by `station()` for an unknown id) and `StrahlValidationError` (an input rejected
 before any request) — all extending `StrahlError`. The CLI maps

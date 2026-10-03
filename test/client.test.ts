@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_SORT_BY, StrahlenschutzClient } from "../src/client/client.js";
-import { StrahlApiError, StrahlError, StrahlNotFoundError, StrahlParseError } from "../src/client/errors.js";
+import {
+  StrahlApiError,
+  StrahlError,
+  StrahlNotFoundError,
+  StrahlParseError,
+  StrahlValidationError,
+} from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): StrahlenschutzClient {
@@ -143,7 +149,9 @@ test("the client rejects a non-http(s) base URL even with a custom transport", (
     const mt = makeMockTransport(() => jsonResponse(fc));
     assert.throws(
       () => new StrahlenschutzClient({ baseUrl, transport: mt.transport }),
-      (err) => err instanceof StrahlError && /Unsupported protocol/.test(err.message),
+      (err) =>
+        err instanceof StrahlValidationError &&
+        err.message === 'Invalid baseUrl: Only "http:" and "https:" base URLs are supported.',
     );
     assert.equal(mt.calls.length, 0);
   }
@@ -154,8 +162,8 @@ test("a base URL with a query or fragment is rejected at construction (userinfo 
     assert.throws(
       () => new StrahlenschutzClient({ baseUrl, transport: constantJson(fc).transport }),
       (err: unknown) =>
-        err instanceof StrahlError &&
-        /^Base URL must not contain a query or fragment: /.test(err.message) &&
+        err instanceof StrahlValidationError &&
+        err.message === "Invalid baseUrl: A base URL cannot have a query (?) or fragment (#)." &&
         !err.message.includes("s3cretpw"),
       baseUrl,
     );
