@@ -74,6 +74,15 @@ integers. Anything else (`-1`, `1.5`, `NaN`, `Infinity`, `11` retries) throws a
 disabling the timeout or the size cap. The CLI's `--timeout`, `--max-retries` and
 `--max-response-bytes` apply the same bounds.
 
+`userAgent` must be a usable header value: not blank, no control character other
+than tab, nothing above U+00FF. Anything else throws a `StrahlValidationError`
+(`Invalid userAgent: Value contains control characters.`) when the client is built,
+so a CR/LF never reaches a custom transport; only an omitted `userAgent` selects the
+default `strahlenschutz-cli`. The CLI's `--user-agent` applies the same rule
+(`headerValueProblem`). Should the default transport still be handed a header value
+Node refuses, it rejects with `StrahlNetworkError` (`Invalid request: …`) rather
+than a raw `TypeError`.
+
 ### Methods
 
 `client.getFeature(kind, query)` (generic), `client.latest(query)`,

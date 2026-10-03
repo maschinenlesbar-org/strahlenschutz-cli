@@ -155,3 +155,24 @@ test("parity: the numeric engine option bounds are accepted by both", async () =
     assert.deepEqual(cli.requests, lib.requests);
   }
 });
+
+test("parity: a blank or unsendable User-Agent is rejected by the CLI and the library before any request", async () => {
+  for (const ua of ["", "  ", "a\r\nX-Evil: 1", "ua\u0007", "a\u007fb", "bot☃"]) {
+    const result = await parity(["--user-agent", ua, "latest"], (transport) =>
+      new StrahlenschutzClient({ transport, userAgent: ua }).latest(),
+    );
+    assertBothReject(JSON.stringify(ua), result);
+  }
+});
+
+test("parity: a valid User-Agent (Latin-1, tab, padding) is sent unchanged by both", async () => {
+  for (const ua of [" ok ", "odl-tüv\t1"]) {
+    const { cli, lib } = await parity(["--user-agent", ua, "latest"], (transport) =>
+      new StrahlenschutzClient({ transport, userAgent: ua }).latest(),
+    );
+    assert.equal(cli.code, 0);
+    assert.equal(lib.ok, true);
+    assert.equal(lib.requests[0]?.headers?.["User-Agent"], ua);
+    assert.deepEqual(cli.requests, lib.requests);
+  }
+});

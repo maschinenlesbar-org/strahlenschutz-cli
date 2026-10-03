@@ -28,6 +28,7 @@ export {
 export {
   assertValid,
   featureKindProblem,
+  headerValueProblem,
   intRangeProblem,
   isBlank,
   nonEmptyProblem,

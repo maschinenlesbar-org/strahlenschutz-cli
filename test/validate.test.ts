@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   assertValid,
   featureKindProblem,
+  headerValueProblem,
   intRangeProblem,
   nonEmptyProblem,
   timeseriesResolutionProblem,
@@ -100,4 +101,15 @@ test("intRangeProblem accepts safe integers within [min, max] and words its reas
     assert.equal(problem(bad), "Expected a non-negative integer.", String(bad));
   }
   assert.equal(intRangeProblem(-5, 5)(0.5), "Expected an integer.");
+});
+
+test("headerValueProblem rejects blank, control-character and non-Latin-1 values", () => {
+  for (const ok of ["ua", " ok ", "a\tb", "tüv", "ÿ"]) assert.equal(headerValueProblem(ok), undefined, ok);
+  for (const blank of ["", "   ", undefined, 5]) assert.equal(headerValueProblem(blank), "Expected a non-empty value.");
+  for (const ctl of ["a\r\nb", "a\u0000b", "a\u007fb", "a\u001bb"]) {
+    assert.equal(headerValueProblem(ctl), "Value contains control characters.", JSON.stringify(ctl));
+  }
+  for (const wide of ["Ā", "bot☃", "\u{1F642}"]) {
+    assert.equal(headerValueProblem(wide), "Value contains characters outside Latin-1 (above U+00FF).");
+  }
 });

@@ -96,3 +96,10 @@ test("enforces maxResponseBytes", async () => {
     },
   );
 });
+
+test("a header value Node refuses rejects with StrahlNetworkError, not a raw TypeError", async () => {
+  await assert.rejects(
+    nodeHttpTransport({ method: "GET", url: "http://127.0.0.1:9/", headers: { "User-Agent": "a\r\nX-Evil: 1" } }),
+    (err: unknown) => err instanceof StrahlNetworkError && /^Invalid request: /.test((err as Error).message),
+  );
+});

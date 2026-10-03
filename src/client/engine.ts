@@ -5,7 +5,7 @@
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { StrahlApiError, StrahlNetworkError, StrahlParseError, redactUrl } from "./errors.js";
-import { assertValid, intRangeProblem } from "./validate.js";
+import { assertValid, headerValueProblem, intRangeProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://www.imis.bfs.de";
 const DEFAULT_USER_AGENT = "strahlenschutz-cli";
@@ -29,7 +29,10 @@ export interface EngineOptions {
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
   transport?: Transport;
-  /** Value of the User-Agent header. */
+  /**
+   * Value of the User-Agent header: non-blank, no control characters (tab
+   * allowed), nothing above U+00FF. Defaults to `strahlenschutz-cli`.
+   */
   userAgent?: string;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
@@ -222,7 +225,13 @@ export class RequestEngine {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     assertHttpScheme(this.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
+    // Only `undefined` selects the default. A blank value would go out as an empty
+    // User-Agent, and a control or non-Latin-1 character would reach a custom
+    // transport raw (header injection) or make Node throw at request time.
+    this.userAgent =
+      options.userAgent === undefined
+        ? DEFAULT_USER_AGENT
+        : assertValid("userAgent", options.userAgent, headerValueProblem);
     // Numeric limits are range-checked: a negative, fractional, NaN or infinite
     // value would otherwise silently disable the timeout or the size cap, or retry
     // without bound. `undefined` keeps the default; 0 keeps its documented meaning.

@@ -77,3 +77,21 @@ export function intRangeProblem(min: number, max: number): Problem<unknown> {
     return undefined;
   };
 }
+
+/**
+ * A value that goes into an HTTP header (the User-Agent): non-blank, no C0 control
+ * or DEL (tab is allowed, as in HTTP), nothing above U+00FF. A blank value would be
+ * sent as an empty header; Node's HTTP layer refuses the others with an opaque
+ * "Invalid character in header content" TypeError at request time, and an injected
+ * transport would send a CR/LF value as is (header injection). Checked by char code
+ * so the source stays free of control bytes.
+ */
+export const headerValueProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "string" || isBlank(value)) return "Expected a non-empty value.";
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if ((c < 0x20 && c !== 0x09) || c === 0x7f) return "Value contains control characters.";
+    if (c > 0xff) return "Value contains characters outside Latin-1 (above U+00FF).";
+  }
+  return undefined;
+};
