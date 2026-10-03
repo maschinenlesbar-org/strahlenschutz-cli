@@ -90,7 +90,8 @@ src/
     query.ts     # dependency-free query-string builder
     http.ts      # the Transport interface + default node:http/https transport
     engine.ts    # URL building, retry/backoff, redirects (with cross-origin credential strip), JSON decoding, error mapping
-    errors.ts    # StrahlError / StrahlApiError / StrahlNetworkError / StrahlParseError
+    errors.ts    # StrahlError / StrahlApiError / StrahlNetworkError / StrahlParseError / StrahlValidationError
+    validate.ts  # input rules (Problem functions) + assertValid, shared by library and CLI
     client.ts    # StrahlenschutzClient — WFS GetFeature over the engine
   cli/
     io.ts        # injectable I/O seam (stdout/stderr/file)
@@ -140,11 +141,22 @@ or a 2xx OGC `ExceptionReport` where GeoJSON was expected; carries
 `status`/`detail`/`isRetryable`), `StrahlNetworkError` (transport
 failure/timeout), `StrahlParseError` (bad JSON, or a 2xx body that is not a FeatureCollection
 whose every feature is a JSON object with a `properties` object) and `StrahlNotFoundError`
-(synthesised for an unknown id) — all extending `StrahlError`. The CLI maps
+(synthesised for an unknown id) and `StrahlValidationError` (an input rejected
+before any request) — all extending `StrahlError`. The CLI maps
 `StrahlNotFoundError` to exit code `4`; all other errors map to `1`, an HTTP 404
 included: every command requests the one fixed WFS path, so a 404 means that
 path is missing (a wrong `--base-url`, or the API moved), never an unknown
 station, and the CLI appends a note saying so.
+
+**Input validation.** [`validate.ts`](src/client/validate.ts) holds the
+library's input rules as pure `<thing>Problem(value)` functions, which return the
+reason a value is invalid or `undefined`. The client enforces them with
+`assertValid(name, value, problem)` before any request, so a rejected input sends
+nothing: it throws (from a constructor) or rejects (from a method) with
+`StrahlValidationError` and the message `Invalid <name>: <reason>`. The CLI's
+commander parsers call the same functions, so a rule exists once; `run.ts` maps a
+`StrahlValidationError` raised during an action to the usage exit code 1 (the code
+commander's own parse errors use), printed as `Error: <message>`.
 
 **Error detail.** GeoServer reports a bad request as an OGC `ows:ExceptionReport`
 (XML). The engine's exported `owsExceptionText` pulls its `ExceptionText` (any
@@ -201,6 +213,10 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, and redirect handling (same-origin follow, cross-origin credential strip, https→http downgrade refusal, missing-Location, too-many-redirects) — mocked transport.
 - **`client.test.ts`** — the fixed WFS params, typeName selection, `CQL_FILTER` mapping and encoding, `sortBy`/`startIndex` propagation, and `kenn` validation — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
+- **`validate.test.ts`** — the input rules and `assertValid`.
+- **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
+  the library call on one recording mock transport; both must reject without a request, or both
+  send the same request.
 
 ## Continuous integration
 

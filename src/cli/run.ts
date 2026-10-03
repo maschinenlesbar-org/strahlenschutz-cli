@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
-import { StrahlApiError, StrahlError, StrahlNotFoundError } from "../client/errors.js";
+import { StrahlApiError, StrahlError, StrahlNotFoundError, StrahlValidationError } from "../client/errors.js";
 
 /**
  * Apply exitOverride + output redirection to every command in the tree.
@@ -39,6 +39,12 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     if (err instanceof CommanderError) {
       // Help/version requests exit 0; genuine parse errors carry their own code.
       return err.exitCode;
+    }
+    if (err instanceof StrahlValidationError) {
+      // An input the library rejected before any request: a usage error, the same
+      // exit code as commander's own parse errors (1).
+      deps.io.err(`Error: ${err.message}`);
+      return 1;
     }
     if (err instanceof StrahlNotFoundError) {
       deps.io.err(`Error: ${err.message}`);

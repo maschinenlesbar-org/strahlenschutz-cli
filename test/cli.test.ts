@@ -4,6 +4,7 @@ import { run } from "../src/cli/run.js";
 import { StrahlenschutzClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
+import { StrahlValidationError } from "../src/client/errors.js";
 import { LIVE_EXCEPTION_REPORT, makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 const fc = { type: "FeatureCollection", features: [] };
@@ -263,4 +264,20 @@ test("station on a feature list of non-objects exits 1, not a found station", as
   assert.equal(code, 1);
   assert.equal(cli.out.length, 0);
   assert.match(cli.err.join("\n"), /feature 0 is null\.$/);
+});
+
+test("a StrahlValidationError raised in an action is a usage error: exit 1, 'Error: <message>'", async () => {
+  const out: string[] = [];
+  const err: string[] = [];
+  const client = new StrahlenschutzClient({ transport: makeMockTransport(() => jsonResponse(fc)).transport });
+  client.latest = async () => {
+    throw new StrahlValidationError("Invalid sortBy: Expected a non-empty value.");
+  };
+  const code = await run(["latest"], {
+    io: { out: (s) => out.push(s), err: (s) => err.push(s) },
+    createClient: () => client,
+  });
+  assert.equal(code, 1);
+  assert.deepEqual(out, []);
+  assert.deepEqual(err, ["Error: Invalid sortBy: Expected a non-empty value."]);
 });

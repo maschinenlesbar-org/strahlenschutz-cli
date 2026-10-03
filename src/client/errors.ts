@@ -66,6 +66,13 @@ export class StrahlApiError extends StrahlError {
   }
 }
 
+/**
+ * An input the library rejects before sending any request: a client option or a
+ * method argument that breaks one of the rules in `validate.ts`. The message reads
+ * `Invalid <name>: <reason>`. The CLI reports it as a usage error (exit 1).
+ */
+export class StrahlValidationError extends StrahlError {}
+
 /** A transport-level failure (DNS, connection reset, timeout, ...). */
 export class StrahlNetworkError extends StrahlError {}
 
