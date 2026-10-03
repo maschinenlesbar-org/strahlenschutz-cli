@@ -5,7 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { StrahlenschutzClient } from "../src/client/client.js";
-import { StrahlValidationError } from "../src/client/errors.js";
+import { StrahlNotFoundError, StrahlValidationError } from "../src/client/errors.js";
+import * as library from "../src/index.js";
 import type { Transport } from "../src/client/http.js";
 import { parity } from "./helpers.js";
 
@@ -89,4 +90,30 @@ test("getFeature rejects an unknown feature kind, inherited names included, befo
     );
     assert.deepEqual(lib.requests, []);
   }
+});
+
+test("parity: station() for an unknown kenn is a not-found on both sides, after the same request", async () => {
+  const { cli, lib } = await parity(["--compact", "station", "4711"], (transport) =>
+    new StrahlenschutzClient({ transport }).station("4711"),
+  );
+  assert.equal(cli.code, 4);
+  assert.equal(cli.err, 'Error: No station found for kenn "4711".');
+  assert.equal(lib.ok, false);
+  assert.ok(lib.error instanceof StrahlNotFoundError, String(lib.error));
+  assert.equal((lib.error as Error).message, 'No station found for kenn "4711".');
+  assert.equal(cli.requests.length, 1);
+  assert.deepEqual(cli.requests.map((r) => r.url), lib.requests.map((r) => r.url));
+});
+
+test("parity: latest --station keeps an empty result as success on both sides", async () => {
+  const { cli, lib } = await parity(["--compact", "latest", "--station", "4711"], (transport) =>
+    new StrahlenschutzClient({ transport }).latest({ station: "4711" }),
+  );
+  assert.equal(cli.code, 0);
+  assert.equal(lib.ok, true);
+  assert.equal(cli.out, JSON.stringify(lib.value));
+});
+
+test("the library root exports StrahlNotFoundError", () => {
+  assert.equal(library.StrahlNotFoundError, StrahlNotFoundError);
 });

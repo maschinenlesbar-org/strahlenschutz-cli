@@ -165,8 +165,8 @@ WFS-2.0-Parameter `count` übertragen.
 
 **Leeres Ergebnis vs. nicht gefunden.** Der WFS liefert für eine unbekannte `kenn` eine leere
 FeatureCollection mit HTTP **200**, nie einen 404. Bei der Abfrage einer einzelnen Messstelle
-(`station <kenn>`) wertet die CLI „keine Features“ als nicht gefunden und löst
-`StrahlNotFoundError` aus, der auf den Exit-Code **4** abgebildet wird. `timeseries <kenn>` und
+(`station <kenn>`) wertet `station()` im Client „keine Features“ als nicht gefunden und löst
+den (exportierten) `StrahlNotFoundError` aus, den die CLI auf den Exit-Code **4** abbildet. `timeseries <kenn>` und
 `latest --station <kenn>` geben die leere Collection dagegen mit Exit-Code **0** aus: Auch eine
 echte Messstelle kann eine leere Zeitreihe haben (eine `defekt`-Messstelle oder `ts-24h`), ein
 leeres Ergebnis beweist dort also nicht, dass die Kennung unbekannt ist.

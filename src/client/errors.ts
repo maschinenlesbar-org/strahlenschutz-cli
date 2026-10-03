@@ -77,8 +77,8 @@ export class StrahlValidationError extends StrahlError {}
 export class StrahlNetworkError extends StrahlError {}
 
 /**
- * A requested resource does not exist. Raised by the CLI when a lookup for a
- * single, specific entity (e.g. one station by its `kenn`) comes back empty.
+ * A requested resource does not exist. Raised by the client's `station()` when the
+ * lookup for one specific station by its `kenn` comes back empty.
  * The WFS never answers 404 for an unknown id — it returns an empty
  * FeatureCollection with status 200 — so we synthesise this so an unknown id is
  * distinguishable from a request error and maps to the documented exit code 4.

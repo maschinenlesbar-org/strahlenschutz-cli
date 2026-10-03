@@ -18,6 +18,7 @@ export {
   StrahlError,
   StrahlApiError,
   StrahlNetworkError,
+  StrahlNotFoundError,
   StrahlParseError,
   StrahlValidationError,
   redactUrl,

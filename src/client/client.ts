@@ -12,7 +12,7 @@
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import { TYPE_NAMES, type FeatureKind, type TimeseriesResolution } from "./enums.js";
-import { StrahlError, StrahlParseError } from "./errors.js";
+import { StrahlError, StrahlNotFoundError, StrahlParseError } from "./errors.js";
 import { assertValid, featureKindProblem, nonEmptyProblem, timeseriesResolutionProblem } from "./validate.js";
 import type { FeatureCollection, FeatureQuery } from "./types.js";
 
@@ -146,9 +146,19 @@ export class StrahlenschutzClient {
     return this.getFeature("latest", query);
   }
 
-  /** The latest reading for a single station by its `kenn` id. */
-  station(kenn: string): Promise<FeatureCollection> {
-    return this.getFeature("latest", { station: kenn });
+  /**
+   * The latest reading for a single station by its `kenn` id. The WFS answers an
+   * unknown `kenn` with an empty FeatureCollection (HTTP 200), never a 404, so an
+   * empty result here means the station does not exist: it rejects with
+   * `StrahlNotFoundError`. (`latest({ station })` and `timeseries()` pass an empty
+   * collection through, since a real station can have no readings in a series.)
+   */
+  async station(kenn: string): Promise<FeatureCollection> {
+    const result = await this.getFeature("latest", { station: kenn });
+    if (result.features.length === 0) {
+      throw new StrahlNotFoundError(`No station found for kenn "${kenn}".`);
+    }
+    return result;
   }
 
   /**

@@ -168,8 +168,8 @@ as the WFS 2.0 `count` parameter.
 
 **Empty result vs. not-found.** The WFS returns an empty FeatureCollection with
 HTTP **200** for an unknown `kenn`, never a 404. For a single-station lookup
-(`station <kenn>`) the CLI treats "no features" as not-found and raises
-`StrahlNotFoundError`, mapping it to exit code **4**. `timeseries <kenn>` and
+(`station <kenn>`) the client's `station()` treats "no features" as not-found and
+raises `StrahlNotFoundError` (exported), which the CLI maps to exit code **4**. `timeseries <kenn>` and
 `latest --station <kenn>` pass the empty collection through with exit **0**: a real
 station can have an empty series as well (a `defekt` station, or `ts-24h`), so an
 empty result there doesn't prove the id is unknown.

@@ -36,7 +36,7 @@ strahlenschutz --help
 ## Library usage
 
 ```ts
-import { StrahlenschutzClient, StrahlApiError } from "@maschinenlesbar.org/strahlenschutz-cli";
+import { StrahlenschutzClient, StrahlApiError, StrahlNotFoundError } from "@maschinenlesbar.org/strahlenschutz-cli";
 
 const client = new StrahlenschutzClient(); // defaults to https://www.imis.bfs.de
 
@@ -45,9 +45,10 @@ const one = await client.station("091811461");
 const series = await client.timeseries("091811461", "ts-24h");
 
 try {
-  await client.station("nope");
+  await client.station("999999999");
 } catch (err) {
-  if (err instanceof StrahlApiError) console.error(err.status, err.detail);
+  if (err instanceof StrahlNotFoundError) console.error(err.message); // unknown kenn
+  else if (err instanceof StrahlApiError) console.error(err.status, err.detail);
 }
 ```
 
@@ -150,7 +151,7 @@ or a 2xx OGC `ExceptionReport` where GeoJSON was expected; carries
 `status`/`detail`/`isRetryable`), `StrahlNetworkError` (transport
 failure/timeout), `StrahlParseError` (bad JSON, or a 2xx body that is not a FeatureCollection
 whose every feature is a JSON object with a `properties` object) and `StrahlNotFoundError`
-(synthesised for an unknown id) and `StrahlValidationError` (an input rejected
+(raised by `station()` for an unknown id) and `StrahlValidationError` (an input rejected
 before any request) — all extending `StrahlError`. The CLI maps
 `StrahlNotFoundError` to exit code `4`; all other errors map to `1`, an HTTP 404
 included: every command requests the one fixed WFS path, so a 404 means that
@@ -200,8 +201,9 @@ percent-encoding the value already receives.
 
 **Empty result vs. not-found.** The WFS returns an empty FeatureCollection with
 HTTP **200** for an unknown `kenn`, never a 404. For a single-station lookup
-(`station <kenn>`) the CLI treats "no features" as not-found and raises
-`StrahlNotFoundError`, mapping it to exit code **4**. `timeseries <kenn>` and
+(`station <kenn>`) the client's `station()` treats "no features" as not-found and
+rejects with `StrahlNotFoundError` (exported), which the CLI maps to exit code
+**4**; `latest({ station })` and `timeseries()` resolve with the empty collection. `timeseries <kenn>` and
 `latest --station <kenn>` do not: a real station can also return an empty
 series (a `defekt` station, or `ts-24h`), so they print the empty collection
 and exit `0`. Telling the two apart would take a second `station` request on

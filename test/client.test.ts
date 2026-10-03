@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_SORT_BY, StrahlenschutzClient } from "../src/client/client.js";
-import { StrahlApiError, StrahlError, StrahlParseError } from "../src/client/errors.js";
+import { StrahlApiError, StrahlError, StrahlNotFoundError, StrahlParseError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): StrahlenschutzClient {
@@ -9,6 +9,11 @@ function clientWith(mt: ReturnType<typeof makeMockTransport>): StrahlenschutzCli
 }
 
 const fc = { type: "FeatureCollection", features: [] };
+/** station() treats an empty result as not-found, so its tests answer with one feature. */
+const oneStation = {
+  type: "FeatureCollection",
+  features: [{ type: "Feature", id: "x", geometry: null, properties: {} }],
+};
 
 test("latest sets the fixed WFS params and the latest typeName", async () => {
   const mt = constantJson(fc);
@@ -25,7 +30,7 @@ test("latest sets the fixed WFS params and the latest typeName", async () => {
 });
 
 test("station turns a kenn id into a CQL_FILTER", async () => {
-  const mt = constantJson(fc);
+  const mt = constantJson(oneStation);
   await clientWith(mt).station("091811461");
   assert.equal(new URL(mt.last().url).searchParams.get("CQL_FILTER"), "kenn='091811461'");
 });
@@ -67,7 +72,7 @@ test("every query is sorted by a stable default key unless the caller sorts", as
     [(c) => c.latest({ sortBy: "end_measure D", startIndex: 10 }), "end_measure D"],
   ];
   for (const [call, expected] of cases) {
-    const mt = constantJson(fc);
+    const mt = constantJson(oneStation);
     await call(clientWith(mt));
     assert.equal(new URL(mt.last().url).searchParams.get("sortBy"), expected);
   }
@@ -95,7 +100,7 @@ test("CQL_FILTER is percent-encoded in the URL (no injection)", async () => {
   // The encoding of the "kenn='<id>'" token is the central anti-injection property.
   // The "=" and "'" characters must be percent-encoded so the value cannot start a
   // second query parameter or break out of the CQL literal at the URL level.
-  const mt = constantJson(fc);
+  const mt = constantJson(oneStation);
   await clientWith(mt).station("091811461");
   assert.match(mt.last().url, /CQL_FILTER=kenn%3D%27091811461%27/);
 });
@@ -197,4 +202,15 @@ test("every feature must be a JSON object with a properties object", async () =>
           `Unexpected response shape from the WFS: expected every feature to be a JSON object with a properties object, ${message}`,
     );
   }
+});
+
+test("station() rejects with StrahlNotFoundError when the WFS returns no feature", async () => {
+  const mt = constantJson(fc);
+  await assert.rejects(clientWith(mt).station("999999999"), (err: unknown) =>
+    err instanceof StrahlNotFoundError && err.message === 'No station found for kenn "999999999".',
+  );
+  assert.equal(mt.calls.length, 1);
+  // latest({ station }) and timeseries() pass the empty collection through.
+  assert.deepEqual(await clientWith(mt).latest({ station: "999999999" }), fc);
+  assert.deepEqual(await clientWith(mt).timeseries("999999999"), fc);
 });
