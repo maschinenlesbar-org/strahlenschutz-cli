@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   assertValid,
   featureKindProblem,
+  intRangeProblem,
   nonEmptyProblem,
   timeseriesResolutionProblem,
   type Problem,
@@ -88,4 +89,15 @@ test("featureKindProblem and timeseriesResolutionProblem accept only their own v
   for (const bad of ["__proto__", "constructor", "toString", "hasOwnProperty", "", " latest", 1, undefined]) {
     assert.match(featureKindProblem(bad) ?? "", /^Expected one of: latest, ts-1h, ts-24h \(got .*\)\.$/, String(bad));
   }
+});
+
+test("intRangeProblem accepts safe integers within [min, max] and words its reasons like the CLI", () => {
+  const problem = intRangeProblem(0, 10);
+  for (const ok of [0, 5, 10]) assert.equal(problem(ok), undefined);
+  assert.equal(problem(11), "Must be <= 10.");
+  assert.equal(problem(-1), "Must be >= 0.");
+  for (const bad of [1.5, Number.NaN, Number.POSITIVE_INFINITY, "5", undefined]) {
+    assert.equal(problem(bad), "Expected a non-negative integer.", String(bad));
+  }
+  assert.equal(intRangeProblem(-5, 5)(0.5), "Expected an integer.");
 });

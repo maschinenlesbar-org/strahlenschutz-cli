@@ -5,7 +5,7 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { EngineOptions } from "../client/engine.js";
-import { nonEmptyProblem } from "../client/validate.js";
+import { intRangeProblem, nonEmptyProblem } from "../client/validate.js";
 
 /**
  * commander value-parser: a non-negative integer.
@@ -26,12 +26,17 @@ export function parseIntArg(value: string): number {
   return n;
 }
 
-/** Build a commander value-parser for a non-negative integer constrained to [min, max]. */
+/**
+ * Build a commander value-parser for a non-negative integer constrained to
+ * [min, max]. The range is the library's `intRangeProblem`, the rule the engine
+ * applies to the same option.
+ */
 export function parseBoundedInt(min: number, max: number): (value: string) => number {
+  const problem = intRangeProblem(min, max);
   return (value: string) => {
     const n = parseIntArg(value);
-    if (n < min) throw new InvalidArgumentError(`Must be >= ${min}.`);
-    if (n > max) throw new InvalidArgumentError(`Must be <= ${max}.`);
+    const reason = problem(n);
+    if (reason !== undefined) throw new InvalidArgumentError(reason);
     return n;
   };
 }

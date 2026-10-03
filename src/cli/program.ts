@@ -9,6 +9,7 @@ import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { StrahlenschutzClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
+import { MAX_RETRIES } from "../client/engine.js";
 import { parseBoundedInt, parseHeaderValue, parseIntArg, parseBaseUrl } from "./shared.js";
 import { registerOdlCommands } from "./commands/odl.js";
 
@@ -55,8 +56,8 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .option("--user-agent <ua>", "User-Agent header value", parseHeaderValue)
     .option(
       "--max-retries <n>",
-      "retries for transient 429/503 responses (0..10; each waits the server's Retry-After, up to 30 s)",
-      parseBoundedInt(0, 10),
+      `retries for transient 429/503 responses (0..${MAX_RETRIES}; each waits the server's Retry-After, up to 30 s)`,
+      parseBoundedInt(0, MAX_RETRIES),
     )
     .option(
       "--max-response-bytes <n>",

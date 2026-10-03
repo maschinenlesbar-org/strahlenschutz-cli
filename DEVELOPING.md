@@ -65,6 +65,15 @@ new StrahlenschutzClient({
 });
 ```
 
+The numeric options are range-checked when the client is built: `timeoutMs` is an
+integer from `0` (no timeout) to `MAX_TIMEOUT_MS` (2³¹−1 ms), `maxRetries` from `0`
+to `MAX_RETRIES` (10), `maxRedirects` from `0` to `MAX_REDIRECTS` (10), and
+`maxResponseBytes` (`0` = unlimited) and `retryDelayMs` are non-negative safe
+integers. Anything else (`-1`, `1.5`, `NaN`, `Infinity`, `11` retries) throws a
+`StrahlValidationError` (`Invalid maxRetries: Must be <= 10.`) instead of silently
+disabling the timeout or the size cap. The CLI's `--timeout`, `--max-retries` and
+`--max-response-bytes` apply the same bounds.
+
 ### Methods
 
 `client.getFeature(kind, query)` (generic), `client.latest(query)`,
@@ -184,7 +193,8 @@ engine drops credential-bearing headers (`Authorization`/`X-API-Key`/`Cookie`);
 an `https`→`http` downgrade redirect is refused outright.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
-retried automatically, up to `--max-retries` (`0`–`10`). Each retry waits the
+retried automatically, up to `--max-retries` / `maxRetries` (`0`–`MAX_RETRIES`, 10;
+the library rejects a value outside that range). Each retry waits the
 response's `Retry-After` — delay-seconds or an IMF-fixdate HTTP-date, parsed
 strictly by the exported `parseRetryAfter` — or, without a usable one,
 `retryDelayMs * attempt` (200 ms, 400 ms, …). A `Retry-After` above

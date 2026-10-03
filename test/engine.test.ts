@@ -1,8 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_RETRY_AFTER_MS, RequestEngine, owsExceptionText, parseRetryAfter } from "../src/client/engine.js";
-import { StrahlApiError, StrahlNetworkError, StrahlParseError } from "../src/client/errors.js";
-import type { HttpResponse } from "../src/client/http.js";
+import {
+  MAX_REDIRECTS,
+  MAX_RETRIES,
+  MAX_RETRY_AFTER_MS,
+  RequestEngine,
+  owsExceptionText,
+  parseRetryAfter,
+  type EngineOptions,
+} from "../src/client/engine.js";
+import { StrahlApiError, StrahlNetworkError, StrahlParseError, StrahlValidationError } from "../src/client/errors.js";
+import { MAX_TIMEOUT_MS, type HttpResponse } from "../src/client/http.js";
 import { LIVE_EXCEPTION_REPORT, makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 /** A 30x redirect response pointing at `location`. */
@@ -357,4 +365,30 @@ test("redirect and base-URL errors redact userinfo", async () => {
     () => new RequestEngine({ baseUrl: "ftp://u:s3cretpw@a.example" }),
     (err: unknown) => err instanceof StrahlNetworkError && !err.message.includes("s3cretpw"),
   );
+});
+
+test("the engine rejects out-of-range numeric options at construction", () => {
+  const bad: Array<[keyof EngineOptions, number]> = [];
+  for (const v of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const name of ["timeoutMs", "maxRetries", "maxRedirects", "maxResponseBytes", "retryDelayMs"] as const) {
+      bad.push([name, v]);
+    }
+  }
+  bad.push(["timeoutMs", MAX_TIMEOUT_MS + 1], ["maxRetries", MAX_RETRIES + 1], ["maxRedirects", MAX_REDIRECTS + 1]);
+  for (const [name, value] of bad) {
+    const mt = makeMockTransport(() => jsonResponse({}));
+    assert.throws(
+      () => new RequestEngine({ transport: mt.transport, [name]: value }),
+      (err: unknown) => err instanceof StrahlValidationError && (err as Error).message.startsWith(`Invalid ${name}: `),
+      `${name}=${value}`,
+    );
+  }
+  for (const options of [
+    { timeoutMs: 0, maxRetries: 0, maxRedirects: 0, maxResponseBytes: 0, retryDelayMs: 0 },
+    { timeoutMs: MAX_TIMEOUT_MS, maxRetries: MAX_RETRIES, maxRedirects: MAX_REDIRECTS, maxResponseBytes: Number.MAX_SAFE_INTEGER },
+  ]) {
+    new RequestEngine(options);
+  }
+  assert.equal(MAX_RETRIES, 10);
+  assert.equal(MAX_REDIRECTS, 10);
 });

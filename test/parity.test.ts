@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { StrahlenschutzClient } from "../src/client/client.js";
 import { StrahlNotFoundError, StrahlValidationError } from "../src/client/errors.js";
 import * as library from "../src/index.js";
+import { MAX_RETRIES, MAX_TIMEOUT_MS } from "../src/index.js";
 import type { Transport } from "../src/client/http.js";
 import { parity } from "./helpers.js";
 
@@ -116,4 +117,41 @@ test("parity: latest --station keeps an empty result as success on both sides", 
 
 test("the library root exports StrahlNotFoundError", () => {
   assert.equal(library.StrahlNotFoundError, StrahlNotFoundError);
+});
+
+test("parity: out-of-range numeric engine options are rejected by the CLI and the library before any request", async () => {
+  const cases: [string, string, Record<string, number>][] = [
+    ["--max-retries", "11", { maxRetries: 11 }],
+    ["--max-retries", "-1", { maxRetries: -1 }],
+    ["--max-retries", "1.5", { maxRetries: 1.5 }],
+    ["--timeout", "-1", { timeoutMs: -1 }],
+    ["--timeout", "1.5", { timeoutMs: 1.5 }],
+    ["--timeout", "2147483648", { timeoutMs: 2_147_483_648 }],
+    ["--max-response-bytes", "-1", { maxResponseBytes: -1 }],
+    ["--max-response-bytes", "1.5", { maxResponseBytes: 1.5 }],
+  ];
+  for (const [flag, value, options] of cases) {
+    const result = await parity([flag, value, "latest"], (transport) =>
+      new StrahlenschutzClient({ transport, ...options }).latest(),
+    );
+    assertBothReject(`${flag} ${value}`, result);
+  }
+});
+
+test("parity: the numeric engine option bounds are accepted by both", async () => {
+  const cases: [string, string, Record<string, number>][] = [
+    ["--max-retries", "0", { maxRetries: 0 }],
+    ["--max-retries", String(MAX_RETRIES), { maxRetries: MAX_RETRIES }],
+    ["--timeout", "0", { timeoutMs: 0 }],
+    ["--timeout", String(MAX_TIMEOUT_MS), { timeoutMs: MAX_TIMEOUT_MS }],
+    ["--max-response-bytes", "0", { maxResponseBytes: 0 }],
+  ];
+  for (const [flag, value, options] of cases) {
+    const { cli, lib } = await parity([flag, value, "latest"], (transport) =>
+      new StrahlenschutzClient({ transport, ...options }).latest(),
+    );
+    assert.equal(cli.code, 0, `${flag} ${value}`);
+    assert.equal(lib.ok, true, `${flag} ${value}`);
+    assert.deepEqual(cli.requests, lib.requests);
+  }
 });

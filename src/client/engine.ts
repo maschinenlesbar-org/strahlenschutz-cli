@@ -2,12 +2,19 @@
 // requests via a Transport, applies retry/backoff for transient statuses
 // (429, 503), and decodes responses.
 
-import { nodeHttpTransport, type Transport } from "./http.js";
+import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { StrahlApiError, StrahlNetworkError, StrahlParseError, redactUrl } from "./errors.js";
+import { assertValid, intRangeProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://www.imis.bfs.de";
 const DEFAULT_USER_AGENT = "strahlenschutz-cli";
+
+/** Most retries `maxRetries` may ask for: the bound protects the public BfS service. */
+export const MAX_RETRIES = 10;
+
+/** Most redirects `maxRedirects` may allow. */
+export const MAX_REDIRECTS = 10;
 
 export interface RawResponse {
   data: Buffer;
@@ -26,22 +33,31 @@ export interface EngineOptions {
   userAgent?: string;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
-   * only idle gaps (0 disables; capped at MAX_TIMEOUT_MS, 2^31 - 1 ms). Defaults to 30 s.
+   * only idle gaps: an integer from 0 (disables) to MAX_TIMEOUT_MS (2^31 - 1 ms).
+   * Defaults to 30 s.
    */
   timeoutMs?: number;
   /**
-   * Number of automatic retries for transient (429/503) responses. Each waits the
-   * response's `Retry-After` (up to `MAX_RETRY_AFTER_MS`; a longer one is not
-   * retried), or else `retryDelayMs * attempt`.
+   * Number of automatic retries for transient (429/503) responses, an integer from
+   * 0 to MAX_RETRIES (10); defaults to 2. Each waits the response's `Retry-After`
+   * (up to `MAX_RETRY_AFTER_MS`; a longer one is not retried), or else
+   * `retryDelayMs * attempt`.
    */
   maxRetries?: number;
-  /** Base backoff between retries in milliseconds (grows linearly); used without a Retry-After. */
+  /**
+   * Base backoff between retries in milliseconds (grows linearly), a non-negative
+   * integer; used without a Retry-After. Defaults to 200.
+   */
   retryDelayMs?: number;
-  /** Number of HTTP redirects (301/302/303/307/308) to follow. Defaults to 5. */
+  /**
+   * Number of HTTP redirects (301/302/303/307/308) to follow, an integer from 0 to
+   * MAX_REDIRECTS (10). Defaults to 5.
+   */
   maxRedirects?: number;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
-   * from a hostile/buggy endpoint). Defaults to 100 MiB; set to 0 for no limit.
+   * from a hostile/buggy endpoint), a non-negative safe integer. Defaults to
+   * 100 MiB; set to 0 for no limit.
    */
   maxResponseBytes?: number;
   /** Injectable sleep, primarily for deterministic tests. */
@@ -180,6 +196,14 @@ function assertHttpScheme(baseUrl: string): void {
   }
 }
 
+/**
+ * A numeric engine option: `fallback` when it is `undefined`, else an integer from
+ * 0 to `max`, or a `StrahlValidationError` (`Invalid maxRetries: Must be <= 10.`).
+ */
+function intOption(name: string, value: number | undefined, fallback: number, max: number): number {
+  return value === undefined ? fallback : assertValid(name, value, intRangeProblem(0, max));
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -199,11 +223,19 @@ export class RequestEngine {
     assertHttpScheme(this.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
-    this.timeoutMs = options.timeoutMs ?? 30_000;
-    this.maxRetries = options.maxRetries ?? 2;
-    this.retryDelayMs = options.retryDelayMs ?? 200;
-    this.maxRedirects = options.maxRedirects ?? 5;
-    this.maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+    // Numeric limits are range-checked: a negative, fractional, NaN or infinite
+    // value would otherwise silently disable the timeout or the size cap, or retry
+    // without bound. `undefined` keeps the default; 0 keeps its documented meaning.
+    this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
+    this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
+    this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, Number.MAX_SAFE_INTEGER);
+    this.maxRedirects = intOption("maxRedirects", options.maxRedirects, 5, MAX_REDIRECTS);
+    this.maxResponseBytes = intOption(
+      "maxResponseBytes",
+      options.maxResponseBytes,
+      DEFAULT_MAX_RESPONSE_BYTES,
+      Number.MAX_SAFE_INTEGER,
+    );
     this.sleep = options.sleep ?? realSleep;
   }
 

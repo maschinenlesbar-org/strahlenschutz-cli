@@ -62,3 +62,18 @@ export const featureKindProblem: Problem<unknown> = oneOfProblem(FeatureKindValu
  * return the latest-reading layer in the shape of a one-point series.
  */
 export const timeseriesResolutionProblem: Problem<unknown> = oneOfProblem(TimeseriesResolutionValues);
+
+/**
+ * A number must be a safe integer from `min` to `max`. The reasons are worded like
+ * the CLI's integer parsers ("Must be <= 10."), which call this rule for their bounds.
+ */
+export function intRangeProblem(min: number, max: number): Problem<unknown> {
+  return (value) => {
+    if (typeof value !== "number" || !Number.isSafeInteger(value)) {
+      return min >= 0 ? "Expected a non-negative integer." : "Expected an integer.";
+    }
+    if (value < min) return `Must be >= ${min}.`;
+    if (value > max) return `Must be <= ${max}.`;
+    return undefined;
+  };
+}

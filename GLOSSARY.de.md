@@ -172,8 +172,8 @@ echte Messstelle kann eine leere Zeitreihe haben (eine `defekt`-Messstelle oder 
 leeres Ergebnis beweist dort also nicht, dass die Kennung unbekannt ist.
 
 **Rate Limiting / vorübergehende Fehler.** Die Status **429** und **503** gelten als
-vorübergehend und werden automatisch wiederholt (`--max-retries`, `0`–`10`, Standard `2`;
-`StrahlApiError.isRetryable`). Jede Wiederholung wartet das `Retry-After` des Servers ab
+vorübergehend und werden automatisch wiederholt (`--max-retries` bzw. `maxRetries` der
+Bibliothek: `0`–`10`, das exportierte `MAX_RETRIES`, Standard `2`; `StrahlApiError.isRetryable`). Jede Wiederholung wartet das `Retry-After` des Servers ab
 (Sekunden oder ein HTTP-Datum), sonst einen linear wachsenden Abstand (200 ms, 400 ms, …).
 Ein `Retry-After` über 30 s wird nicht wiederholt: Der Fehler wird sofort gemeldet.
 
