@@ -21,12 +21,24 @@ export interface HttpRequest {
   timeoutMs?: number;
   /** Hard cap on the response body size in bytes; the request aborts if exceeded. */
   maxResponseBytes?: number;
+  /**
+   * Always `"manual"` from the engine: a transport must not follow redirects. The engine
+   * follows them itself and decides per hop whether the `Authorization` header goes along
+   * (same origin only). A fetch-based transport passes it on: `fetch(url, { redirect })`.
+   */
+  redirect?: "manual";
 }
 
 export interface HttpResponse {
   status: number;
   headers: http.IncomingHttpHeaders;
   body: Buffer;
+  /**
+   * The URL the response came from, if the transport knows it (fetch's `response.url`).
+   * When it is on another origin than the request, the transport followed a redirect
+   * itself and the engine rejects the response with a StrahlNetworkError.
+   */
+  url?: string;
 }
 
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;

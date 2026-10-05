@@ -182,7 +182,10 @@ transient and retried automatically (`--max-retries`, or the library's `maxRetri
 
 **Cross-origin credential strip.** On a redirect to a different origin, the engine
 drops credential-bearing headers (`Authorization`/`X-API-Key`/`Cookie`); an
-`https`→`http` downgrade redirect is refused outright.
+`https`→`http` downgrade redirect is refused outright. A same-origin redirect (relative
+or absolute `Location`) keeps them. A base URL's `user:pw@` is sent as that
+`Authorization` header, never inside the URL, and a `Location`'s own userinfo is
+ignored.
 
 **Read-only, no auth.** The ODL-Info open-data WFS needs no key; this client only
 issues read-only `GET` requests.

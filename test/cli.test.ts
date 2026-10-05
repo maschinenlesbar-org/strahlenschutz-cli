@@ -217,10 +217,12 @@ test("userinfo in --base-url is sent but redacted in error messages", async () =
   const cli = makeCli(() => jsonResponse({ detail: "boom" }, 500));
   const code = await run(["--base-url", "http://user:s3cretpw@127.0.0.1:18133/e500", "latest", "--max", "1"], cli.deps);
   assert.equal(code, 1);
-  assert.ok(cli.mt.last().url.startsWith("http://user:s3cretpw@127.0.0.1:18133/e500/"));
+  // The userinfo travels as the Authorization header, never inside the URL (P3).
+  assert.ok(cli.mt.last().url.startsWith("http://127.0.0.1:18133/e500/"));
+  assert.equal(cli.mt.last().headers?.["Authorization"], `Basic ${Buffer.from("user:s3cretpw").toString("base64")}`);
   const stderr = cli.err.join("\n");
   assert.ok(!stderr.includes("s3cretpw"), stderr);
-  assert.match(stderr, /^Error: HTTP 500 for GET http:\/\/\*\*\*@127\.0\.0\.1:18133\/e500\/ogc\/opendata\/ows\?.*: boom$/);
+  assert.match(stderr, /^Error: HTTP 500 for GET http:\/\/127\.0\.0\.1:18133\/e500\/ogc\/opendata\/ows\?.*: boom$/);
 });
 
 test("--base-url with a query, fragment or surrounding whitespace is a usage error before any request", async () => {

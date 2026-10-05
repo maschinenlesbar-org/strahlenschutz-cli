@@ -211,9 +211,11 @@ it as the `detail`, for a non-2xx status and for a 2xx body that is not JSON.
 Every detail is stripped of control characters, flattened to one line and cut at
 `MAX_DETAIL_LENGTH` (500) characters; the full body stays on `StrahlApiError.body`.
 
-**Userinfo redaction.** A base URL may carry `user:password@` (Node sends it as
-Basic auth, e.g. for a mirror). Error messages and `StrahlApiError.url` show it as
-`***@` (the exported `redactUrl`); the request itself keeps it. `redactUrl` also
+**Userinfo redaction.** A base URL may carry `user:password@` (for a mirror behind a
+login). The engine never puts it into the URL a transport sees: it sends it as an
+`Authorization: Basic` header per hop (see below), so request URLs in error messages
+and `StrahlApiError.url` carry no userinfo; `buildUrl()` and `redactUrl` show it as
+`***@`. `redactUrl` also
 redacts a value that doesn't parse as a URL, by text: the exported `credentialsIn`
 finds the exact userinfo of any URL-like value (a port typo, a password with `#`,
 `?`, `/` or a space, a scheme-less `user:pw@host`), and `redactCredentials` replaces
@@ -224,9 +226,17 @@ commander's usage errors, which echo a rejected `--base-url` whole, included.
 `test/conformance-p1-cli-redaction.test.ts` checks ten passwords in seven URL shapes
 at every argv position.
 
-**Cross-origin credential strip.** On a redirect to a different origin, the
-engine drops credential-bearing headers (`Authorization`/`X-API-Key`/`Cookie`);
-an `https`→`http` downgrade redirect is refused outright.
+**Cross-origin credential strip.** On a redirect to a different origin (scheme, host
+or port), the engine drops credential-bearing headers
+(`Authorization`/`X-API-Key`/`Cookie`), and a `401`/`403` from the target then says so
+("the server redirected http→https, which dropped the base URL's credentials; use an
+https base URL"); an `https`→`http` downgrade redirect is refused outright. A redirect
+to the same origin, with a relative or an absolute `Location`, keeps them. Userinfo in
+a `Location` is never used. Transports are told `redirect: "manual"`
+(`HttpRequest.redirect`): the engine follows redirects itself, and a response whose
+`HttpResponse.url` lies on another origin (a fetch transport that followed one) is
+rejected as a `StrahlNetworkError`. `test/conformance-p3-redirect-credentials.test.ts`
+checks this with a two-port mock pair.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `--max-retries` / `maxRetries` (`0`–`MAX_RETRIES`, 10;

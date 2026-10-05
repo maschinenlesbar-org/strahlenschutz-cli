@@ -358,7 +358,8 @@ test("redirect and base-URL errors redact userinfo", async () => {
   const e = new RequestEngine({ baseUrl: "https://u:s3cretpw@a.example", transport: noLocation.transport });
   await assert.rejects(
     () => e.getJson("/x"),
-    (err: unknown) => err instanceof StrahlNetworkError && /https:\/\/\*\*\*@a\.example\/x/.test(err.message) && !err.message.includes("s3cretpw"),
+    // The userinfo travels as the Authorization header, never in a request URL (P3).
+    (err: unknown) => err instanceof StrahlNetworkError && /https:\/\/a\.example\/x/.test(err.message) && !err.message.includes("s3cretpw"),
   );
   const downgrade = makeMockTransport(() => ({ status: 302, headers: { location: "http://v:pw2@b.example/y" }, body: Buffer.alloc(0) }));
   const d = new RequestEngine({ baseUrl: "https://u:s3cretpw@a.example", transport: downgrade.transport });

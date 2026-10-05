@@ -286,11 +286,20 @@ export class RequestEngine {
     return copy;
   }
 
-  /** Build a fully-qualified URL from a path and optional query parameters. */
+  /**
+   * Build a fully-qualified URL from a path and optional query parameters. It keeps any
+   * userinfo of the base URL (`http://user:pw@mirror/…`); request() leaves it out and
+   * sends it as an Authorization header instead (see basicAuthorization).
+   */
   buildUrl(path: string, query?: QueryParams): string {
+    return this.composeUrl(this.#baseUrl, path, query);
+  }
+
+  /** `base` + path + query string. */
+  private composeUrl(base: string, path: string, query: QueryParams | undefined): string {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
-    return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+    return `${base}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
   /** Perform a request with Accept negotiation and transient-error retries. */
@@ -299,11 +308,19 @@ export class RequestEngine {
     path: string,
     options: { query?: QueryParams; accept: string } = { accept: "application/json" },
   ): Promise<RawResponse> {
-    let url = this.buildUrl(path, options.query);
+    // The transport never sees the base URL's userinfo: the engine sends it as an
+    // Authorization header, per hop, so a redirect to the same origin (relative or
+    // absolute) keeps it and one to another origin or scheme drops it. A transport such
+    // as fetch also refuses a URL with credentials outright.
+    let url = this.composeUrl(withoutUserinfo(this.#baseUrl), path, options.query);
     const headers: Record<string, string> = {
       Accept: options.accept,
       "User-Agent": this.userAgent,
     };
+    const authorization = basicAuthorization(this.#baseUrl);
+    if (authorization !== undefined) headers["Authorization"] = authorization;
+    /** Why a redirect dropped the base URL's credentials, for a 401/403 message. */
+    let dropped: string | undefined;
 
     let attempt = 0;
     let redirects = 0;
@@ -316,6 +333,7 @@ export class RequestEngine {
           url,
           headers,
           timeoutMs: this.timeoutMs,
+          redirect: "manual",
           ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
         });
       } catch (cause) {
@@ -328,6 +346,18 @@ export class RequestEngine {
         throw new StrahlNetworkError(
           `${method} ${redactUrl(url)} failed: ${cleanDetail(this.scrub(reason)) ?? "unknown error"}`,
           { cause: this.scrubCause(cause) },
+        );
+      }
+
+      // A transport must not follow redirects itself (`redirect: "manual"`): one that did
+      // (fetch's default) may have carried the Authorization header to another host, and
+      // the answer is not the one asked for. Reject it when it says so (`url`).
+      const finalUrl = (response as { url?: unknown }).url;
+      if (typeof finalUrl === "string" && finalUrl !== "" && originOf(finalUrl) !== originOf(url)) {
+        throw new StrahlNetworkError(
+          `${method} ${redactUrl(url)} failed: the transport followed a redirect to another origin ` +
+            `(${cleanDetail(redactUrl(this.scrub(finalUrl))) ?? ""}); a transport must not follow redirects ` +
+            `(HttpRequest.redirect is "manual").`,
         );
       }
 
@@ -379,14 +409,26 @@ export class RequestEngine {
           );
         }
 
-        // Cross-origin redirect: drop credential-bearing headers so they are
-        // never re-sent to a different origin (matches fetch/browser behaviour).
-        // Compare by origin (scheme + host + port).
+        // Userinfo in a Location is not used: credentials come from the base URL only,
+        // as the Authorization header, never from a server.
+        to.username = "";
+        to.password = "";
+
+        // Cross-origin redirect: drop credential-bearing headers so they are never
+        // re-sent to a different origin (matches fetch/browser behaviour). Compare by
+        // origin (scheme + host + port); the same origin keeps them, whether the
+        // Location is relative or absolute.
         if (to.origin !== from.origin) {
           for (const name of Object.keys(headers)) {
             const lower = name.toLowerCase();
             if (lower === "authorization" || lower === "x-api-key" || lower === "cookie") {
               delete headers[name];
+              if (name === "Authorization" && authorization !== undefined && dropped === undefined) {
+                dropped =
+                  from.protocol === "http:" && to.protocol === "https:" && from.hostname === to.hostname
+                    ? "the server redirected http→https, which dropped the base URL's credentials; use an https base URL"
+                    : `the redirect to ${to.origin} dropped the base URL's credentials (they are sent to their own origin only)`;
+              }
             }
           }
         }
@@ -398,7 +440,7 @@ export class RequestEngine {
 
       const contentType = String(response.headers["content-type"] ?? "");
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, response.body);
+        throw this.toApiError(method, url, status, response.body, status === 401 || status === 403 ? dropped : undefined);
       }
 
       return { data: response.body, contentType, status, url };
@@ -422,7 +464,7 @@ export class RequestEngine {
     }
   }
 
-  private toApiError(method: string, url: string, status: number, body: Buffer): StrahlApiError {
+  private toApiError(method: string, url: string, status: number, body: Buffer, hint?: string): StrahlApiError {
     const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
     try {
@@ -437,6 +479,33 @@ export class RequestEngine {
     // endpoint cannot inject terminal escape sequences via the stderr error message,
     // and keep it to one bounded line.
     if (detail !== undefined) detail = cleanDetail(detail);
+    if (hint !== undefined) detail = detail === undefined ? hint : `${detail}; ${hint}`;
     return new StrahlApiError({ status, url, method, body: text, detail });
+  }
+}
+
+/** `url` without its userinfo, otherwise exactly as written. */
+function withoutUserinfo(url: string): string {
+  const [userinfo] = credentialsIn(url);
+  return userinfo === undefined ? url : url.replace(`://${userinfo}@`, "://");
+}
+
+/**
+ * The `Authorization` header for a URL's userinfo (`Basic base64(user:password)`, both
+ * percent-decoded, as Node's own http client builds it), or undefined without userinfo.
+ */
+function basicAuthorization(url: string): string | undefined {
+  const parsed = new URL(url);
+  if (parsed.username === "" && parsed.password === "") return undefined;
+  const pair = `${decodeURIComponent(parsed.username)}:${decodeURIComponent(parsed.password)}`;
+  return `Basic ${Buffer.from(pair, "utf8").toString("base64")}`;
+}
+
+/** The origin (scheme, host, port) of a URL, or the value itself if it doesn't parse. */
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
   }
 }

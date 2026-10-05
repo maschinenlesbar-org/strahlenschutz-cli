@@ -179,7 +179,10 @@ Ein `Retry-After` über 30 s wird nicht wiederholt: Der Fehler wird sofort gemel
 
 **Entfernen von Zugangsdaten beim Wechsel des Origins.** Bei einer Weiterleitung auf einen anderen
 Origin entfernt die Engine Header mit Zugangsdaten (`Authorization`/`X-API-Key`/`Cookie`);
-eine Weiterleitung mit Downgrade von `https`→`http` wird grundsätzlich abgelehnt.
+eine Weiterleitung mit Downgrade von `https`→`http` wird grundsätzlich abgelehnt. Eine
+Weiterleitung auf denselben Origin (relative oder absolute `Location`) behält sie. Das
+`user:pw@` einer Basis-URL geht als dieser `Authorization`-Header mit, nie in der URL, und
+Zugangsdaten in einer `Location` werden ignoriert.
 
 **Nur lesend, keine Authentifizierung.** Der Open-Data-WFS von ODL-Info braucht keinen
 Schlüssel; dieser Client stellt ausschließlich lesende `GET`-Anfragen.
