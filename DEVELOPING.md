@@ -206,7 +206,16 @@ Every detail is stripped of control characters, flattened to one line and cut at
 
 **Userinfo redaction.** A base URL may carry `user:password@` (Node sends it as
 Basic auth, e.g. for a mirror). Error messages and `StrahlApiError.url` show it as
-`***@` (the exported `redactUrl`); the request itself keeps it.
+`***@` (the exported `redactUrl`); the request itself keeps it. `redactUrl` also
+redacts a value that doesn't parse as a URL, by text: the exported `credentialsIn`
+finds the exact userinfo of any URL-like value (a port typo, a password with `#`,
+`?`, `/` or a space, a scheme-less `user:pw@host`), and `redactCredentials` replaces
+those strings with `***`. The CLI's `run()` wraps its output in `withRedactedOutput`:
+it collects the credentials of every argument (and of the value part of
+`--opt=value`) and redacts them, raw and JSON-escaped, from every line printed —
+commander's usage errors, which echo a rejected `--base-url` whole, included.
+`test/conformance-p1-cli-redaction.test.ts` checks ten passwords in seven URL shapes
+at every argv position.
 
 **Cross-origin credential strip.** On a redirect to a different origin, the
 engine drops credential-bearing headers (`Authorization`/`X-API-Key`/`Cookie`);

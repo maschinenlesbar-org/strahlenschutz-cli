@@ -24,6 +24,8 @@ export {
   StrahlNotFoundError,
   StrahlParseError,
   StrahlValidationError,
+  credentialsIn,
+  redactCredentials,
   redactUrl,
 } from "./errors.js";
 export {

@@ -4,19 +4,66 @@
 /**
  * Replace the userinfo of a URL (`https://user:secret@host/...`) with `***`, so a
  * credential in a base URL never reaches an error message, a log or CI output.
- * A URL without userinfo, or one that does not parse, is returned unchanged.
+ * A value that does not parse as a URL (a port typo, an unencoded `#` in the
+ * password) has its userinfo cut out by text ({@link credentialsIn}); a value
+ * without userinfo is returned unchanged.
  */
 export function redactUrl(url: string): string {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return url;
+    // A value that doesn't parse can still carry credentials: cut them out by text.
+    return redactCredentials(url, credentialsIn(url));
   }
-  if (parsed.username === "" && parsed.password === "") return url;
+  // `user:pw@host` without a scheme parses as a URL with the scheme "user:": no userinfo.
+  if (parsed.username === "" && parsed.password === "") return redactCredentials(url, credentialsIn(url));
   parsed.username = "***";
   parsed.password = "";
   return parsed.href;
+}
+
+/**
+ * The userinfo a URL-like value carries, exactly as written — `["alice:pa#ss"]` for
+ * `https://alice:pa#ss@host` — or `[]` when it carries none. It works on values that don't
+ * parse as a URL too, and on values with a prefix (`--base-url=https://u:p@h`): the userinfo
+ * is everything between `://` and the last `@` before the host. A value without a scheme
+ * counts when it reads `user:password@host`. Used to redact those exact strings from text
+ * that echoes the value (usage errors, help), whatever characters the password contains.
+ */
+export function credentialsIn(value: string): string[] {
+  const schemeAt = value.indexOf("://");
+  const rest = schemeAt >= 0 ? value.slice(schemeAt + 3) : value;
+  // Without a scheme only the unmistakable `user:password@host` form counts.
+  if (schemeAt < 0 && !/^[^\s/@:]+:[^@]*@[^@\s/]/.test(rest)) return [];
+  // The URL itself starts at its scheme (`--base-url=https://…` has a prefix).
+  const scheme = schemeAt >= 0 ? /[a-z][a-z0-9+.-]*$/i.exec(value.slice(0, schemeAt)) : null;
+  let parses = false;
+  try {
+    new URL(schemeAt >= 0 ? value.slice(scheme?.index ?? schemeAt) : `http://${rest}`);
+    parses = true;
+  } catch {
+    // Doesn't parse: the password may hold "/", "?", "#" or spaces.
+  }
+  // In a URL that parses, the userinfo ends at the last "@" of the authority (before the
+  // first "/", "?" or "#"); in one that doesn't, at the last "@" of the value.
+  const authority = parses ? rest.slice(0, rest.search(/[/?#]|$/)) : rest;
+  const end = authority.lastIndexOf("@");
+  return end > 0 ? [rest.slice(0, end)] : [];
+}
+
+/**
+ * `text` with every occurrence of each credential (as {@link credentialsIn} returns them)
+ * that is followed by `@` replaced by `***`. Matching the exact strings, not a pattern,
+ * covers passwords with spaces, quotes, `#`, `?` or `/` that no URL pattern can delimit.
+ */
+export function redactCredentials(text: string, credentials: readonly string[]): string {
+  let out = text;
+  for (const secret of credentials) {
+    if (secret === "") continue;
+    out = out.split(`${secret}@`).join("***@");
+  }
+  return out;
 }
 
 /** Base class for every error originating from this client. */
