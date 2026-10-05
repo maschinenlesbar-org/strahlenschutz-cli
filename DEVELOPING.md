@@ -79,7 +79,9 @@ the client is built: no whitespace or control characters, surrounding or inner
 (`new URL()` would trim or strip them silently, but the WFS path is appended to the
 raw string, so `"https://h/ "` would request `/%20/ogc/...`); an absolute URL; an
 `http:`/`https:` scheme; no `?query` or `#fragment` (they would swallow the WFS
-path). A path prefix and userinfo are fine. A bad value is a configuration error,
+path). A path prefix and userinfo are fine; a `%` in the userinfo must start a valid
+escape (write a literal `%` as `%25`), since the engine percent-decodes it for the
+`Authorization` header. A bad value is a configuration error,
 so it throws `StrahlValidationError` (`Invalid baseUrl: Only "http:" and "https:"
 base URLs are supported.`), never `StrahlNetworkError`, and the message never
 repeats the URL. The CLI's `--base-url` calls the same rule.

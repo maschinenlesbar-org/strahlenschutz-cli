@@ -114,8 +114,9 @@ export const baseUrlWhitespaceProblem: Problem<unknown> = (value) => {
  * (baseUrlWhitespaceProblem), an absolute URL, an `http:`/`https:` scheme, and no
  * query or fragment. The WFS path is appended to the base URL as a string, so a
  * `?` or `#` would swallow it (`http://h/#f` requests `/`). A path prefix is fine,
- * and so is userinfo (Node sends it as Basic auth, e.g. for a mirror). The reasons
- * name no URL, so a credential in it never reaches a message.
+ * and so is userinfo (the engine sends it as Basic auth, e.g. for a mirror); a `%` in
+ * it must start a valid escape (`%25` for a literal one). The reasons name no URL, so
+ * a credential in it never reaches a message.
  */
 export const baseUrlProblem: Problem<unknown> = (value) => {
   const whitespace = baseUrlWhitespaceProblem(value);
@@ -130,5 +131,14 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
     return 'Only "http:" and "https:" base URLs are supported.';
   }
   if (/[?#]/.test(value as string)) return "A base URL cannot have a query (?) or fragment (#).";
+  // The userinfo is percent-decoded for the Authorization header; a "%" that isn't an
+  // escape would fail there ("URI malformed") at request time. Reject it here.
+  for (const part of [url.username, url.password]) {
+    try {
+      decodeURIComponent(part);
+    } catch {
+      return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
+    }
+  }
   return undefined;
 };
