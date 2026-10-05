@@ -10,7 +10,11 @@ export type JsonValue =
   | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
-/** A GeoJSON geometry (typically a Point with [lon, lat]). */
+/**
+ * A GeoJSON geometry (typically a Point with [lon, lat], EPSG:4326). The coordinates are
+ * passed through as the BfS stores them, unchecked: one `defekt` station had
+ * `[589.28, 3007.11]` on 5 Oct 2026. Check the range before mapping.
+ */
 export interface Geometry {
   type: string;
   coordinates: JsonValue;

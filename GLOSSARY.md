@@ -66,7 +66,10 @@ not another station's data). CLI: `station <kenn>`, `--station <kenn>`,
 
 **GeoJSON Feature.** One element of the response: a station together with its
 reading, with a `geometry` (typically a Point with `[lon, lat]` coordinates) and a
-`properties` object holding the station metadata and ODL value.
+`properties` object holding the station metadata and ODL value. The coordinates are
+passed through exactly as the BfS stores them, unchecked: on 5 Oct 2026 one `defekt`
+station (Trollenhagen, `130711451`) had `[589.28, 3007.11]`. Real stations lie within
+about lon 5.5–15.5, lat 47–55.5; check before mapping.
 
 **FeatureCollection.** A WFS `GetFeature` response as GeoJSON: a `type:
 "FeatureCollection"` envelope with a `features` array, plus optional

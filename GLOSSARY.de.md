@@ -63,7 +63,10 @@ Daten einer anderen Messstelle). CLI: `station <kenn>`, `--station <kenn>`,
 
 **GeoJSON-Feature.** Ein Element der Antwort: eine Messstelle mit ihrem Messwert, mit einer
 `geometry` (meist ein Point mit `[lon, lat]`-Koordinaten) und einem `properties`-Objekt, das die
-Metadaten der Messstelle und den ODL-Wert enthält.
+Metadaten der Messstelle und den ODL-Wert enthält. Die Koordinaten kommen ungeprüft so, wie das
+BfS sie speichert: Am 5. Okt. 2026 hatte eine `defekt`-Messstelle (Trollenhagen, `130711451`)
+`[589.28, 3007.11]`. Echte Messstellen liegen etwa bei Länge 5,5–15,5 und Breite 47–55,5;
+vor dem Kartieren prüfen.
 
 **FeatureCollection.** Eine WFS-`GetFeature`-Antwort als GeoJSON: eine Hülle
 `type: "FeatureCollection"` mit einem Array `features`, dazu optional die Felder

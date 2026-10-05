@@ -40,6 +40,12 @@ For one station or a sample, use `latest --station <kenn>` or `--max <n>`.
 `geometry.coordinates` is already `[lon, lat]` (RFC 7946 order) and `crs` is
 EPSG:4326 — so unlike many APIs there is **no coordinate flipping to do**.
 
+But the coordinates come **exactly as the BfS stores them, unchecked** — the CLI
+passes them through. On 5 Oct 2026 one `defekt` station, Trollenhagen (`130711451`),
+had `[589.28, 3007.11]`: not a place on Earth. Every real station lies in Germany or
+its offshore platforms, within lon 5.5–15.5, lat 47–55.5. Drop (or list) any point
+outside that box rather than ship it.
+
 ## Step 2 — Clean and promote the dose value for styling
 
 The raw output is valid GeoJSON, but for a usable map layer do two things:
@@ -58,6 +64,9 @@ strahlenschutz --compact latest \
       type: "FeatureCollection",
       features: [ .features[]
         | select(.properties.value != null)        # drop dead sensors for a heatmap
+        | select(.geometry.coordinates             # drop points outside Germany
+                 | (.[0] | type == "number" and . >= 5.5 and . <= 15.5)
+                   and (.[1] | type == "number" and . >= 47 and . <= 55.5))
         | {
             type: "Feature",
             geometry: .geometry,                    # already [lon, lat], EPSG:4326
@@ -77,7 +86,23 @@ strahlenschutz --compact latest \
 ```
 
 Notes:
-- Keep `geometry` as-is — don't rebuild coordinates; they're correct already.
+- Keep a valid `geometry` as-is — don't flip or rebuild coordinates — but don't vouch
+  for them: the box filter above is what keeps a broken one off the map. List the
+  stations it dropped, so the user knows a point is missing and why:
+
+  ```bash
+  strahlenschutz --compact latest \
+    | jq -r '.features[]
+             | select(.geometry.coordinates
+                      | ((.[0] | type == "number" and . >= 5.5 and . <= 15.5)
+                         and (.[1] | type == "number" and . >= 47 and . <= 55.5)) | not)
+             | [.properties.kenn, .properties.name, .properties.site_status_text,
+                (.geometry.coordinates | tostring)] | @tsv'
+  ```
+
+  For the heatmap this is usually empty (the broken point seen so far belongs to a
+  `defekt` station, which has no value); for a network-coverage map that keeps dead
+  stations, apply the same box filter before writing.
 - **Coordinates are rounded to two decimals** (`[8.81, 51.36]`, i.e. 0.01° ≈ 1 km).
   Fine for a national layer, but tell a user who zooms in to street level, snaps points
   to addresses or measures distances that the dot marks the station only to about 1 km.
@@ -102,7 +127,9 @@ dropped or greyed. If a name the user supplied already exists, confirm before ov
 
 Validity checklist before handing it over:
 - it parses as a single `FeatureCollection`;
-- coordinates are `[lon, lat]` numbers (the API already gives this — don't flip them);
+- coordinates are `[lon, lat]` numbers (the API already gives this — don't flip them),
+  and every point lies inside Germany's box (lon 5.5–15.5, lat 47–55.5); report the
+  `kenn` and name of any station you dropped for its coordinates;
 - the dose value is a numeric `value` property in µSv/h, and you said whether dead
   sensors were dropped or kept.
 
