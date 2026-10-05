@@ -59,8 +59,10 @@ cover Germany.
 
 **kenn (station id).** The station identifier (Kennung). A fixed-format **numeric**
 string (digits only), e.g. `091811461`. The client trims surrounding whitespace, then
-validates the shape (digits only, non-empty) before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`). CLI:
-`station <kenn>`, `--station <kenn>`, `timeseries <kenn>`.
+validates the shape (digits only, non-empty) before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`), and checks that every
+feature of the answer carries that `kenn` (a server that drops the filter is an error,
+not another station's data). CLI: `station <kenn>`, `--station <kenn>`,
+`timeseries <kenn>`.
 
 **GeoJSON Feature.** One element of the response: a station together with its
 reading, with a `geometry` (typically a Point with `[lon, lat]` coordinates) and a

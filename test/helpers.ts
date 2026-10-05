@@ -63,6 +63,21 @@ export function constantJson(body: unknown, status = 200): MockTransport {
   return makeMockTransport(() => jsonResponse(body, status));
 }
 
+/**
+ * A transport that answers like the live WFS: one feature carrying the `kenn` of the
+ * request's CQL_FILTER (`kenn='<id>'`), or one for station `000000001` without a filter.
+ */
+export function stationEcho(): MockTransport {
+  return makeMockTransport((req) => {
+    const filter = new URL(req.url).searchParams.get("CQL_FILTER");
+    const kenn = /^kenn='(\d+)'$/.exec(filter ?? "")?.[1] ?? "000000001";
+    return jsonResponse({
+      type: "FeatureCollection",
+      features: [{ type: "Feature", id: "x", geometry: null, properties: { kenn } }],
+    });
+  });
+}
+
 /** The body the live GeoServer sent for `sortBy=bogus_prop` (2026-09-26). */
 export const LIVE_EXCEPTION_REPORT =
   '<?xml version="1.0" encoding="UTF-8"?><ows:ExceptionReport xmlns:xs="http://www.w3.org/2001/XMLSchema" ' +

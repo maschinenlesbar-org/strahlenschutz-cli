@@ -118,6 +118,27 @@ function assertFeatureCollection(value: unknown): FeatureCollection {
   return value as unknown as FeatureCollection;
 }
 
+/**
+ * Every feature of an answer to a station query must carry that station's `kenn`. The
+ * live WFS honours the `CQL_FILTER`, but a server that drops it (a mirror, a proxy, a
+ * changed upstream) answers with the whole network, HTTP 200: `station 083370490` then
+ * printed 1 677 stations, and the README's `.features[0]` recipe reported Flensburg's
+ * reading as Herrischried's. Such an answer is a StrahlParseError, never data.
+ */
+function assertStation(result: FeatureCollection, kenn: string): void {
+  result.features.forEach((feature, i) => {
+    const got = feature.properties["kenn"];
+    if (got !== kenn) {
+      const shown = typeof got === "string" ? `kenn "${got.length > 20 ? `${got.slice(0, 20)}…` : got}"` : "no kenn";
+      throw new StrahlParseError(
+        `The WFS answered a query for kenn "${kenn}" with a feature for ${shown} (feature ${i} of ` +
+          `${result.features.length}): it did not apply the station filter, so this is not that station's data. ` +
+          "Check --base-url / baseUrl (a mirror or proxy that drops CQL_FILTER?).",
+      );
+    }
+  });
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -151,7 +172,8 @@ export class StrahlenschutzClient {
       typeName: TYPE_NAMES[kind],
       outputFormat: "application/json",
     };
-    if (query.station !== undefined) params["CQL_FILTER"] = `kenn='${assertKenn(query.station)}'`;
+    const station = query.station === undefined ? undefined : assertKenn(query.station);
+    if (station !== undefined) params["CQL_FILTER"] = `kenn='${station}'`;
     // A sortBy given explicitly must not be blank: `sortBy=` would replace the
     // default sort that paging needs (GeoServer answers HTTP 400 to a `startIndex`
     // on an unsorted query). Only `undefined` selects the default. Its direction must
@@ -165,7 +187,9 @@ export class StrahlenschutzClient {
     // without one returns the rest of the collection from that offset.
     if (query.maxFeatures !== undefined) params["count"] = assertPagingInt("maxFeatures", query.maxFeatures);
     if (query.startIndex !== undefined) params["startIndex"] = assertPagingInt("startIndex", query.startIndex);
-    return assertFeatureCollection(await this.engine.getJson<unknown>(OWS, params));
+    const result = assertFeatureCollection(await this.engine.getJson<unknown>(OWS, params));
+    if (station !== undefined) assertStation(result, station);
+    return result;
   }
 
   /** The latest ODL reading per station (optionally filtered/limited). */

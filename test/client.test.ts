@@ -8,18 +8,15 @@ import {
   StrahlParseError,
   StrahlValidationError,
 } from "../src/client/errors.js";
-import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
+import { makeMockTransport, jsonResponse, constantJson, stationEcho } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): StrahlenschutzClient {
   return new StrahlenschutzClient({ transport: mt.transport });
 }
 
 const fc = { type: "FeatureCollection", features: [] };
-/** station() treats an empty result as not-found, so its tests answer with one feature. */
-const oneStation = {
-  type: "FeatureCollection",
-  features: [{ type: "Feature", id: "x", geometry: null, properties: {} }],
-};
+// station() treats an empty result as not-found and checks the kenn of what comes back,
+// so its tests answer through stationEcho() (helpers.ts).
 
 test("latest sets the fixed WFS params and the latest typeName", async () => {
   const mt = constantJson(fc);
@@ -36,7 +33,7 @@ test("latest sets the fixed WFS params and the latest typeName", async () => {
 });
 
 test("station turns a kenn id into a CQL_FILTER", async () => {
-  const mt = constantJson(oneStation);
+  const mt = stationEcho();
   await clientWith(mt).station("091811461");
   assert.equal(new URL(mt.last().url).searchParams.get("CQL_FILTER"), "kenn='091811461'");
 });
@@ -78,7 +75,7 @@ test("every query is sorted by a stable default key unless the caller sorts", as
     [(c) => c.latest({ sortBy: "end_measure D", startIndex: 10 }), "end_measure D"],
   ];
   for (const [call, expected] of cases) {
-    const mt = constantJson(oneStation);
+    const mt = stationEcho();
     await call(clientWith(mt));
     assert.equal(new URL(mt.last().url).searchParams.get("sortBy"), expected);
   }
@@ -106,7 +103,7 @@ test("CQL_FILTER is percent-encoded in the URL (no injection)", async () => {
   // The encoding of the "kenn='<id>'" token is the central anti-injection property.
   // The "=" and "'" characters must be percent-encoded so the value cannot start a
   // second query parameter or break out of the CQL literal at the URL level.
-  const mt = constantJson(oneStation);
+  const mt = stationEcho();
   await clientWith(mt).station("091811461");
   assert.match(mt.last().url, /CQL_FILTER=kenn%3D%27091811461%27/);
 });
@@ -234,9 +231,40 @@ test("timeseries() takes the station as its argument only: a station key in the 
 });
 
 test("a padded kenn is trimmed before the check and the request (P11)", async () => {
-  const mt = constantJson(oneStation);
+  const mt = stationEcho();
   await clientWith(mt).station(" 083370490\n");
   assert.equal(new URL(mt.last().url).searchParams.get("CQL_FILTER"), "kenn='083370490'");
   await clientWith(mt).timeseries("\t083370490 ");
   assert.equal(new URL(mt.last().url).searchParams.get("CQL_FILTER"), "kenn='083370490'");
+});
+
+test("an answer for another station than the one asked for is a StrahlParseError, never data (03#2)", async () => {
+  // A server that drops CQL_FILTER answers with the whole network.
+  const network = {
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", id: "a", geometry: null, properties: { kenn: "010010001", value: 0.086 } },
+      { type: "Feature", id: "b", geometry: null, properties: { kenn: "083370490", value: 0.238 } },
+    ],
+  };
+  const calls: Array<[string, (c: StrahlenschutzClient) => Promise<unknown>]> = [
+    ["station", (c) => c.station("083370490")],
+    ["latest({ station })", (c) => c.latest({ station: "083370490" })],
+    ["timeseries", (c) => c.timeseries("083370490", "ts-1h", { maxFeatures: 1 })],
+  ];
+  for (const [label, call] of calls) {
+    const mt = constantJson(network);
+    await assert.rejects(
+      () => call(clientWith(mt)),
+      (err: unknown) =>
+        err instanceof StrahlParseError && /query for kenn "083370490" with a feature for kenn "010010001"/.test((err as Error).message),
+      label,
+    );
+  }
+  // A feature without a kenn can't be confirmed either.
+  const noKenn = constantJson({ type: "FeatureCollection", features: [{ type: "Feature", properties: { value: 1 } }] });
+  await assert.rejects(() => clientWith(noKenn).station("083370490"), StrahlParseError);
+  // The matching answer passes, and latest() without a station is not checked.
+  assert.equal((await clientWith(stationEcho()).station("083370490")).features.length, 1);
+  assert.equal((await clientWith(constantJson(network)).latest()).features.length, 2);
 });

@@ -331,6 +331,12 @@ series (a `defekt` station, or `ts-24h`), so they print the empty collection
 and exit `0`. Telling the two apart would take a second `station` request on
 an empty result.
 
+**Station identity check.** An answer to a query with a station (`station()`,
+`latest({ station })`, `timeseries()`) must carry that station's `kenn` in every
+feature. The live WFS applies the `CQL_FILTER`, but a mirror or proxy that drops it
+answers with the whole network and HTTP 200; that answer is a `StrahlParseError`
+naming the first foreign `kenn` (CLI exit 1), never another station's reading.
+
 **`FeatureKindValues` / `TYPE_NAMES`.** The const array of valid feature kinds
 (`latest`, `ts-1h`, `ts-24h`) and the map that translates each to its WFS
 `typeName` (e.g. `opendata:odlinfo_odl_1h_latest`).
