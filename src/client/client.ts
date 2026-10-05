@@ -16,9 +16,10 @@ import { StrahlNotFoundError, StrahlParseError, StrahlValidationError } from "./
 import {
   assertValid,
   featureKindProblem,
-  nonEmptyProblem,
   normalizeInput,
+  normalizeSortBy,
   queryKeysProblem,
+  sortByProblem,
   timeseriesResolutionProblem,
 } from "./validate.js";
 import type { FeatureCollection, FeatureQuery } from "./types.js";
@@ -153,9 +154,13 @@ export class StrahlenschutzClient {
     if (query.station !== undefined) params["CQL_FILTER"] = `kenn='${assertKenn(query.station)}'`;
     // A sortBy given explicitly must not be blank: `sortBy=` would replace the
     // default sort that paging needs (GeoServer answers HTTP 400 to a `startIndex`
-    // on an unsorted query). Only `undefined` selects the default.
+    // on an unsorted query). Only `undefined` selects the default. Its direction must
+    // be one GeoServer knows (it reads any other as ascending, with HTTP 200), and it
+    // goes out normalised: `"end_measure  D"` (two spaces) also read as ascending.
     params["sortBy"] =
-      query.sortBy === undefined ? DEFAULT_SORT_BY[kind] : assertValid("sortBy", query.sortBy, nonEmptyProblem);
+      query.sortBy === undefined
+        ? DEFAULT_SORT_BY[kind]
+        : normalizeSortBy(assertValid("sortBy", query.sortBy, sortByProblem));
     // WFS 2.0: the limit is `count` (not the WFS 1.x `maxFeatures`). A `startIndex`
     // without one returns the rest of the collection from that offset.
     if (query.maxFeatures !== undefined) params["count"] = assertPagingInt("maxFeatures", query.maxFeatures);

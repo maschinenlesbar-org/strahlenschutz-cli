@@ -39,8 +39,10 @@ export {
   isBlank,
   nonEmptyProblem,
   normalizeInput,
+  normalizeSortBy,
   oneOfProblem,
   queryKeysProblem,
+  sortByProblem,
   timeseriesResolutionProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";

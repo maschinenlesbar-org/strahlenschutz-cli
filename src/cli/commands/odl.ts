@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, once, parseIntArg, parseNonEmpty, renderJson } from "../shared.js";
+import { action, once, parseIntArg, parseSortBy, renderJson } from "../shared.js";
 import type { FeatureQuery } from "../../client/types.js";
 import type { TimeseriesResolution } from "../../client/enums.js";
 
@@ -19,8 +19,9 @@ function addQueryOptions(cmd: Command): Command {
     .option("--start <n>", "offset for paging", once("--start", parseIntArg))
     .option(
       "--sort <prop>",
-      'sort by a property (append " D" for descending, e.g. "end_measure D")',
-      once("--sort", parseNonEmpty),
+      'sort by a property; append " D" (or DESC) for descending, " A" (or ASC) for ascending, ' +
+        'e.g. "end_measure D"; several keys comma-separated',
+      once("--sort", parseSortBy),
     );
 }
 

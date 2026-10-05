@@ -137,7 +137,14 @@ no primary key, and GeoServer refuses any `startIndex` on an unsorted query with
 HTTP 400 ("Cannot do natural order without a primary key"). A blank `sortBy` (`""`
 or whitespace) is a `StrahlValidationError` (`Invalid sortBy: Expected a non-empty
 value.`) before any request, rather than an empty `sortBy=` that would replace the
-default sort; only an omitted `sortBy` selects the default.
+default sort; only an omitted `sortBy` selects the default. A direction must be
+`A`/`ASC` or `D`/`DESC` (any case), and no key may be empty (rule: `sortByProblem`):
+GeoServer reads any other token as ascending with HTTP 200, so `"end_measure DSC"`
+returned the oldest hours of the week. The value goes out normalised
+(`normalizeSortBy`): keys trimmed, inner whitespace collapsed to one space (two spaces
+before `D` were also read as ascending), the direction as `A` or `D`. Property names
+are left as typed; a wrong one is an HTTP 400 with GeoServer's reason. The CLI's
+`--sort` calls the same rule at parse time.
 
 ## Architecture
 

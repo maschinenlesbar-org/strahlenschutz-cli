@@ -136,7 +136,11 @@ Schlüssel trennen Sie mit Kommas (`end_measure D,kenn`) (CLI: `--sort <prop>`).
 sortiert der Client nach `kenn` (`latest`) bzw. `kenn,end_measure` (Zeitreihen, also älteste
 zuerst) – die Tabelle `DEFAULT_SORT_BY` –, damit sich jede Abfrage blättern lässt. Eine
 leere Sortierung (`""` oder nur Leerzeichen) lehnen CLI und Bibliothek vor jeder Anfrage ab,
-weil sie diesen Standard ersetzen würde.
+weil sie diesen Standard ersetzen würde. Als Richtung gelten nur `D`/`DESC` (absteigend) und
+`A`/`ASC` (aufsteigend), in beliebiger Schreibweise: Jedes andere Wort (`DSC`, ein Tippfehler)
+liest der WFS ohne Fehler als aufsteigend, deshalb lehnt der Client es ab. Leerzeichen werden
+vor dem Senden vereinheitlicht (`"end_measure  D"` mit zwei Leerzeichen, das der WFS ebenfalls
+als aufsteigend las, geht als `end_measure D` hinaus).
 
 **outputFormat.** Fest auf `application/json` gesetzt, damit jede Antwort GeoJSON ist.
 

@@ -47,6 +47,68 @@ export function isBlank(value: string): boolean {
 export const nonEmptyProblem: Problem<unknown> = (value) =>
   typeof value !== "string" || isBlank(value) ? "Expected a non-empty value." : undefined;
 
+/** One sort key, split into its property and direction token (if any). */
+function sortKeyParts(key: string): string[] {
+  return key.trim().split(/\s+/).filter((t) => t !== "");
+}
+
+/** The canonical direction for a token GeoServer reads (any case), or undefined. */
+function sortDirection(token: string): "A" | "D" | undefined {
+  const t = token.toUpperCase();
+  if (t === "A" || t === "ASC") return "A";
+  if (t === "D" || t === "DESC") return "D";
+  return undefined;
+}
+
+/**
+ * A WFS `sortBy`: comma-separated keys, each a property name with an optional
+ * direction — `A`/`ASC` (ascending) or `D`/`DESC` (descending), any case. GeoServer
+ * reads any other direction token (`DSC`, `X`), and a key with two spaces before the
+ * direction, as ascending with HTTP 200: `"end_measure DSC"` returned the oldest hours
+ * where the newest were meant. Whitespace is fine here (normalizeSortBy collapses it);
+ * an unknown direction, an empty key (`kenn,,value`) or a third word is the problem.
+ */
+export const sortByProblem: Problem<unknown> = (value) => {
+  const blank = nonEmptyProblem(value);
+  if (blank !== undefined) return blank;
+  for (const key of (value as string).split(",")) {
+    const parts = sortKeyParts(key);
+    if (parts.length === 0) return "Expected comma-separated sort keys, got an empty one.";
+    if (parts.length > 2) {
+      return `Expected "<property>" or "<property> D" per sort key, got ${JSON.stringify(cut(key.trim()))}.`;
+    }
+    const direction = parts[1];
+    if (direction !== undefined && sortDirection(direction) === undefined) {
+      return (
+        `Unknown sort direction ${JSON.stringify(cut(direction))} in ${JSON.stringify(cut(key.trim()))}; ` +
+        "use D or DESC for descending, A or ASC for ascending (the WFS reads anything else as ascending)."
+      );
+    }
+  }
+  return undefined;
+};
+
+/**
+ * A `sortBy` that passed {@link sortByProblem}, in the form the client sends: each key
+ * trimmed, whitespace inside it collapsed to one space, the direction as `A` or `D`
+ * (`" end_measure  desc , kenn"` → `"end_measure D,kenn"`). Property names are kept as
+ * typed: the WFS compares them case-sensitively and answers a wrong one with HTTP 400.
+ */
+export function normalizeSortBy(value: string): string {
+  return value
+    .split(",")
+    .map((key) => {
+      const [property, direction] = sortKeyParts(key);
+      return direction === undefined ? (property ?? "") : `${property} ${sortDirection(direction) ?? direction}`;
+    })
+    .join(",");
+}
+
+/** A value cut to 60 characters for a message. */
+function cut(text: string): string {
+  return text.length > 60 ? `${text.slice(0, 60)}…` : text;
+}
+
 /** A short description of a rejected value for a message: a string quoted, anything else as is. */
 function describe(value: unknown): string {
   return typeof value === "string" ? JSON.stringify(value) : String(value);

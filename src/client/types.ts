@@ -42,8 +42,11 @@ export interface FeatureQuery {
    * Property to sort by; append " D" (a space) for descending, e.g. "end_measure D";
    * several keys are comma-separated ("end_measure D,kenn"). Defaults to
    * `DEFAULT_SORT_BY[kind]` (`kenn`, or `kenn,end_measure` for a time series), since
-   * the service can only page a sorted result. A blank value ("" or whitespace) is
-   * rejected with `StrahlValidationError` before any request.
+   * the service can only page a sorted result. A blank value ("" or whitespace), an
+   * empty key or a direction other than `A`/`ASC`/`D`/`DESC` (any case) is rejected
+   * with `StrahlValidationError` before any request — the WFS reads an unknown
+   * direction as ascending. Sent normalised (`normalizeSortBy`): keys trimmed, inner
+   * whitespace collapsed, the direction as `A` or `D`.
    */
   sortBy?: string;
   /** Max features to return (sent as the WFS 2.0 `count` parameter). */

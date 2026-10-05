@@ -139,7 +139,11 @@ keys with commas (`end_measure D,kenn`) (CLI: `--sort <prop>`). Without `--sort`
 the client sorts by `kenn` (`latest`) or `kenn,end_measure` (time series, i.e.
 oldest first) — the `DEFAULT_SORT_BY` map — so every query can be paged. A blank
 sort (`""` or whitespace) is rejected before any request, by the CLI and the library
-alike, since it would replace that default.
+alike, since it would replace that default. The direction must be `D`/`DESC`
+(descending) or `A`/`ASC` (ascending), in any case: the WFS reads any other token
+(`DSC`, a typo) as ascending with no error, so the client rejects it; whitespace is
+normalised before sending (`"end_measure  D"`, with two spaces, also read as
+ascending upstream, goes out as `end_measure D`).
 
 **outputFormat.** Fixed to `application/json` so every response is GeoJSON.
 

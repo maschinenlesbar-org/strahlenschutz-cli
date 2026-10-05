@@ -74,7 +74,7 @@ timeseries <kenn>      hourly or daily time series for a station
 | `--station <kenn>` | restrict to one station by its numeric `kenn` id |
 | `--max <n>` | max features to return (WFS `count`) |
 | `--start <n>` | paging offset (without `--max`: everything from there on) |
-| `--sort <prop>` | sort by a feature property; append ` D` for descending, e.g. `"end_measure D"`; default `kenn` (the service can only page a sorted result) |
+| `--sort <prop>` | sort by a feature property; append ` D` (or `DESC`) for descending, ` A`/`ASC` for ascending, e.g. `"end_measure D"` — any other direction is a usage error; default `kenn` (the service can only page a sorted result) |
 
 ### `station` arguments
 
@@ -93,7 +93,7 @@ exit `0`, because a real station can have an empty series too.)
 | `--resolution ts-1h\|ts-24h` | hourly (default) or daily-averaged series |
 | `--max <n>` | max features to return |
 | `--start <n>` | paging offset |
-| `--sort <prop>` | sort by a feature property; default `kenn,end_measure` (oldest first) |
+| `--sort <prop>` | sort by a feature property (` D`/`DESC` descending, ` A`/`ASC` ascending); default `kenn,end_measure` (oldest first) |
 
 ## Common tasks
 

@@ -10,6 +10,7 @@ import {
   headerValueProblem,
   intRangeProblem,
   nonEmptyProblem,
+  sortByProblem,
 } from "../client/validate.js";
 
 /**
@@ -53,6 +54,17 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
  */
 export function parseNonEmpty(value: string): string {
   const reason = nonEmptyProblem(value);
+  if (reason !== undefined) throw new InvalidArgumentError(reason);
+  return value;
+}
+
+/**
+ * commander value-parser for `--sort`: the library's `sortByProblem` (non-blank keys, a
+ * direction of A/ASC or D/DESC only), reported as a usage error naming `--sort`. The
+ * value is passed on as typed; the client normalises it (`normalizeSortBy`).
+ */
+export function parseSortBy(value: string): string {
+  const reason = sortByProblem(value);
   if (reason !== undefined) throw new InvalidArgumentError(reason);
   return value;
 }

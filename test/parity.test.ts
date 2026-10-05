@@ -45,13 +45,48 @@ test("parity: a blank sortBy is rejected by the CLI and the library before any r
   assert.equal((direct.lib.error as Error).message, "Invalid sortBy: Expected a non-empty value.");
 });
 
-test("parity: a padded but non-blank sortBy is sent unchanged by both", async () => {
+test("parity: a padded but non-blank sortBy is sent normalised by both", async () => {
   const { cli, lib } = await parity(["latest", "--sort", " kenn "], (transport) =>
     new StrahlenschutzClient({ transport }).latest({ sortBy: " kenn " }),
   );
   assert.equal(cli.code, 0);
   assert.equal(lib.ok, true);
   assert.deepEqual(cli.requests.map((r) => r.url), lib.requests.map((r) => r.url));
+  assert.equal(new URL(lib.requests[0]!.url).searchParams.get("sortBy"), "kenn");
+});
+
+test("parity: an unknown sort direction is rejected by both before any request (01#1)", async () => {
+  for (const sortBy of ["end_measure DSC", "kenn X", "value DES", "end_measure D,kenn Z", "kenn,,value", "end_measure D D", ","]) {
+    const result = await parity(["timeseries", "083370490", "--sort", sortBy, "--max", "2"], (transport) =>
+      new StrahlenschutzClient({ transport }).timeseries("083370490", "ts-1h", { sortBy, maxFeatures: 2 }),
+    );
+    assertBothReject(JSON.stringify(sortBy), result);
+    assert.match((result.lib.error as Error).message, /^Invalid sortBy: /, sortBy);
+    assert.match(result.cli.err, /--sort/, sortBy);
+  }
+});
+
+test("parity: whitespace and direction spellings in sortBy are sent normalised by both (06#1)", async () => {
+  for (const [sortBy, sent] of [
+    ["end_measure  D", "end_measure D"],
+    ["value  D", "value D"],
+    ["end_measure\tD", "end_measure D"],
+    [" end_measure D ", "end_measure D"],
+    ["end_measure D, kenn", "end_measure D,kenn"],
+    ["end_measure DESC", "end_measure D"],
+    ["kenn d", "kenn D"],
+    ["end_measure ASC", "end_measure A"],
+    ["end_measure asc,kenn desc", "end_measure A,kenn D"],
+    ["opendata:end_measure D", "opendata:end_measure D"],
+  ]) {
+    const { cli, lib } = await parity(["latest", "--sort", sortBy!, "--max", "3"], (transport) =>
+      new StrahlenschutzClient({ transport }).latest({ sortBy, maxFeatures: 3 }),
+    );
+    assert.equal(cli.code, 0, `${JSON.stringify(sortBy)}: ${cli.err}`);
+    assert.equal(lib.ok, true, sortBy);
+    assert.equal(new URL(cli.requests[0]!.url).searchParams.get("sortBy"), sent, sortBy);
+    assert.deepEqual(cli.requests.map((r) => r.url), lib.requests.map((r) => r.url));
+  }
 });
 
 test("parity: an invalid timeseries resolution is rejected by the CLI and the library before any request", async () => {
