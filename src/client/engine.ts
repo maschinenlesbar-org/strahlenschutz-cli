@@ -2,9 +2,17 @@
 // requests via a Transport, applies retry/backoff for transient statuses
 // (429, 503), and decodes responses.
 
-import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
+import { MAX_TIMEOUT_MS, nodeHttpTransport, type HttpResponse, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { StrahlApiError, StrahlNetworkError, StrahlParseError, redactUrl } from "./errors.js";
+import {
+  StrahlApiError,
+  StrahlError,
+  StrahlNetworkError,
+  StrahlParseError,
+  credentialsIn,
+  redactCredentials,
+  redactUrl,
+} from "./errors.js";
 import { assertValid, baseUrlProblem, headerValueProblem, intRangeProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://www.imis.bfs.de";
@@ -199,7 +207,12 @@ const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 export class RequestEngine {
-  private readonly baseUrl: string;
+  // A real private field (not TypeScript's `private`): util.inspect, console.log and
+  // JSON.stringify of a client never show it, so a password in the base URL can't be
+  // logged by accident. Messages show request URLs through redactUrl.
+  readonly #baseUrl: string;
+  /** The base URL's userinfo, raw and percent-decoded, for scrubbing server and transport text. */
+  readonly #credentials: string[];
   private readonly transport: Transport;
   private readonly userAgent: string;
   private readonly timeoutMs: number;
@@ -212,7 +225,14 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     // Check the raw value, before the trailing-slash strip: "https://h/ " must not
     // get past it, and new URL() would hide the whitespace from the scheme check.
-    this.baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+    this.#baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+    this.#credentials = credentialsIn(this.#baseUrl).flatMap((raw) => {
+      try {
+        return [raw, decodeURIComponent(raw)];
+      } catch {
+        return [raw];
+      }
+    });
     this.transport = options.transport ?? nodeHttpTransport;
     // Only `undefined` selects the default. A blank value would go out as an empty
     // User-Agent, and a control or non-Latin-1 character would reach a custom
@@ -237,11 +257,40 @@ export class RequestEngine {
     this.sleep = options.sleep ?? realSleep;
   }
 
+  /**
+   * `text` without the base URL's credentials: server text (an error body that echoes the
+   * request URL) and transport text (fetch's "Request cannot be constructed from a URL that
+   * includes credentials: <url>") can carry them.
+   */
+  private scrub(text: string): string {
+    return this.#credentials.length === 0 ? text : redactCredentials(text, this.#credentials);
+  }
+
+  /**
+   * A transport failure as the `cause` of the error the engine raises: the original when its
+   * text carries no credentials, otherwise a copy with them scrubbed (message, `code` and the
+   * cause chain kept), so logging the error with its causes can't reveal the base URL's
+   * password.
+   */
+  private scrubCause(cause: unknown, depth = 0): unknown {
+    if (this.#credentials.length === 0 || depth > 5) return cause;
+    if (typeof cause === "string") return this.scrub(cause);
+    if (!(cause instanceof Error)) return cause;
+    const inner = this.scrubCause(cause.cause, depth + 1);
+    const message = this.scrub(cause.message);
+    if (message === cause.message && inner === cause.cause && !this.scrub(cause.stack ?? "").includes("***@")) return cause;
+    const copy = new Error(message, inner === undefined ? undefined : { cause: inner });
+    copy.name = cause.name;
+    const code = (cause as { code?: unknown }).code;
+    if (code !== undefined) Object.assign(copy, { code });
+    return copy;
+  }
+
   /** Build a fully-qualified URL from a path and optional query parameters. */
   buildUrl(path: string, query?: QueryParams): string {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
-    return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+    return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
   /** Perform a request with Accept negotiation and transient-error retries. */
@@ -260,13 +309,27 @@ export class RequestEngine {
     let redirects = 0;
     // attempts = initial try + maxRetries (redirects are counted separately)
     for (;;) {
-      const response = await this.transport({
-        method,
-        url,
-        headers,
-        timeoutMs: this.timeoutMs,
-        ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
-      });
+      let response: HttpResponse;
+      try {
+        response = await this.transport({
+          method,
+          url,
+          headers,
+          timeoutMs: this.timeoutMs,
+          ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
+        });
+      } catch (cause) {
+        // The default transport rejects with StrahlNetworkError only; an injected one may
+        // throw anything, and its text may carry the request URL with the base URL's
+        // password (fetch refuses a URL with credentials and quotes it). Keep the
+        // library's error contract — every failure is a StrahlError — and scrub that text.
+        if (cause instanceof StrahlError && !(cause instanceof StrahlNetworkError)) throw cause;
+        const reason = cause instanceof Error ? cause.message : String(cause);
+        throw new StrahlNetworkError(
+          `${method} ${redactUrl(url)} failed: ${cleanDetail(this.scrub(reason)) ?? "unknown error"}`,
+          { cause: this.scrubCause(cause) },
+        );
+      }
 
       const status = response.status;
       const retryable = status === 429 || status === 503;
@@ -296,7 +359,17 @@ export class RequestEngine {
         }
 
         const from = new URL(url);
-        const to = new URL(location, url);
+        // A malformed Location would make `new URL` throw a raw TypeError (whose `base`
+        // property is the request URL, credentials included): report it as a typed error.
+        let to: URL;
+        try {
+          to = new URL(location, url);
+        } catch {
+          throw new StrahlNetworkError(
+            `Redirect status ${status} for ${method} ${redactUrl(url)} with an invalid Location header ` +
+              `"${cleanDetail(this.scrub(location)) ?? ""}"`,
+          );
+        }
 
         // Refuse to downgrade https -> http on redirect (defends against a
         // redirect that strips transport security).
@@ -343,14 +416,14 @@ export class RequestEngine {
       // ExceptionReport (XML) instead of GeoJSON: report its reason, not a parse error.
       const exception = owsExceptionText(text);
       if (exception !== undefined) {
-        throw new StrahlApiError({ status: res.status, url: res.url, method: "GET", body: text, detail: exception });
+        throw new StrahlApiError({ status: res.status, url: res.url, method: "GET", body: this.scrub(text), detail: this.scrub(exception) });
       }
       throw new StrahlParseError(`Failed to parse JSON response from ${path}`, { cause });
     }
   }
 
   private toApiError(method: string, url: string, status: number, body: Buffer): StrahlApiError {
-    const text = body.toString("utf8");
+    const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
     try {
       const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown };

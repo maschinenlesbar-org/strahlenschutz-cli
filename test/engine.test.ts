@@ -372,6 +372,18 @@ test("redirect and base-URL errors redact userinfo", async () => {
   );
 });
 
+test("an unparseable redirect Location is a StrahlNetworkError without the password (02#3)", async () => {
+  const mt = makeMockTransport(() => redirectResponse("http://[::1"));
+  const e = new RequestEngine({ baseUrl: "http://alice:S3CRETpw@127.0.0.1:20641/rbadloc", transport: mt.transport });
+  const err = await e.getJson("/ogc/opendata/ows").then(
+    () => assert.fail("resolved"),
+    (x: unknown) => x,
+  );
+  assert.ok(err instanceof StrahlNetworkError, String(err));
+  assert.match(err.message, /invalid Location/);
+  assert.ok(!JSON.stringify(err).includes("S3CRETpw") && !err.message.includes("S3CRETpw"), err.message);
+});
+
 test("the engine rejects out-of-range numeric options at construction", () => {
   const bad: Array<[keyof EngineOptions, number]> = [];
   for (const v of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {

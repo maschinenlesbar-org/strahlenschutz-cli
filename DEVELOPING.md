@@ -181,7 +181,14 @@ failure/timeout, a redirect the engine refuses, or a non-http(s) URL at a hop of
 default transport), `StrahlParseError` (bad JSON, or a 2xx body that is not a FeatureCollection
 whose every feature is a JSON object with a `properties` object) and `StrahlNotFoundError`
 (raised by `station()` for an unknown id) and `StrahlValidationError` (an input rejected
-before any request) — all extending `StrahlError`. The CLI maps
+before any request) — all extending `StrahlError`. Whatever an injected transport
+throws becomes a `StrahlNetworkError` (`GET <url> failed: <reason>`, the original as
+`cause`); so does a redirect whose `Location` doesn't parse. No error and no client
+shows the base URL's password: the engine keeps the base URL in a real `#private`
+field (so `console.log(client)`, `util.inspect` and `JSON.stringify` don't reveal it),
+every URL in a message goes through `redactUrl`, and the base URL's userinfo (raw and
+percent-decoded) is scrubbed from error bodies and details, transport error text and
+the `cause` chain. The CLI maps
 `StrahlNotFoundError` to exit code `4`; all other errors map to `1`, an HTTP 404
 included: every command requests the one fixed WFS path, so a 404 means that
 path is missing (a wrong `--base-url`, or the API moved), never an unknown
