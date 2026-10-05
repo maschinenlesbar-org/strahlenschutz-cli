@@ -180,6 +180,12 @@ with its own code.
   has no series (e.g. it is `defekt`, or you asked for `ts-24h`). `timeseries` can't
   tell these apart; run `strahlenschutz station <kenn>` — exit `4` means the id is
   unknown.
+- **"The WFS answered a query for kenn … with a feature for kenn …" (exit `1`)** — the
+  server ignored the station filter and sent other stations (a mirror or proxy that drops
+  `CQL_FILTER`). The CLI refuses to print another station's data as the one you asked
+  for; check `--base-url`.
+- **"Unknown sort direction" (exit `1`)** — `--sort` takes ` D`/`DESC` or ` A`/`ASC`
+  after the property; the WFS would read anything else (`DSC`, a typo) as ascending.
 - **Non-numeric `kenn` rejected immediately** — `kenn` must be digits only. The
   client validates this before making any request; no request is sent.
 - **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or

@@ -353,6 +353,14 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`client.test.ts`** — the fixed WFS params, typeName selection, `CQL_FILTER` mapping and encoding, `sortBy`/`startIndex` propagation, and `kenn` validation — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
+- **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (fix plan
+  `.reviews/2026-10-05-exploratory/fix-plan.md` in the workspace), one file per pattern, the same
+  code in every repo apart from an adapter block at the top: P1 credential redaction in CLI output,
+  P2 in library objects and errors, P3 credentials across redirects, P4/P19 base-URL validation
+  (P19 skipped: no environment variable), P5 the transport contract (timeout, size cap, body
+  types, header shapes, resets), P6 the retry floor, P7 pipes and exit codes (spawns the built
+  bin), P8/P9/P13 charset, 2xx body shapes and error classes, P10 strict query keys and repeated
+  options.
 - **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.
