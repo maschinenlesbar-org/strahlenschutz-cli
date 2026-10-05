@@ -27,7 +27,7 @@ into [`jq`](https://jqlang.github.io/jq/).
 npm i -g @maschinenlesbar.org/strahlenschutz-cli
 ```
 
-This installs the **`strahlenschutz`** command. Requires **Node.js 20+**.
+This installs the **`strahlenschutz`** command. Requires **Node.js 22.12+**.
 
 Check it works:
 
@@ -170,7 +170,8 @@ with its own code.
 ## Troubleshooting
 
 - **`command not found: strahlenschutz`** — the global npm bin directory isn't on
-  your `PATH`. Run `npm bin -g` to find it and add it, or run via
+  your `PATH`. Run `npm prefix -g` to find the prefix and add its `bin` directory
+  (`"$(npm prefix -g)/bin"`), or run via
   `npx @maschinenlesbar.org/strahlenschutz-cli …`.
 - **Exit `4` / "No station found for kenn …"** — the `kenn` doesn't exist in the
   network. Re-check the id from a fresh `latest` result; the WFS always returns
