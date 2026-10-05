@@ -2,6 +2,7 @@
 // requests via a Transport, applies retry/backoff for transient statuses
 // (429, 503), and decodes responses.
 
+import { TextDecoder } from "node:util";
 import {
   MAX_TIMEOUT_MS,
   nodeHttpTransport,
@@ -596,6 +597,7 @@ export class RequestEngine {
           url,
           status,
           body,
+          contentType,
           status === 401 || status === 403
             ? dropped
             : retryAfter !== undefined && retryAfter > MAX_RETRY_AFTER_MS
@@ -612,7 +614,7 @@ export class RequestEngine {
   /** Perform a GET expecting JSON and parse it into `T`. */
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
-    const text = res.data.toString("utf8");
+    const text = decodeBody(res.data, res.contentType, path);
     try {
       return JSON.parse(text) as T;
     } catch (cause) {
@@ -626,8 +628,15 @@ export class RequestEngine {
     }
   }
 
-  private toApiError(method: string, url: string, status: number, body: Buffer, hint?: string): StrahlApiError {
-    const text = this.scrub(body.toString("utf8"));
+  private toApiError(
+    method: string,
+    url: string,
+    status: number,
+    body: Buffer,
+    contentType: string,
+    hint?: string,
+  ): StrahlApiError {
+    const text = this.scrub(decodeErrorBody(body, contentType));
     let detail: string | undefined;
     try {
       const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown };
@@ -669,5 +678,38 @@ function originOf(url: string): string {
     return new URL(url).origin;
   } catch {
     return url;
+  }
+}
+
+/** The charset label of a Content-Type (`application/json; charset=iso-8859-1`), or undefined. */
+function charsetOf(contentType: string): string | undefined {
+  return /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1];
+}
+
+/**
+ * Decode a response body by the charset of its Content-Type (UTF-8 when none is
+ * given, as JSON requires). A leading byte-order mark is dropped: TextDecoder does
+ * that by default, where Buffer#toString kept it and JSON.parse then failed. An
+ * unknown charset label is a StrahlParseError naming it. The BfS server sends UTF-8;
+ * this matters for proxies and mirrors that re-encode (`µSv/h` and the umlauts of
+ * station names would otherwise turn into U+FFFD with exit 0).
+ */
+function decodeBody(body: Buffer, contentType: string, path: string): string {
+  const charset = charsetOf(contentType) ?? "utf-8";
+  let decoder: TextDecoder;
+  try {
+    decoder = new TextDecoder(charset);
+  } catch {
+    throw new StrahlParseError(`Unsupported response charset "${cleanDetail(charset) ?? ""}" from ${path}.`);
+  }
+  return decoder.decode(body);
+}
+
+/** An error body as text: by its declared charset when Node knows it, else UTF-8. */
+function decodeErrorBody(body: Buffer, contentType: string): string {
+  try {
+    return new TextDecoder(charsetOf(contentType) ?? "utf-8").decode(body);
+  } catch {
+    return new TextDecoder("utf-8").decode(body);
   }
 }

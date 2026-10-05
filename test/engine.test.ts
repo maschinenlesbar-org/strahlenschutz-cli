@@ -476,3 +476,19 @@ test("the size-cap error names the CLI flag too (03#4)", async () => {
     (err) => err instanceof StrahlNetworkError && /--max-response-bytes/.test(err.message) && /1238/.test(err.message),
   );
 });
+
+test("a body is decoded by its declared charset; an unknown one is a StrahlParseError (03#3)", async () => {
+  const fc = { type: "FeatureCollection", features: [{ type: "Feature", properties: { unit: "µSv/h", name: "Müllheim" } }] };
+  for (const [charset, encoding] of [["iso-8859-1", "latin1"], ["utf-8", "utf8"]] as const) {
+    const mt = makeMockTransport(() => rawResponse(Buffer.from(JSON.stringify(fc), encoding), `application/json; charset=${charset}`));
+    const e = new RequestEngine({ transport: mt.transport });
+    assert.deepEqual(await e.getJson("/ows"), fc, charset);
+  }
+  const bom = makeMockTransport(() => rawResponse(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(JSON.stringify(fc))]), "application/json"));
+  assert.deepEqual(await new RequestEngine({ transport: bom.transport }).getJson("/ows"), fc);
+  const unknown = makeMockTransport(() => rawResponse(JSON.stringify(fc), "application/json; charset=x-bogus"));
+  await assert.rejects(
+    () => new RequestEngine({ transport: unknown.transport }).getJson("/ows"),
+    (err) => err instanceof StrahlParseError && /charset "x-bogus"/.test(err.message),
+  );
+});

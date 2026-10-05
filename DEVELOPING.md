@@ -211,6 +211,12 @@ commander parsers call the same functions, so a rule exists once; `run.ts` maps 
 `StrahlValidationError` raised during an action to the usage exit code 1 (the code
 commander's own parse errors use), printed as `Error: <message>`.
 
+**Charset.** A response body is decoded by the charset its `Content-Type` declares
+(`TextDecoder`; UTF-8 when none is given, as JSON requires), with a leading byte-order
+mark dropped. An unknown charset label is a `StrahlParseError` naming it. The BfS
+server sends UTF-8; this matters behind a mirror or proxy that re-encodes, where
+`µSv/h` and umlauts in station names would otherwise turn into `�`.
+
 **Error detail.** GeoServer reports a bad request as an OGC `ows:ExceptionReport`
 (XML). The engine's exported `owsExceptionText` pulls its `ExceptionText` (any
 namespace prefix, entities decoded) out with a regex — no XML dependency — and uses
