@@ -148,6 +148,11 @@ src/
   uses `node:http`/`node:https`; tests inject a mock. This keeps the client free of any HTTP framework.
 - The CLI is built around injectable `CliDeps` (client factory + I/O), so the whole program can be
   driven in-process by tests with a mocked client and captured output — no subprocesses.
+- Output goes through `process.stdout.write`/`process.stderr.write` (`defaultIO`). The bin shim
+  installs `handleOutputErrors()` (`io.ts`) before `run()`: an EPIPE on stdout (a reader such as
+  `head` stopping early) exits 0 quietly instead of an unhandled stack trace and exit 1; an EPIPE
+  on stderr is ignored, so a failed run keeps its exit code.
+  `test/conformance-p7-pipes-exit-codes.test.ts` runs the built bin to check both.
 - The WFS boilerplate (`service=WFS`, `request=GetFeature`, `outputFormat=application/json`) is hidden
   behind friendly feature-kind methods; GeoJSON is returned faithfully.
 

@@ -163,6 +163,10 @@ do the same thing.
 | `4` | station not found — `station <kenn>` returned no features (WFS always returns 200 with an empty collection for unknown ids; `timeseries` and `latest --station` exit `0` with the empty collection) |
 | non-zero | usage / argument-validation error (bad flag or argument) |
 
+A reader that stops early (`strahlenschutz latest | head -3`) is ordinary use: the CLI
+exits `0` quietly. If stderr's reader is gone (`2>&1 | true`), a failed run still exits
+with its own code.
+
 ## Troubleshooting
 
 - **`command not found: strahlenschutz`** — the global npm bin directory isn't on
