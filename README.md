@@ -188,7 +188,9 @@ with its own code.
 
 ## Global options
 
-These apply to every command and may be given **before or after** the command:
+These apply to every command and may be given **before or after** the command. Every
+option that takes a value may be given once; a repeat (`--station A --station B`) is a
+usage error rather than "last one wins":
 
 | Option | Description |
 | --- | --- |

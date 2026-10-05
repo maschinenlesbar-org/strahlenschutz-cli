@@ -108,9 +108,20 @@ request. The check is a membership test on the value list, so inherited names su
 as `__proto__` or `constructor` are rejected as well.
 
 `maxFeatures` (sent as `count`) and `startIndex` must be non-negative safe
-integers; anything else (`NaN`, `-5`, `1.5`) is a `StrahlError`
+integers; anything else (`NaN`, `-5`, `1.5`, an array) is a `StrahlValidationError`
 (`Invalid maxFeatures: expected a non-negative integer, got NaN.`) before any
-request.
+request. The station id must be a string of digits (an array, an object or a number,
+which loses the leading zero, is rejected the same way).
+
+A query object may hold only its documented keys — `station`, `sortBy`,
+`maxFeatures`, `startIndex` for `getFeature()`/`latest()`, the same without `station`
+for `timeseries()` (whose station is its own argument). GeoServer ignores a parameter
+it doesn't know, so a misspelled key (`{ statoin: "083370490" }`, `{ maxfeatures: 2 }`)
+used to return the whole network; now it is a `StrahlValidationError` (`Invalid query:
+Unknown key "statoin"; expected one of: …`) before any request, an own `__proto__`
+key included (rule: `queryKeysProblem`). On the CLI a single-value option given twice
+(`--station A --station B`, `--sort kenn --sort "value D"`) is a usage error instead
+of "last one wins". `test/conformance-p10-strict-filters.test.ts` checks both.
 
 Every query is sent with a `sortBy`: the caller's, or `DEFAULT_SORT_BY[kind]`
 (`kenn` for `latest`, `kenn,end_measure` for the time series). The BfS layers have

@@ -223,6 +223,9 @@ Global options go **before** the command (e.g. `strahlenschutz --compact latest 
 | `--compact` | print JSON on a single line instead of pretty-printed |
 | `-h, --help` | display help (works on any command) |
 
+Every option that takes a value may be given once; a repeat (`--sort kenn --sort "value D"`)
+is a usage error.
+
 Per-command options:
 
 - `latest` — `--station <kenn>`, `--max <n>`, `--start <n>`, `--sort <prop>`

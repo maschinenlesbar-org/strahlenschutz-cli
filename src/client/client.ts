@@ -12,8 +12,14 @@
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import { TYPE_NAMES, type FeatureKind, type TimeseriesResolution } from "./enums.js";
-import { StrahlError, StrahlNotFoundError, StrahlParseError } from "./errors.js";
-import { assertValid, featureKindProblem, nonEmptyProblem, timeseriesResolutionProblem } from "./validate.js";
+import { StrahlNotFoundError, StrahlParseError, StrahlValidationError } from "./errors.js";
+import {
+  assertValid,
+  featureKindProblem,
+  nonEmptyProblem,
+  queryKeysProblem,
+  timeseriesResolutionProblem,
+} from "./validate.js";
 import type { FeatureCollection, FeatureQuery } from "./types.js";
 
 const OWS = "/ogc/opendata/ows";
@@ -46,14 +52,19 @@ export const DEFAULT_SORT_BY: Record<FeatureKind, string> = {
 // Because the filter is restricted to digits the surrounding quotes are safe.
 const KENN_PATTERN = /^\d+$/;
 
-function assertKenn(kenn: string): string {
-  if (!KENN_PATTERN.test(kenn)) {
-    throw new StrahlError(
-      `Invalid station id "${kenn}". Expected a non-empty numeric kenn (digits only).`,
-    );
+function assertKenn(kenn: unknown): string {
+  // Type first: an array `["083370490"]` or a number would pass the pattern after
+  // coercion (and a number loses the leading zero).
+  if (typeof kenn !== "string" || !KENN_PATTERN.test(kenn)) {
+    const shown = typeof kenn === "string" ? `"${kenn.length > 60 ? `${kenn.slice(0, 60)}…` : kenn}"` : `of type ${Array.isArray(kenn) ? "array" : kenn === null ? "null" : typeof kenn}`;
+    throw new StrahlValidationError(`Invalid station id ${shown}. Expected a non-empty numeric kenn (digits only).`);
   }
   return kenn;
 }
+
+/** The keys a `FeatureQuery` may hold; `timeseries()` takes the station as its own argument. */
+const FEATURE_QUERY_KEYS = ["station", "sortBy", "maxFeatures", "startIndex"] as const;
+const TIMESERIES_QUERY_KEYS = ["sortBy", "maxFeatures", "startIndex"] as const;
 
 /**
  * A paging value (`maxFeatures` → `count`, `startIndex`) must be a non-negative
@@ -63,8 +74,13 @@ function assertKenn(kenn: string): string {
  */
 function assertPagingInt(name: string, value: unknown): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
-    const got = typeof value === "string" ? JSON.stringify(value) : String(value);
-    throw new StrahlError(`Invalid ${name}: expected a non-negative integer, got ${got}.`);
+    const got =
+      typeof value === "string"
+        ? JSON.stringify(value.length > 60 ? `${value.slice(0, 60)}…` : value)
+        : typeof value === "number" || value === undefined || value === null
+          ? String(value)
+          : `a value of type ${Array.isArray(value) ? "array" : typeof value}`;
+    throw new StrahlValidationError(`Invalid ${name}: expected a non-negative integer, got ${got}.`);
   }
   return value;
 }
@@ -122,6 +138,9 @@ export class StrahlenschutzClient {
    */
   async getFeature(kind: FeatureKind, query: FeatureQuery = {}): Promise<FeatureCollection> {
     assertValid("kind", kind, featureKindProblem);
+    // Only the documented keys: an unknown or misspelled one would be dropped and the
+    // whole layer returned.
+    assertValid("query", query, queryKeysProblem(FEATURE_QUERY_KEYS));
     const params: QueryParams = {
       service: "WFS",
       request: "GetFeature",
@@ -172,6 +191,8 @@ export class StrahlenschutzClient {
     query: FeatureQuery = {},
   ): Promise<FeatureCollection> {
     assertValid("resolution", resolution, timeseriesResolutionProblem);
+    // The station is the `kenn` argument; a `station` in the query would be overridden.
+    assertValid("query", query, queryKeysProblem(TIMESERIES_QUERY_KEYS));
     return this.getFeature(resolution, { ...query, station: kenn });
   }
 }

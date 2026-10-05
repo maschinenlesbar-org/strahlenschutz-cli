@@ -64,6 +64,26 @@ export const featureKindProblem: Problem<unknown> = oneOfProblem(FeatureKindValu
 export const timeseriesResolutionProblem: Problem<unknown> = oneOfProblem(TimeseriesResolutionValues);
 
 /**
+ * A query object may hold only the `allowed` keys. GeoServer ignores a parameter it
+ * doesn't know, and the client used to ignore a query key it doesn't know: a misspelled
+ * `{ statoin: "083370490" }` returned the whole network with no error. An own
+ * `__proto__` key (from `JSON.parse`) counts as unknown too. `undefined` is fine (no
+ * query); anything but a plain object is not.
+ */
+export function queryKeysProblem(allowed: readonly string[]): Problem<unknown> {
+  return (value) => {
+    if (value === undefined) return undefined;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return "Expected an object.";
+    for (const key of Object.keys(value)) {
+      if (!allowed.includes(key)) {
+        return `Unknown key ${JSON.stringify(key.length > 60 ? `${key.slice(0, 60)}…` : key)}; expected one of: ${allowed.join(", ")}.`;
+      }
+    }
+    return undefined;
+  };
+}
+
+/**
  * A number must be a safe integer from `min` to `max`. The reasons are worded like
  * the CLI's integer parsers ("Must be <= 10."), which call this rule for their bounds.
  */

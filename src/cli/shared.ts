@@ -82,6 +82,21 @@ export function parseBaseUrl(value: string): string {
   return value;
 }
 
+/**
+ * Wrap a value-parser so its option may be given only once: commander keeps the last of a
+ * repeated option and drops the others without a word (`--station A --station B` asked for
+ * B, `--sort kenn --sort "value D"` sorted by value). A repeat is a usage error naming the
+ * flag. A fresh program is built per `run()`, so the state lives as long as one parse.
+ */
+export function once<T>(flag: string, parse: (value: string) => T): (value: string) => T {
+  let seen = false;
+  return (value: string) => {
+    if (seen) throw new InvalidArgumentError(`${flag} was given more than once; give it once.`);
+    seen = true;
+    return parse(value);
+  };
+}
+
 export interface GlobalOptions {
   baseUrl?: string;
   timeout?: number;

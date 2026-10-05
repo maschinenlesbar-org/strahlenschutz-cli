@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, parseIntArg, parseNonEmpty, renderJson } from "../shared.js";
+import { action, once, parseIntArg, parseNonEmpty, renderJson } from "../shared.js";
 import type { FeatureQuery } from "../../client/types.js";
 import type { TimeseriesResolution } from "../../client/enums.js";
 
@@ -15,9 +15,13 @@ function queryFrom(opts: Record<string, unknown>): FeatureQuery {
 
 function addQueryOptions(cmd: Command): Command {
   return cmd
-    .option("--max <n>", "max features to return", parseIntArg)
-    .option("--start <n>", "offset for paging", parseIntArg)
-    .option("--sort <prop>", 'sort by a property (append " D" for descending, e.g. "end_measure D")', parseNonEmpty);
+    .option("--max <n>", "max features to return", once("--max", parseIntArg))
+    .option("--start <n>", "offset for paging", once("--start", parseIntArg))
+    .option(
+      "--sort <prop>",
+      'sort by a property (append " D" for descending, e.g. "end_measure D")',
+      once("--sort", parseNonEmpty),
+    );
 }
 
 export function registerOdlCommands(program: Command, deps: CliDeps): void {
@@ -25,7 +29,7 @@ export function registerOdlCommands(program: Command, deps: CliDeps): void {
     program
       .command("latest")
       .description("Latest ambient gamma dose-rate (ODL) reading per station")
-      .option("--station <kenn>", "restrict to one station by its kenn id"),
+      .option("--station <kenn>", "restrict to one station by its kenn id", once("--station", (v: string) => v)),
   ).action(
     action(deps, async ({ client, global, opts }) => {
       renderJson(
@@ -50,7 +54,7 @@ export function registerOdlCommands(program: Command, deps: CliDeps): void {
     program
       .command("timeseries <kenn>")
       .description("Time series for a station (hourly by default)")
-      .option("--resolution <res>", "ts-1h | ts-24h", "ts-1h"),
+      .option("--resolution <res>", "ts-1h | ts-24h", once("--resolution", (v: string) => v), "ts-1h"),
   ).action(
     action(deps, async ({ client, global, opts }, [kenn]) => {
       // The library checks the resolution (StrahlValidationError -> exit 1).

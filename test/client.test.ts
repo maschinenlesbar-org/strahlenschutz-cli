@@ -222,3 +222,13 @@ test("station() rejects with StrahlNotFoundError when the WFS returns no feature
   assert.deepEqual(await clientWith(mt).latest({ station: "999999999" }), fc);
   assert.deepEqual(await clientWith(mt).timeseries("999999999"), fc);
 });
+
+test("timeseries() takes the station as its argument only: a station key in the query is rejected (P10)", async () => {
+  const mt = constantJson(fc);
+  await assert.rejects(
+    () => clientWith(mt).timeseries("083370490", "ts-1h", { station: "010010001" }),
+    (err: unknown) => err instanceof StrahlValidationError && /Unknown key "station"/.test((err as Error).message),
+  );
+  await assert.rejects(() => clientWith(mt).latest(null as never), StrahlValidationError);
+  assert.equal(mt.calls.length, 0);
+});

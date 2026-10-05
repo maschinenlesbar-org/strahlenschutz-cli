@@ -10,7 +10,7 @@ import { defaultIO } from "./io.js";
 import { StrahlenschutzClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
 import { MAX_RETRIES } from "../client/engine.js";
-import { parseBoundedInt, parseHeaderValue, parseIntArg, parseBaseUrl } from "./shared.js";
+import { once, parseBoundedInt, parseHeaderValue, parseIntArg, parseBaseUrl } from "./shared.js";
 import { registerOdlCommands } from "./commands/odl.js";
 
 /**
@@ -47,23 +47,23 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
         "(https://www.imis.bfs.de/ogc/opendata/ows) — ambient gamma dose-rate measurements.",
     )
     .version(VERSION)
-    .option("--base-url <url>", "API base URL", parseBaseUrl, "https://www.imis.bfs.de")
+    .option("--base-url <url>", "API base URL", once("--base-url", parseBaseUrl), "https://www.imis.bfs.de")
     .option(
       "--timeout <ms>",
       "time limit per request in milliseconds, whole response included",
-      parseBoundedInt(0, MAX_TIMEOUT_MS),
+      once("--timeout", parseBoundedInt(0, MAX_TIMEOUT_MS)),
     )
-    .option("--user-agent <ua>", "User-Agent header value", parseHeaderValue)
+    .option("--user-agent <ua>", "User-Agent header value", once("--user-agent", parseHeaderValue))
     .option(
       "--max-retries <n>",
       `retries for transient 429/503 responses and reset connections (0..${MAX_RETRIES}; ` +
         "linear backoff, longer if the server's Retry-After asks, up to 30 s)",
-      parseBoundedInt(0, MAX_RETRIES),
+      once("--max-retries", parseBoundedInt(0, MAX_RETRIES)),
     )
     .option(
       "--max-response-bytes <n>",
       "cap response body size in bytes (0 = unlimited; default 100 MiB)",
-      parseIntArg,
+      once("--max-response-bytes", parseIntArg),
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
     .showHelpAfterError();
