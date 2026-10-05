@@ -173,9 +173,11 @@ leeres Ergebnis beweist dort also nicht, dass die Kennung unbekannt ist.
 
 **Rate Limiting / vorübergehende Fehler.** Die Status **429** und **503** gelten als
 vorübergehend und werden automatisch wiederholt (`--max-retries` bzw. `maxRetries` der
-Bibliothek: `0`–`10`, das exportierte `MAX_RETRIES`, Standard `2`; `StrahlApiError.isRetryable`). Jede Wiederholung wartet das `Retry-After` des Servers ab
-(Sekunden oder ein HTTP-Datum), sonst einen linear wachsenden Abstand (200 ms, 400 ms, …).
-Ein `Retry-After` über 30 s wird nicht wiederholt: Der Fehler wird sofort gemeldet. Eine
+Bibliothek: `0`–`10`, das exportierte `MAX_RETRIES`, Standard `2`; `StrahlApiError.isRetryable`). Jede Wiederholung wartet einen linear wachsenden
+Abstand (200 ms, 400 ms, …) oder länger, wenn das `Retry-After` des Servers (Sekunden oder ein
+HTTP-Datum) das verlangt; `Retry-After: 0` oder ein Datum in der Vergangenheit verkürzt die
+Wartezeit nie. Ein `Retry-After` über 30 s wird nicht wiederholt: Der Fehler wird sofort
+gemeldet und nennt die verlangte Wartezeit. Eine
 zurückgesetzte Verbindung wird genauso wiederholt (linear wachsender Abstand), eine
 Zeitüberschreitung nicht.
 

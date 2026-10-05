@@ -285,6 +285,14 @@ test("a Retry-After above MAX_RETRY_AFTER_MS is not retried: the error surfaces 
   }
 });
 
+test("Retry-After 0 or a past date waits the linear backoff, never less (P6)", async () => {
+  for (const header of ["0", "Sat, 26 Sep 2015 09:00:00 GMT"]) {
+    const { engine, delays } = retryingEngine(header);
+    await assert.rejects(() => engine.getJson("/x"));
+    assert.deepEqual(delays, [200, 400], header);
+  }
+});
+
 test("parseRetryAfter reads delay-seconds and IMF-fixdate HTTP-dates", () => {
   const now = Date.parse("Sat, 26 Sep 2026 10:00:00 GMT");
   assert.equal(parseRetryAfter("0", now), 0);

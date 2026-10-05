@@ -58,7 +58,7 @@ try {
 new StrahlenschutzClient({
   baseUrl: "https://www.imis.bfs.de",
   timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503 are retried after Retry-After (<= 30 s), else linear backoff
+  maxRetries: 3,              // 429 / 503 and resets: linear backoff, longer if Retry-After asks (<= 30 s)
   maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
@@ -68,8 +68,8 @@ new StrahlenschutzClient({
 The numeric options are range-checked when the client is built: `timeoutMs` is an
 integer from `0` (no timeout) to `MAX_TIMEOUT_MS` (2³¹−1 ms), `maxRetries` from `0`
 to `MAX_RETRIES` (10), `maxRedirects` from `0` to `MAX_REDIRECTS` (10), and
-`maxResponseBytes` (`0` = unlimited) and `retryDelayMs` are non-negative safe
-integers. Anything else (`-1`, `1.5`, `NaN`, `Infinity`, `11` retries) throws a
+`maxResponseBytes` (`0` = unlimited) is a non-negative safe integer, and
+`retryDelayMs` an integer from `0` to `MAX_RETRY_AFTER_MS` (30 000). Anything else (`-1`, `1.5`, `NaN`, `Infinity`, `11` retries) throws a
 `StrahlValidationError` (`Invalid maxRetries: Must be <= 10.`) instead of silently
 disabling the timeout or the size cap. The CLI's `--timeout`, `--max-retries` and
 `--max-response-bytes` apply the same bounds.
@@ -242,11 +242,15 @@ checks this with a two-port mock pair.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `--max-retries` / `maxRetries` (`0`–`MAX_RETRIES`, 10;
-the library rejects a value outside that range). Each retry waits the
-response's `Retry-After` — delay-seconds or an IMF-fixdate HTTP-date, parsed
-strictly by the exported `parseRetryAfter` — or, without a usable one,
-`retryDelayMs * attempt` (200 ms, 400 ms, …). A `Retry-After` above
-`MAX_RETRY_AFTER_MS` (30 s) is not retried: the `StrahlApiError` surfaces at once.
+the library rejects a value outside that range). Each retry waits
+`retryDelayMs * attempt` (200 ms, 400 ms, …), or longer if the response's
+`Retry-After` asks — delay-seconds or an IMF-fixdate HTTP-date, parsed strictly by the
+exported `parseRetryAfter`. A `Retry-After` can only lengthen a wait: `0` or a date in
+the past waits the backoff, so a server that just answered 429 never gets a burst. A
+`Retry-After` above `MAX_RETRY_AFTER_MS` (30 s) is not retried: the `StrahlApiError`
+surfaces at once, and its message names the requested wait and says retrying sooner
+won't help. `retryDelayMs` is bounded to `0`–`MAX_RETRY_AFTER_MS`.
+`test/conformance-p6-retry-policy.test.ts` checks both.
 `StrahlApiError.isRetryable` is `true` for those two statuses. A reset connection
 (`ECONNRESET`/`EPIPE`/`ECONNABORTED`, or undici's `UND_ERR_SOCKET`, anywhere in the
 error's `cause` chain — the exported `isTransientNetworkError`) is retried with the

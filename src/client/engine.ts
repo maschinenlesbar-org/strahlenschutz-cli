@@ -58,14 +58,14 @@ export interface EngineOptions {
   /**
    * Number of automatic retries for transient (429/503) responses and reset
    * connections (GET/HEAD only), an integer from
-   * 0 to MAX_RETRIES (10); defaults to 2. Each waits the response's `Retry-After`
-   * (up to `MAX_RETRY_AFTER_MS`; a longer one is not retried), or else
-   * `retryDelayMs * attempt`.
+   * 0 to MAX_RETRIES (10); defaults to 2. Each waits `retryDelayMs * attempt`, or
+   * longer if the response's `Retry-After` asks (up to `MAX_RETRY_AFTER_MS`; a longer
+   * one is not retried, and the error names the requested wait).
    */
   maxRetries?: number;
   /**
-   * Base backoff between retries in milliseconds (grows linearly), a non-negative
-   * integer; used without a Retry-After. Defaults to 200.
+   * Base backoff between retries in milliseconds (grows linearly), an integer from 0
+   * to `MAX_RETRY_AFTER_MS` (30 000); the floor under any Retry-After. Defaults to 200.
    */
   retryDelayMs?: number;
   /**
@@ -330,7 +330,7 @@ export class RequestEngine {
     // without bound. `undefined` keeps the default; 0 keeps its documented meaning.
     this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
     this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
-    this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, Number.MAX_SAFE_INTEGER);
+    this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, MAX_RETRY_AFTER_MS);
     this.maxRedirects = intOption("maxRedirects", options.maxRedirects, 5, MAX_REDIRECTS);
     this.maxResponseBytes = intOption(
       "maxResponseBytes",
@@ -501,13 +501,16 @@ export class RequestEngine {
         throw new StrahlNetworkError(`${method} ${redactUrl(url)} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
       }
       const retryable = status === 429 || status === 503;
+      const retryAfter = retryable ? parseRetryAfter(responseHeaders["retry-after"]) : undefined;
       if (retryable && attempt < this.maxRetries) {
-        // Honour Retry-After; without a usable one, back off linearly. A Retry-After
-        // beyond MAX_RETRY_AFTER_MS is not retried: the error below surfaces at once.
-        const retryAfter = parseRetryAfter(responseHeaders["retry-after"]);
+        // Back off linearly (retryDelayMs * attempt). A Retry-After can ask for longer, never
+        // for less: `Retry-After: 0` or a date in the past made a zero-delay burst against a
+        // server that had just asked for less load. A Retry-After beyond MAX_RETRY_AFTER_MS
+        // is not retried: the error below surfaces at once and names the requested wait.
         if (retryAfter === undefined || retryAfter <= MAX_RETRY_AFTER_MS) {
           attempt += 1;
-          await this.sleep(retryAfter ?? this.retryDelayMs * attempt);
+          const backoff = this.retryDelayMs * attempt;
+          await this.sleep(retryAfter === undefined ? backoff : Math.max(retryAfter, backoff));
           continue;
         }
       }
@@ -588,7 +591,18 @@ export class RequestEngine {
 
       const contentType = String(headerValue(responseHeaders["content-type"]) ?? "");
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, body, status === 401 || status === 403 ? dropped : undefined);
+        throw this.toApiError(
+          method,
+          url,
+          status,
+          body,
+          status === 401 || status === 403
+            ? dropped
+            : retryAfter !== undefined && retryAfter > MAX_RETRY_AFTER_MS
+              ? `the server asked to wait ${Math.ceil(retryAfter / 1000)} s (Retry-After), longer than the ` +
+                `${MAX_RETRY_AFTER_MS / 1000} s the client waits; retrying sooner won't help`
+              : undefined,
+        );
       }
 
       return { data: body, contentType, status, url };

@@ -201,8 +201,8 @@ strahlenschutz --max-retries 4 --max-response-bytes 52428800 --compact latest
 ```
 
 Transient `429`/`503` responses and reset connections are retried up to `--max-retries` times (`0`–`10`),
-each after the server's `Retry-After` (up to 30 s; a longer one is reported at
-once), or else after 200 ms, 400 ms, …;
+each after 200 ms, 400 ms, …, or longer if the server's `Retry-After` asks (up to
+30 s; a longer one is reported at once, naming the requested wait);
 `--max-response-bytes` aborts responses larger than the given size (`0` =
 unlimited). Exit codes: `0` success, `4` on a not-found station (`station`
 only), `1` for any other error (an HTTP `404` included: the WFS endpoint itself
@@ -218,7 +218,7 @@ Global options go **before** the command (e.g. `strahlenschutz --compact latest 
 | `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`) |
 | `--timeout <ms>` | time limit per request in milliseconds, whole response included (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`; each waits the server's `Retry-After`, up to 30 s) |
+| `--max-retries <n>` | retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`; each waits 200 ms, 400 ms, … or the server's longer `Retry-After`, up to 30 s) |
 | `--max-response-bytes <n>` | cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | print JSON on a single line instead of pretty-printed |
 | `-h, --help` | display help (works on any command) |

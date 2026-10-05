@@ -176,9 +176,10 @@ empty result there doesn't prove the id is unknown.
 
 **Rate limiting / transient errors.** Statuses **429** and **503** are treated as
 transient and retried automatically (`--max-retries`, or the library's `maxRetries`:
-`0`–`10`, the exported `MAX_RETRIES`, default `2`; `StrahlApiError.isRetryable`). Each retry waits the server's `Retry-After`
-(seconds or an HTTP date), or else backs off linearly (200 ms, 400 ms, …). A
-`Retry-After` above 30 s is not retried: the error is reported at once. A reset
+`0`–`10`, the exported `MAX_RETRIES`, default `2`; `StrahlApiError.isRetryable`). Each retry backs off linearly (200 ms, 400 ms, …),
+or waits longer when the server's `Retry-After` (seconds or an HTTP date) asks for it;
+`Retry-After: 0` or a past date never shortens the wait. A `Retry-After` above 30 s is
+not retried: the error is reported at once and names the requested wait. A reset
 connection is retried the same way (linear backoff); a timeout is not.
 
 **Cross-origin credential strip.** On a redirect to a different origin, the engine
