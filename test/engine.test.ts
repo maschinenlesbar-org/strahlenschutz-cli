@@ -410,3 +410,61 @@ test("the engine rejects out-of-range numeric options at construction", () => {
   assert.equal(MAX_RETRIES, 10);
   assert.equal(MAX_REDIRECTS, 10);
 });
+
+test("custom transports: header names in any case and a Headers object are read (04#3)", async () => {
+  for (const headers of [{ Location: "/moved" }, new Headers({ Location: "/moved" })]) {
+    let n = 0;
+    const mt = makeMockTransport(() =>
+      n++ === 0
+        ? { status: 302, headers: headers as unknown as HttpResponse["headers"], body: Buffer.alloc(0) }
+        : jsonResponse({ ok: true }),
+    );
+    const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+    assert.deepEqual(await e.getJson("/x"), { ok: true });
+    assert.equal(new URL(mt.last().url).pathname, "/moved");
+  }
+});
+
+test("custom transports: a Uint8Array error body keeps its detail and text (04#4)", async () => {
+  const body = new Uint8Array(Buffer.from('{"detail":"no such layer"}'));
+  const mt = makeMockTransport(() => ({ status: 404, headers: { "content-type": "application/json" }, body: body as Buffer }));
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err) => err instanceof StrahlApiError && err.detail === "no such layer" && err.body === '{"detail":"no such layer"}',
+  );
+});
+
+test("custom transports: no status, a string status, missing headers or a string body is a StrahlNetworkError (04#4)", async () => {
+  for (const response of [
+    { headers: {}, body: Buffer.from("{}") },
+    { status: "200", headers: {}, body: Buffer.from("{}") },
+    { status: 503, body: Buffer.from("{}") },
+    { status: 200, headers: {}, body: "{}" },
+  ]) {
+    const e = new RequestEngine({ transport: async () => response as unknown as HttpResponse, maxRetries: 0 });
+    await assert.rejects(() => e.getJson("/x"), StrahlNetworkError, JSON.stringify(response));
+  }
+});
+
+test("a redirect to a non-http(s) scheme is refused before the transport is called", async () => {
+  for (const location of ["file:///etc/passwd", "data:text/plain,hi", "javascript:alert(1)", "ftp://h/x"]) {
+    const mt = makeMockTransport(() => redirectResponse(location));
+    const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+    await assert.rejects(
+      () => e.getJson("/x"),
+      (err) => err instanceof StrahlNetworkError && /unsupported protocol/.test(err.message),
+      location,
+    );
+    assert.equal(mt.calls.length, 1, location);
+  }
+});
+
+test("the size-cap error names the CLI flag too (03#4)", async () => {
+  const mt = makeMockTransport(() => jsonResponse({ big: "x".repeat(2000) }));
+  const e = new RequestEngine({ transport: mt.transport, maxResponseBytes: 1238 });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err) => err instanceof StrahlNetworkError && /--max-response-bytes/.test(err.message) && /1238/.test(err.message),
+  );
+});

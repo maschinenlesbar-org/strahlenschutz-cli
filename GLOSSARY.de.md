@@ -175,7 +175,9 @@ leeres Ergebnis beweist dort also nicht, dass die Kennung unbekannt ist.
 vorübergehend und werden automatisch wiederholt (`--max-retries` bzw. `maxRetries` der
 Bibliothek: `0`–`10`, das exportierte `MAX_RETRIES`, Standard `2`; `StrahlApiError.isRetryable`). Jede Wiederholung wartet das `Retry-After` des Servers ab
 (Sekunden oder ein HTTP-Datum), sonst einen linear wachsenden Abstand (200 ms, 400 ms, …).
-Ein `Retry-After` über 30 s wird nicht wiederholt: Der Fehler wird sofort gemeldet.
+Ein `Retry-After` über 30 s wird nicht wiederholt: Der Fehler wird sofort gemeldet. Eine
+zurückgesetzte Verbindung wird genauso wiederholt (linear wachsender Abstand), eine
+Zeitüberschreitung nicht.
 
 **Entfernen von Zugangsdaten beim Wechsel des Origins.** Bei einer Weiterleitung auf einen anderen
 Origin entfernt die Engine Header mit Zugangsdaten (`Authorization`/`X-API-Key`/`Cookie`);

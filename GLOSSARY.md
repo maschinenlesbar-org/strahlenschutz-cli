@@ -178,7 +178,8 @@ empty result there doesn't prove the id is unknown.
 transient and retried automatically (`--max-retries`, or the library's `maxRetries`:
 `0`–`10`, the exported `MAX_RETRIES`, default `2`; `StrahlApiError.isRetryable`). Each retry waits the server's `Retry-After`
 (seconds or an HTTP date), or else backs off linearly (200 ms, 400 ms, …). A
-`Retry-After` above 30 s is not retried: the error is reported at once.
+`Retry-After` above 30 s is not retried: the error is reported at once. A reset
+connection is retried the same way (linear backoff); a timeout is not.
 
 **Cross-origin credential strip.** On a redirect to a different origin, the engine
 drops credential-bearing headers (`Authorization`/`X-API-Key`/`Cookie`); an

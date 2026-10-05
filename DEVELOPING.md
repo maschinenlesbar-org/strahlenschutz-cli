@@ -247,10 +247,31 @@ response's `Retry-After` — delay-seconds or an IMF-fixdate HTTP-date, parsed
 strictly by the exported `parseRetryAfter` — or, without a usable one,
 `retryDelayMs * attempt` (200 ms, 400 ms, …). A `Retry-After` above
 `MAX_RETRY_AFTER_MS` (30 s) is not retried: the `StrahlApiError` surfaces at once.
-`StrahlApiError.isRetryable` is `true` for those two statuses.
+`StrahlApiError.isRetryable` is `true` for those two statuses. A reset connection
+(`ECONNRESET`/`EPIPE`/`ECONNABORTED`, or undici's `UND_ERR_SOCKET`, anywhere in the
+error's `cause` chain — the exported `isTransientNetworkError`) is retried with the
+linear backoff too, whichever transport reported it. Only `GET` and `HEAD` are
+retried; a timeout is not.
+
+**Transport contract.** The engine enforces its limits for every transport, not only
+the built-in one: each call runs under the `timeoutMs` deadline (the request carries
+an `AbortSignal` in `HttpRequest.signal`, which the built-in transport honours, and the
+engine rejects at the deadline whether the transport stops or not), and the body it
+gets back is checked against `maxResponseBytes`. It accepts any `ArrayBuffer` view
+(`Buffer`, a fetch `Uint8Array`, a `DataView`) or `ArrayBuffer` as the body, from any
+realm, and reads headers from a plain object in any case, a `Headers` object or a
+`Map`. A malformed response (no or a non-numeric status, no headers, a string body)
+and anything a transport throws become a `StrahlNetworkError`. A redirect to a scheme
+other than `http:`/`https:` (`file:`, `data:`, `javascript:`) is refused before the
+transport is called. `test/conformance-p5-transport-contract.test.ts` checks this
+with a never-answering transport, fetch against a silent server, a 2 MiB body, five
+body types and four header shapes.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
-default 100 MiB), guarding against unbounded responses.
+default 100 MiB), guarding against unbounded responses — applied by the built-in
+transport while reading and by the engine to the body any transport returns. The
+message names the option and the CLI flag: `Response exceeded the size limit of <n>
+bytes (maxResponseBytes; --max-response-bytes on the CLI)`.
 
 **`kenn` validation.** The client validates the station id (digits only,
 non-empty) before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`) and
