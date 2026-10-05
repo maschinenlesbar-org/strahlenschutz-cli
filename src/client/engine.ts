@@ -17,6 +17,7 @@ import {
   StrahlError,
   StrahlNetworkError,
   StrahlParseError,
+  StrahlValidationError,
   credentialsIn,
   redactCredentials,
   redactUrl,
@@ -212,6 +213,19 @@ function intOption(name: string, value: number | undefined, fallback: number, ma
   return value === undefined ? fallback : assertValid(name, value, intRangeProblem(0, max));
 }
 
+/**
+ * Read a function-valued option (`transport`, `sleep`): `undefined` gives the default,
+ * anything but a function throws a StrahlValidationError here rather than a raw TypeError
+ * ("this.transport is not a function") at request time.
+ */
+function functionOption<F extends (...args: never[]) => unknown>(name: string, value: F | undefined, fallback: F): F {
+  if (value === undefined) return fallback;
+  if (typeof value !== "function") {
+    throw new StrahlValidationError(`Invalid ${name}: Expected a function, got ${value === null ? "null" : typeof value}.`);
+  }
+  return value;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -308,6 +322,8 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
+    // A JavaScript caller may pass null for "no options"; treat it like undefined.
+    options = options ?? {};
     // Check the raw value, before the trailing-slash strip: "https://h/ " must not
     // get past it, and new URL() would hide the whitespace from the scheme check.
     this.#baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
@@ -318,7 +334,7 @@ export class RequestEngine {
         return [raw];
       }
     });
-    this.transport = options.transport ?? nodeHttpTransport;
+    this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only `undefined` selects the default. A blank value would go out as an empty
     // User-Agent, and a control or non-Latin-1 character would reach a custom
     // transport raw (header injection) or make Node throw at request time.
@@ -339,7 +355,7 @@ export class RequestEngine {
       DEFAULT_MAX_RESPONSE_BYTES,
       Number.MAX_SAFE_INTEGER,
     );
-    this.sleep = options.sleep ?? realSleep;
+    this.sleep = functionOption("sleep", options.sleep, realSleep);
   }
 
   /**

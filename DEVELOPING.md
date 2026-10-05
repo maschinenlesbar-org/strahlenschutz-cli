@@ -86,6 +86,14 @@ so it throws `StrahlValidationError` (`Invalid baseUrl: Only "http:" and "https:
 base URLs are supported.`), never `StrahlNetworkError`, and the message never
 repeats the URL. The CLI's `--base-url` calls the same rule.
 
+`transport` and `sleep` must be functions; anything else is a `StrahlValidationError`
+(`Invalid transport: Expected a function, got string.`) when the client is built,
+not a raw `TypeError` at request time. `new StrahlenschutzClient(null)` is the same as
+no options. Every input the library rejects is a `StrahlValidationError`, and every
+failure a `StrahlError` subclass; server text in a message is cut at 500 characters.
+`test/conformance-p8-p9-p13-responses-and-errors.test.ts` checks the declared charset
+(P8), 2xx bodies that are no FeatureCollection (P9) and twenty wrong-typed calls (P13).
+
 `userAgent` must be a usable header value: not blank, no control character other
 than tab, nothing above U+00FF. Anything else throws a `StrahlValidationError`
 (`Invalid userAgent: Value contains control characters.`) when the client is built,
