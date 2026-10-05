@@ -99,6 +99,9 @@ skills encode the non-obvious parts of this API, for example:
   than reporting "no data";
 - the CLI has **no bbox/radius parameter**, so geo-filtering to a region is done
   client-side on `geometry.coordinates` (already `[lon, lat]`, EPSG:4326 — no flipping);
+- the coordinates are passed through **unchecked** — one `defekt` station sat at
+  `[589.28, 3007.11]` in October 2026 — so the map skill keeps only points inside Germany's
+  box and names the stations it dropped (see **strahlenschutz-map**);
 - `station <kenn>` exits **4** ("No station found") for an unknown `kenn`, but
   `timeseries <kenn>` and `latest --station <kenn>` return an empty collection with exit
   **0** — the same as a real station with no series — so the trend skill checks the id with
