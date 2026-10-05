@@ -55,8 +55,8 @@ liegen die Messwerte bei einem Bruchteil eines Mikrosieverts pro Stunde.
 Gamma-Ortsdosisleistung vor Ort misst. Rund 1.700 Sonden decken Deutschland ab.
 
 **kenn (Messstellen-ID).** Die Kennung der Messstelle. Eine **numerische** Zeichenkette mit
-festem Format (nur Ziffern), z. B. `091811461`. Der Client prüft das Format (nur Ziffern, nicht
-leer), bevor er sie in den WFS-`CQL_FILTER` einsetzt (`kenn='<id>'`). CLI:
+festem Format (nur Ziffern), z. B. `091811461`. Der Client entfernt umgebende Leerzeichen und
+prüft dann das Format (nur Ziffern, nicht leer), bevor er sie in den WFS-`CQL_FILTER` einsetzt (`kenn='<id>'`). CLI:
 `station <kenn>`, `--station <kenn>`, `timeseries <kenn>`.
 
 **GeoJSON-Feature.** Ein Element der Antwort: eine Messstelle mit ihrem Messwert, mit einer

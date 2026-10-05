@@ -232,3 +232,11 @@ test("timeseries() takes the station as its argument only: a station key in the 
   await assert.rejects(() => clientWith(mt).latest(null as never), StrahlValidationError);
   assert.equal(mt.calls.length, 0);
 });
+
+test("a padded kenn is trimmed before the check and the request (P11)", async () => {
+  const mt = constantJson(oneStation);
+  await clientWith(mt).station(" 083370490\n");
+  assert.equal(new URL(mt.last().url).searchParams.get("CQL_FILTER"), "kenn='083370490'");
+  await clientWith(mt).timeseries("\t083370490 ");
+  assert.equal(new URL(mt.last().url).searchParams.get("CQL_FILTER"), "kenn='083370490'");
+});

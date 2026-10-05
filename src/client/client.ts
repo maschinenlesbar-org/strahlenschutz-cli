@@ -17,6 +17,7 @@ import {
   assertValid,
   featureKindProblem,
   nonEmptyProblem,
+  normalizeInput,
   queryKeysProblem,
   timeseriesResolutionProblem,
 } from "./validate.js";
@@ -52,7 +53,9 @@ export const DEFAULT_SORT_BY: Record<FeatureKind, string> = {
 // Because the filter is restricted to digits the surrounding quotes are safe.
 const KENN_PATTERN = /^\d+$/;
 
-function assertKenn(kenn: unknown): string {
+function assertKenn(raw: unknown): string {
+  // Trimmed (and NFC) before the check: `" 083370490 "` means 083370490.
+  const kenn = normalizeInput(raw);
   // Type first: an array `["083370490"]` or a number would pass the pattern after
   // coercion (and a number loses the leading zero).
   if (typeof kenn !== "string" || !KENN_PATTERN.test(kenn)) {
@@ -173,6 +176,7 @@ export class StrahlenschutzClient {
    * collection through, since a real station can have no readings in a series.)
    */
   async station(kenn: string): Promise<FeatureCollection> {
+    kenn = normalizeInput(kenn);
     const result = await this.getFeature("latest", { station: kenn });
     if (result.features.length === 0) {
       throw new StrahlNotFoundError(`No station found for kenn "${kenn}".`);

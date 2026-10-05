@@ -59,8 +59,9 @@ const BAD_VALUES: Array<[string, Record<string, unknown>]> = [
  */
 const UNNORMALISED: Array<[string, Record<string, unknown>]> = [
   ["padded id", { station: " 083370490 " }],
+  ["id with a trailing newline", { station: "083370490\n" }],
 ];
-const UNNORMALISED_POLICY = "reject" as "normalise" | "reject";
+const UNNORMALISED_POLICY = "normalise" as "normalise" | "reject";
 /** The CLI's filter flag given twice, and what the repo does with it (one station per query). */
 const REPEATED_FLAG_ARGV = ["latest", "--station", "083370490", "--station", "010010001"];
 const REPEATED_POLICY = "reject" as "combine" | "reject";

@@ -58,8 +58,8 @@ network that measures the local ambient gamma dose rate. Roughly 1 700 probes
 cover Germany.
 
 **kenn (station id).** The station identifier (Kennung). A fixed-format **numeric**
-string (digits only), e.g. `091811461`. The client validates the shape (digits
-only, non-empty) before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`). CLI:
+string (digits only), e.g. `091811461`. The client trims surrounding whitespace, then
+validates the shape (digits only, non-empty) before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`). CLI:
 `station <kenn>`, `--station <kenn>`, `timeseries <kenn>`.
 
 **GeoJSON Feature.** One element of the response: a station together with its

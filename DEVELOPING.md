@@ -299,10 +299,12 @@ transport while reading and by the engine to the body any transport returns. The
 message names the option and the CLI flag: `Response exceeded the size limit of <n>
 bytes (maxResponseBytes; --max-response-bytes on the CLI)`.
 
-**`kenn` validation.** The client validates the station id (digits only,
-non-empty) before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`) and
-rejects anything else with a clear error — defence in depth on top of the
-percent-encoding the value already receives.
+**`kenn` validation.** The client trims the station id and applies Unicode NFC (the
+exported `normalizeInput`; `" 083370490\n"` means `083370490`), then validates it
+(a string, digits only, non-empty) before splicing it into the WFS `CQL_FILTER`
+(`kenn='<id>'`), and rejects anything else with a `StrahlValidationError` — defence in
+depth on top of the percent-encoding the value already receives. No case-folding or
+zero-padding: the filter compares strings.
 
 **Empty result vs. not-found.** The WFS returns an empty FeatureCollection with
 HTTP **200** for an unknown `kenn`, never a 404. For a single-station lookup

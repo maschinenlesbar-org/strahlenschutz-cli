@@ -23,6 +23,17 @@ export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
   return value;
 }
 
+/**
+ * An id or name as the user meant it: surrounding whitespace dropped (a copy-pasted
+ * `" 083370490 "`, a trailing newline from a file) and Unicode NFC applied, so the same
+ * text always goes out the same way. No case-folding: the WFS compares ids and property
+ * names case-sensitively. A non-string value is returned unchanged for the type check
+ * that follows.
+ */
+export function normalizeInput<T>(value: T): T {
+  return (typeof value === "string" ? value.trim().normalize("NFC") : value) as T;
+}
+
 /** True for an empty or whitespace-only string. */
 export function isBlank(value: string): boolean {
   return value.trim() === "";

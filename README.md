@@ -80,7 +80,7 @@ timeseries <kenn>      hourly or daily time series for a station
 
 | Argument | Meaning |
 | --- | --- |
-| `<kenn>` | numeric station id — must be digits only, non-empty |
+| `<kenn>` | numeric station id — must be digits only, non-empty (surrounding whitespace is dropped) |
 
 No per-command options. An unknown `kenn` exits with code **4**. (Only `station` does
 this: `timeseries <kenn>` and `latest --station <kenn>` print an empty collection and

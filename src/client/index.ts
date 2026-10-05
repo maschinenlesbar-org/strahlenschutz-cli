@@ -38,6 +38,7 @@ export {
   intRangeProblem,
   isBlank,
   nonEmptyProblem,
+  normalizeInput,
   oneOfProblem,
   queryKeysProblem,
   timeseriesResolutionProblem,
