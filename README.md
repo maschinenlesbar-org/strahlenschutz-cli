@@ -19,7 +19,7 @@ into [`jq`](https://jqlang.github.io/jq/).
 - **Real open data** — backed by the Bundesamt für Strahlenschutz's public IMIS network.
 
 > Want to use this as a TypeScript library or understand how it's built?
-> See **[DEVELOPING.md](DEVELOPING.md)**.
+> See **[DEVELOPING.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/DEVELOPING.md)**.
 
 ## Install
 
@@ -97,7 +97,7 @@ exit `0`, because a real station can have an empty series too.)
 
 ## Common tasks
 
-A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+A few recipes to get going — see **[Usage.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/Usage.md)** for the full,
 use-case-driven set.
 
 ```bash
@@ -212,10 +212,10 @@ usage error rather than "last one wins":
 
 ## Learn more
 
-- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
-- **[GLOSSARY.md](GLOSSARY.md)** — domain terms, station identifiers, WFS concepts, exit codes.
-- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
-- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills bundled with this repo (dose-rate
+- **[Usage.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/GLOSSARY.md)** — domain terms, station identifiers, WFS concepts, exit codes.
+- **[DEVELOPING.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[SKILLS.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/SKILLS.md)** — Claude Code Agent Skills bundled with this repo (dose-rate
   snapshot, station trend, GeoJSON export), installable as a plugin.
 
 ## Data license

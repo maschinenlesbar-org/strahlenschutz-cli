@@ -372,7 +372,8 @@ npm test          # builds, then runs `node --test` over dist/test
   (P19 skipped: no environment variable), P5 the transport contract (timeout, size cap, body
   types, header shapes, resets), P6 the retry floor, P7 pipes and exit codes (spawns the built
   bin), P8/P9/P13 charset, 2xx body shapes and error classes, P10 strict query keys and repeated
-  options, P20 the stderr warning for a plain-`http:` base URL.
+  options, P20 the stderr warning for a plain-`http:` base URL, P21 README links only to files
+  the npm package ships (others by their GitHub URL).
 - **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.
