@@ -177,7 +177,8 @@ src/
 - Output goes through `process.stdout.write`/`process.stderr.write` (`defaultIO`). The bin shim
   installs `handleOutputErrors()` (`io.ts`) before `run()`: an EPIPE on stdout (a reader such as
   `head` stopping early) exits 0 quietly instead of an unhandled stack trace and exit 1; an EPIPE
-  on stderr is ignored, so a failed run keeps its exit code.
+  on stderr is ignored, so a failed run keeps its exit code. ENOTCONN counts the same (stdout is a
+  socket when a Node parent spawns the CLI with piped stdio on macOS; `output-errors.test.ts`).
   `test/conformance-p7-pipes-exit-codes.test.ts` runs the built bin to check both.
 - The WFS boilerplate (`service=WFS`, `request=GetFeature`, `outputFormat=application/json`) is hidden
   behind friendly feature-kind methods; GeoJSON is returned faithfully.
@@ -353,6 +354,8 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`client.test.ts`** — the fixed WFS params, typeName selection, `CQL_FILTER` mapping and encoding, `sortBy`/`startIndex` propagation, and `kenn` validation — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
+- **`output-errors.test.ts`** — `handleOutputErrors`: EPIPE and ENOTCONN on stdout exit 0, on
+  stderr they are ignored.
 - **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (fix plan
   `.reviews/2026-10-05-exploratory/fix-plan.md` in the workspace), one file per pattern, the same
   code in every repo apart from an adapter block at the top: P1 credential redaction in CLI output,
