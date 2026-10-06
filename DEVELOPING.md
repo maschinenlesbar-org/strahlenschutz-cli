@@ -266,6 +266,15 @@ commander's usage errors, which echo a rejected `--base-url` whole, included.
 `test/conformance-p1-cli-redaction.test.ts` checks ten passwords in seven URL shapes
 at every argv position.
 
+**Plain `http:` warning.** `cleartextProblem(baseUrl, secrets?)` (`engine.ts`, exported)
+returns one sentence when requests to `baseUrl` would travel unencrypted — `requests to
+<host> are sent unencrypted (http:, not https:)`, or `the base URL's credentials are sent
+unencrypted to <host> (http:, not https:)` with userinfo — and `undefined` for `https:`, an
+unparseable URL and loopback hosts. `<host>` is `url.host`, never the userinfo. The CLI's
+`action()` wrapper writes `warning: <sentence>` to stderr once per run, before the client is
+built; help, version and usage errors never warn, stdout and the exit code are unchanged,
+and the library never warns. `test/conformance-p20-cleartext-warning.test.ts` checks it.
+
 **Cross-origin credential strip.** On a redirect to a different origin (scheme, host
 or port), the engine drops credential-bearing headers
 (`Authorization`/`X-API-Key`/`Cookie`), and a `401`/`403` from the target then says so
@@ -363,7 +372,7 @@ npm test          # builds, then runs `node --test` over dist/test
   (P19 skipped: no environment variable), P5 the transport contract (timeout, size cap, body
   types, header shapes, resets), P6 the retry floor, P7 pipes and exit codes (spawns the built
   bin), P8/P9/P13 charset, 2xx body shapes and error classes, P10 strict query keys and repeated
-  options.
+  options, P20 the stderr warning for a plain-`http:` base URL.
 - **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.

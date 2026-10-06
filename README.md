@@ -204,7 +204,7 @@ usage error rather than "last one wins":
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`); `http(s)` only, a path prefix is fine, no `?query`, `#fragment` or whitespace. Userinfo (`https://user:pw@mirror.example`) is sent as Basic auth (write a literal `%` in it as `%25`) and shown as `***@` in everything the CLI prints, usage errors included |
+| `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`); `http(s)` only, a path prefix is fine, no `?query`, `#fragment` or whitespace. Userinfo (`https://user:pw@mirror.example`) is sent as Basic auth (write a literal `%` in it as `%25`) and shown as `***@` in everything the CLI prints, usage errors included. A plain `http:` base URL to a remote host prints one `warning: … sent unencrypted to <host> (http:, not https:)` line on stderr before the first request (naming the base URL's credentials when it carries any, never printing them); loopback hosts (`localhost`, `127.x`, `::1`) don't warn, and stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters, Latin-1 only) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`); each waits 200 ms, 400 ms, …, or longer if the server's `Retry-After` asks (up to 30 s; a longer one is not retried and the error names the requested wait) |
