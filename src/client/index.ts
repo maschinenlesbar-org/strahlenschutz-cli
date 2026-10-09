@@ -15,7 +15,7 @@ export {
   isTransientNetworkError,
   serverTextForMessage,
 } from "./engine.js";
-export type { EngineOptions, RawResponse } from "./engine.js";
+export type { EngineOptions, RawResponse, RetryEvent } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport, sizeLimitMessage } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { buildQueryString } from "./query.js";

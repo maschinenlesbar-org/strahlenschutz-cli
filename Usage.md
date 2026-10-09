@@ -223,7 +223,7 @@ Global options go **before** the command (e.g. `strahlenschutz --compact latest 
 | `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`). A plain `http:` base URL to a remote host logs one `WARN` record of `strahlenschutz.http` on stderr (`… sent unencrypted to <host> (http:, not https:)`) before the first request (naming the base URL's credentials when it carries any, never printing them); loopback hosts (`localhost`, `127.x`, `::1`) don't warn, and stdout and the exit code are unchanged |
 | `--timeout <ms>` | time limit per request in milliseconds, whole response included (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`; each waits 200 ms, 400 ms, … or the server's longer `Retry-After`, up to 30 s) |
+| `--max-retries <n>` | retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`; each waits 200 ms, 400 ms, … or the server's longer `Retry-After`, up to 30 s). Each retry logs one WARN record of `strahlenschutz.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`) |
 | `--max-response-bytes <n>` | cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | print JSON on a single line instead of pretty-printed |
 | `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [strahlenschutz.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
