@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { Worker } from "node:worker_threads";
 import assert from "node:assert/strict";
 import {
   MAX_REDIRECTS,
@@ -570,4 +571,116 @@ test("credentials a server echoes are scrubbed from the error: Basic, user:passw
     assert.match(err.message, /no: Basic \*\*\* \/ \*\*\*$/);
     return true;
   });
+});
+
+// ---- owsExceptionText in linear time (01-2) ------------------------------------------
+// The regex it used, /<((?:[\w.-]+:)?ExceptionText)\b[^>]*>([\s\S]*?)<\/\1\s*>/g, rescanned to the
+// end of the body from every opening tag that has no closing one: 64 000 unclosed tags
+// (1.2 MB) took 13.5 s, after the body had arrived, so --timeout did not bound it. The
+// bodies below are as large or larger (0.9-3.3 MB): a quadratic scan runs for minutes, a linear
+// one for milliseconds. The test reads no clock: the scan runs in a worker thread, so
+// the test runner's own per-test timeout (5 s) ends a test whose scan does not come
+// back, which it can't while a synchronous scan blocks its own thread. The timeout aborts
+// the test's signal, which terminates the worker: an unref'd worker still stuck in a scan
+// would hold the process at exit for minutes.
+
+/** The hostile bodies, built inside the worker, and what owsExceptionText gave for each. */
+const HOSTILE_REPORTS_WORKER = `
+const { parentPort, workerData } = require("node:worker_threads");
+import(workerData.engine).then(({ owsExceptionText }) => {
+  const n = 100000;
+  const bodies = {
+    // Opening tags with no closing one (the report's case).
+    unclosed: "<ows:ExceptionReport>" + "<ows:ExceptionText>".repeat(n),
+    // The same with one closing tag at the very end: the first opening tag's text runs to it.
+    closedAtEnd: "<ows:ExceptionReport>" + "<ows:ExceptionText>".repeat(n) + "last</ows:ExceptionText>",
+    // Opening tags that never reach a ">".
+    noGt: "<ExceptionReport>" + "<ExceptionText ".repeat(n),
+    // A different namespace prefix on every tag, none closed.
+    prefixes: "<ExceptionReport>" + Array.from({ length: n }, (_, i) => "<p" + i + ":ExceptionText>").join(""),
+    // CDATA sections that are never closed, inside one text.
+    cdata: "<ExceptionReport><ExceptionText>" + "<![CDATA[".repeat(2 * n) + "</ExceptionText>",
+    // Many complete texts: deduplicated and joined, as before.
+    many: "<ExceptionReport>" + "<ExceptionText>t</ExceptionText>".repeat(n),
+  };
+  const results = {};
+  for (const [name, body] of Object.entries(bodies)) results[name] = { size: body.length, text: owsExceptionText(body) ?? null };
+  parentPort.postMessage(results);
+});
+`;
+
+test("owsExceptionText reads a hostile ExceptionReport of megabytes in linear time (01-2)", async (t) => {
+  const worker = new Worker(HOSTILE_REPORTS_WORKER, {
+    eval: true,
+    workerData: { engine: new URL("../src/client/engine.js", import.meta.url).href },
+  });
+  worker.unref();
+  t.signal.addEventListener("abort", () => void worker.terminate(), { once: true });
+  const results = await new Promise<Record<string, { size: number; text: string | null }>>((resolve, reject) => {
+    worker.once("message", resolve);
+    worker.once("error", reject);
+  });
+  await worker.terminate();
+  for (const { size } of Object.values(results)) assert.ok(size > 800_000, `${size} characters`);
+  assert.equal(results["unclosed"]?.text, null);
+  assert.equal(results["noGt"]?.text, null);
+  assert.equal(results["prefixes"]?.text, null);
+  const tail = results["closedAtEnd"]?.text ?? "";
+  assert.ok(tail.startsWith("<ows:ExceptionText><ows:ExceptionText>") && tail.endsWith("…"), tail.slice(0, 80));
+  const cdata = results["cdata"]?.text ?? "";
+  assert.ok(cdata.startsWith("<![CDATA[<![CDATA[") && cdata.endsWith("…"), cdata.slice(0, 80));
+  assert.equal(results["many"]?.text, "t");
+});
+
+/** owsExceptionText as it was, regex for regex: the reference for the rewrite (small inputs only). */
+function regexOwsExceptionText(body: string): string | undefined {
+  const clean = (text: string): string | undefined => {
+    let out = "";
+    for (const ch of text) {
+      const c = ch.codePointAt(0) ?? 0;
+      if (c <= 8 || (c >= 0x0b && c <= 0x1f) || (c >= 0x7f && c <= 0x9f)) continue;
+      out += ch;
+    }
+    const flat = out.replace(/\s+/g, " ").trim();
+    if (flat === "") return undefined;
+    return flat.length > 500 ? `${cutText(flat, 500)}…` : flat;
+  };
+  const entities: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
+  const decode = (text: string): string =>
+    text
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+      .replace(/&(?:#x([0-9a-fA-F]{1,6})|#([0-9]{1,7})|(lt|gt|amp|quot|apos));/g, (whole, hex, dec, name) => {
+        if (name !== undefined) return entities[name as string] ?? whole;
+        const code = Number.parseInt((hex ?? dec) as string, hex !== undefined ? 16 : 10);
+        return code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+      });
+  if (!/<(?:[\w.-]+:)?ExceptionReport[\s>]/.test(body)) return undefined;
+  const texts = [...body.matchAll(/<((?:[\w.-]+:)?ExceptionText)\b[^>]*>([\s\S]*?)<\/\1\s*>/g)]
+    .map((m) => clean(decode(m[2] ?? "")))
+    .filter((t): t is string => t !== undefined);
+  if (texts.length > 0) return clean([...new Set(texts)].join("; "));
+  const code = /\bexceptionCode\s*=\s*"([^"]*)"/.exec(body)?.[1];
+  return code === undefined ? undefined : clean(decode(code));
+}
+
+test("owsExceptionText gives what the regex gave, on 5 000 random reports (01-2)", () => {
+  const tokens = [
+    "<ExceptionReport>", "<ows:ExceptionReport ", "<ows:ExceptionText>", "</ows:ExceptionText>", "<ExceptionText>",
+    '<ExceptionText lang="en">', "</ExceptionText >", "</ExceptionText\n>", "<ExceptionText", "</ExceptionText", ">", "<", "</",
+    "<p:ExceptionText>", "</p:ExceptionText>", "<p.q-r:ExceptionText>", "</p.q-r:ExceptionText>", "<ExceptionTextX>",
+    "<ExceptionText.x>", "</ExceptionTextX>", "<ows:ows:ExceptionText>", "<![CDATA[", "]]>", "&lt;", "&#x41;", "&#66;",
+    "&amp;", "&bogus;", 'exceptionCode="C1"', "exceptionCode = 'x'", '"', "x", "y z", " ", "\n", "\t", "\u0085", "\u{1f600}", ":",
+  ];
+  let seed = 20261009;
+  const random = (n: number): number => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed % n;
+  };
+  for (let i = 0; i < 5000; i++) {
+    const parts = ["<ExceptionReport>"];
+    const length = 1 + random(25);
+    for (let j = 0; j < length; j++) parts.push(tokens[random(tokens.length)] as string);
+    const body = random(10) === 0 ? parts.slice(1).join("") : parts.join("");
+    assert.equal(owsExceptionText(body), regexOwsExceptionText(body), JSON.stringify(body));
+  }
 });

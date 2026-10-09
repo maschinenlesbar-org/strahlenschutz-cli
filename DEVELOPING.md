@@ -257,7 +257,9 @@ server sends UTF-8; this matters behind a mirror or proxy that re-encodes, where
 
 **Error detail.** GeoServer reports a bad request as an OGC `ows:ExceptionReport`
 (XML). The engine's exported `owsExceptionText` pulls its `ExceptionText` (any
-namespace prefix, entities decoded) out with a regex — no XML dependency — and uses
+namespace prefix, entities and CDATA decoded) out with a small scanner — no XML
+dependency — in time linear in the body (a regex rescanned to the end from every unclosed
+tag: a hostile 1.2 MB report cost 13.5 s of CPU after it had arrived), and uses
 it as the `detail`, for a non-2xx status and for a 2xx body that is not JSON.
 Every detail is stripped of control characters, flattened to one line and cut at
 `MAX_DETAIL_LENGTH` (500) characters, never inside a surrogate pair (the exported

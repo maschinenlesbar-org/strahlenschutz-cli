@@ -190,10 +190,29 @@ function cleanDetail(text: string): string | undefined {
 
 const XML_ENTITIES: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
 
+/**
+ * `text` with every CDATA section (`<![CDATA[…]]>`) replaced by its content, as the regex
+ * `/<!\[CDATA\[([\s\S]*?)\]\]>/g` would, in one pass: once a section has no `]]>` after
+ * it, no later one has, so the scan stops there instead of rescanning to the end from
+ * every unclosed section.
+ */
+function unwrapCdata(text: string): string {
+  let out = "";
+  let from = 0;
+  for (;;) {
+    const open = text.indexOf("<![CDATA[", from);
+    if (open < 0) break;
+    const close = text.indexOf("]]>", open + 9);
+    if (close < 0) break;
+    out += text.slice(from, open) + text.slice(open + 9, close);
+    from = close + 3;
+  }
+  return from === 0 ? text : out + text.slice(from);
+}
+
 /** Decode the five predefined XML entities, character references and CDATA sections. */
 function decodeXmlText(text: string): string {
-  return text
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+  return unwrapCdata(text)
     .replace(/&(?:#x([0-9a-fA-F]{1,6})|#([0-9]{1,7})|(lt|gt|amp|quot|apos));/g, (whole, hex, dec, name) => {
       if (name !== undefined) return XML_ENTITIES[name as string] ?? whole;
       const code = Number.parseInt((hex ?? dec) as string, hex !== undefined ? 16 : 10);
@@ -207,16 +226,109 @@ function decodeXmlText(text: string): string {
  * `Illegal property name: bogus_prop for feature type …`. Returns the
  * `ExceptionText` elements (any namespace prefix) joined with "; ", else the
  * `exceptionCode` attribute, cleaned for a one-line message; `undefined` when the
- * body is not an ExceptionReport. A regex is enough here: no XML dependency.
+ * body is not an ExceptionReport. No XML dependency: the elements are found by
+ * `exceptionTextElements`, in time linear in the body (a body of many unclosed tags once
+ * cost quadratic time, 13.5 s for 1.2 MB, after it had arrived).
  */
 export function owsExceptionText(body: string): string | undefined {
   if (!/<(?:[\w.-]+:)?ExceptionReport[\s>]/.test(body)) return undefined;
-  const texts = [...body.matchAll(/<((?:[\w.-]+:)?ExceptionText)\b[^>]*>([\s\S]*?)<\/\1\s*>/g)]
-    .map((m) => cleanDetail(decodeXmlText(m[2] ?? "")))
+  const texts = exceptionTextElements(body)
+    .map((content) => cleanDetail(decodeXmlText(content)))
     .filter((t): t is string => t !== undefined);
   if (texts.length > 0) return cleanDetail([...new Set(texts)].join("; "));
   const code = /\bexceptionCode\s*=\s*"([^"]*)"/.exec(body)?.[1];
   return code === undefined ? undefined : cleanDetail(decodeXmlText(code));
+}
+
+/** True for a character of `[\w.-]`, the characters of an XML namespace prefix here. */
+function isNameChar(c: number): boolean {
+  return (
+    (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a) || c === 0x5f || c === 0x2e || c === 0x2d
+  );
+}
+
+/** True for a character of `\w`: what `\b` after "ExceptionText" must not be followed by. */
+function isWordChar(c: number): boolean {
+  return (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a) || c === 0x5f;
+}
+
+const EXCEPTION_TEXT = "ExceptionText";
+
+/** An element name found at a position: the name, and where it ends. */
+interface TagName {
+  name: string;
+  end: number;
+}
+
+/**
+ * The element names `(?:[\w.-]+:)?ExceptionText` can match at `at` (just after `<` or
+ * `</`), in the order the regex tries them: with the prefix (the run of `[\w.-]` up to a
+ * ":"; a shorter run can't be followed by one), then without. Usually one or none.
+ */
+function exceptionTextNames(body: string, at: number): TagName[] {
+  const names: TagName[] = [];
+  let i = at;
+  while (i < body.length && isNameChar(body.charCodeAt(i))) i++;
+  if (i > at && body.charCodeAt(i) === 0x3a && body.startsWith(EXCEPTION_TEXT, i + 1)) {
+    const end = i + 1 + EXCEPTION_TEXT.length;
+    names.push({ name: body.slice(at, end), end });
+  }
+  if (body.startsWith(EXCEPTION_TEXT, at)) names.push({ name: EXCEPTION_TEXT, end: at + EXCEPTION_TEXT.length });
+  return names;
+}
+
+/**
+ * The content of every `<[prefix:]ExceptionText …>…</[prefix:]ExceptionText>` element of
+ * `body`, in order, exactly as the regex
+ * `/<((?:[\w.-]+:)?ExceptionText)\b[^>]*>([\s\S]*?)<\/\1\s*>/g` finds them, but in time
+ * linear in the body. The regex rescanned to the end from every opening tag that has no
+ * closing one, and from every opening tag that never reaches a `>`. Here all closing tags
+ * are found in one pass first, grouped by name; an opening tag then takes the first
+ * closing tag of its name after its `>` (a pointer per name that only moves forward), and
+ * that `>` comes from a position that only moves forward too.
+ */
+function exceptionTextElements(body: string): string[] {
+  // Every closing tag `</name\s*>`, by name, in order of position. A closing tag has at
+  // most one name followed by `\s*>`: the prefixed one ends where the unprefixed one
+  // would need it to.
+  const closes = new Map<string, { at: number; end: number }[]>();
+  for (let lt = body.indexOf("</"); lt >= 0; lt = body.indexOf("</", lt + 2)) {
+    for (const tag of exceptionTextNames(body, lt + 2)) {
+      let i = tag.end;
+      while (i < body.length && /\s/.test(body[i] as string)) i++;
+      if (body.charCodeAt(i) !== 0x3e) continue;
+      const list = closes.get(tag.name) ?? [];
+      list.push({ at: lt, end: i + 1 });
+      closes.set(tag.name, list);
+    }
+  }
+  if (closes.size === 0) return [];
+  const next = new Map<string, number>();
+  const contents: string[] = [];
+  let gt = -1;
+  // `from` is where the regex goes on: after the last element found.
+  let from = 0;
+  for (let lt = body.indexOf("<"); lt >= 0; lt = body.indexOf("<", Math.max(lt + 1, from))) {
+    if (lt < from) continue;
+    for (const tag of exceptionTextNames(body, lt + 1)) {
+      // `\b`: no word character right after the name.
+      if (isWordChar(body.charCodeAt(tag.end))) continue;
+      // `[^>]*>`: the first ">" from the end of the name on.
+      if (gt < tag.end) gt = body.indexOf(">", tag.end);
+      if (gt < 0) return contents; // no ">" from here on: no later opening tag completes
+      const list = closes.get(tag.name);
+      if (list === undefined) continue;
+      let k = next.get(tag.name) ?? 0;
+      while (k < list.length && (list[k] as { at: number }).at <= gt) k++;
+      next.set(tag.name, k);
+      const close = list[k];
+      if (close === undefined) continue;
+      contents.push(body.slice(gt + 1, close.at));
+      from = close.end;
+      break;
+    }
+  }
+  return contents;
 }
 
 /**
