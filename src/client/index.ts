@@ -28,6 +28,8 @@ export {
   StrahlParseError,
   StrahlValidationError,
   credentialsIn,
+  echoedCredentialForms,
+  redactSecrets,
   cutForMessage,
   cutText,
   MAX_QUOTED_LENGTH,

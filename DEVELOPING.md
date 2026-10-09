@@ -229,7 +229,11 @@ shows the base URL's password: the engine keeps the base URL in a real `#private
 field (so `console.log(client)`, `util.inspect` and `JSON.stringify` don't reveal it),
 every URL in a message goes through `redactUrl`, and the base URL's userinfo (raw and
 percent-decoded) is scrubbed from error bodies and details, transport error text and
-the `cause` chain. The CLI maps
+the `cause` chain — and with it the forms a server echoes it back in
+(`echoedCredentialForms`, exported): the `Authorization: Basic` value, the decoded
+`user:password`, and the password alone from 4 characters on (`redactSecrets`,
+exported). The CLI replaces the Basic value and the pair on stdout and stderr, the bare
+password on stderr only (on stdout a short password may well occur in the data). The CLI maps
 `StrahlNotFoundError` to exit code `4`; all other errors map to `1`, an HTTP 404
 included: every command requests the one fixed WFS path, so a 404 means that
 path is missing (a wrong `--base-url`, or the API moved), never an unknown

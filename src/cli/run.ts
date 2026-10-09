@@ -13,7 +13,9 @@ import {
   StrahlNotFoundError,
   StrahlValidationError,
   credentialsIn,
+  echoedCredentialForms,
   redactCredentials,
+  redactSecrets,
 } from "../client/errors.js";
 
 /**
@@ -49,9 +51,12 @@ export function redactUserinfo(text: string): string {
 
 /** The secrets of a run, and the two ways they are replaced. */
 export interface Redaction {
-  /** stdout text: the userinfo of every URL-like argument replaced (`***@`). */
+  /**
+   * stdout text: the userinfo of every URL-like argument replaced (`***@`), and the forms a
+   * server echoes it back in (the Basic value, the decoded `user:password`).
+   */
   out(text: string): string;
-  /** stderr text, a record's message: the same. */
+  /** stderr text, a record's message: the same, and the password alone (4+ characters). */
   err(text: string): string;
 }
 
@@ -71,15 +76,27 @@ export function redactionFor(argv: readonly string[]): Redaction {
     token.startsWith("-") && token.includes("=") ? token.slice(token.indexOf("=") + 1) : token,
   );
   const secrets = new Set<string>();
+  const echoed = new Set<string>();
+  const passwords = new Set<string>();
   for (const source of [...argv, ...values]) {
     for (const secret of credentialsIn(source)) {
       secrets.add(secret);
       secrets.add(JSON.stringify(secret).slice(1, -1));
+      // What a server echoes back: the Basic value and the decoded user:password on
+      // stdout and stderr, the password alone (it may well occur in the data) on stderr.
+      const [basic, pair, password] = echoedCredentialForms(secret);
+      if (basic !== undefined) echoed.add(basic);
+      if (pair !== undefined) echoed.add(pair);
+      if (password !== undefined) passwords.add(password);
     }
   }
+  if (secrets.size === 0) return { out: (text) => text, err: (text) => text };
   const list = [...secrets];
-  const redact = (text: string): string => (list.length === 0 ? text : redactUserinfo(redactCredentials(text, list)));
-  return { out: redact, err: redact };
+  // Longest first, so a password never leaves half of the user:password around it.
+  const echoedList = [...echoed].sort((a, b) => b.length - a.length);
+  const passwordList = [...passwords].sort((a, b) => b.length - a.length);
+  const out = (text: string): string => redactSecrets(redactUserinfo(redactCredentials(text, list)), echoedList);
+  return { out, err: (text) => redactSecrets(out(text), passwordList) };
 }
 
 /**

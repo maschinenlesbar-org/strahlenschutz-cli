@@ -546,3 +546,28 @@ test("a URL a redirect chose is quoted at most 500 characters long in every mess
     }, label);
   }
 });
+
+test("credentials a server echoes are scrubbed from the error: Basic, user:password, password (L13)", async () => {
+  // Node sends the pair UTF-8 encoded, so that is the form a server echoes.
+  const basic = Buffer.from("alice:p\u00e4 ss-pw", "utf8").toString("base64");
+  const body = JSON.stringify({ message: `no: Basic ${basic} / alice:p\u00e4 ss-pw / p\u00e4 ss-pw` });
+  const engine = new RequestEngine({
+    baseUrl: "https://alice:p%C3%A4%20ss-pw@127.0.0.1",
+    maxRetries: 0,
+    transport: async () => ({ status: 401, headers: { "content-type": "application/json" }, body: Buffer.from(body) }),
+  });
+  await assert.rejects(engine.getJson("/x"), (err: unknown) => {
+    assert.ok(err instanceof StrahlApiError);
+    for (const form of [basic, "alice:p\u00e4 ss-pw", "p\u00e4 ss-pw"]) assert.ok(!err.message.includes(form), err.message);
+    assert.match(err.message, /no: Basic \*\*\* \/ \*\*\* \/ \*\*\*/);
+    return true;
+  });
+  // The same in a 200 ExceptionReport, the WFS's own error form.
+  const report = `<ows:ExceptionReport><ows:Exception><ows:ExceptionText>no: Basic ${basic} / alice:p\u00e4 ss-pw</ows:ExceptionText></ows:Exception></ows:ExceptionReport>`;
+  const wfs = new RequestEngine({ baseUrl: "https://alice:p%C3%A4%20ss-pw@127.0.0.1", transport: async () => rawResponse(report, "application/xml") });
+  await assert.rejects(wfs.getJson("/x"), (err: unknown) => {
+    assert.ok(err instanceof StrahlApiError);
+    assert.match(err.message, /no: Basic \*\*\* \/ \*\*\*$/);
+    return true;
+  });
+});

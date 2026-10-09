@@ -23,6 +23,8 @@ const SIMPLE_COMMAND = ["latest"];
 const okBody = { type: "FeatureCollection", features: [] };
 /** The exit code of a usage error. */
 const USAGE_EXIT = 1; // strahlenschutz's usage errors exit 1 (commander's default)
+/** Whether --base-url accepts userinfo (destatis-genesis/regionalstatistik refuse it: nothing a server could echo). */
+const BASE_URL_USERINFO = true; // sent as HTTP Basic auth, for a mirror behind a login
 /** An option that takes a value and validates it: a rejected value is echoed in the record. */
 const VALUE_OPTION = "--timeout";
 /** An error answer whose ERROR record quotes `message` (as far as the repo keeps it). */
@@ -201,6 +203,20 @@ test("P23: a secret with DEL, C1 or bidi characters is replaced before the recor
       const r = await cli(["--log-format", format, ...secretArgv(secret), ...SIMPLE_COMMAND]);
       const all = r.err.join("\n");
       assert.ok(!/Secret\d/.test(all), `${format}: ${JSON.stringify(secret)} printed:\n${all}`);
+    }
+  }
+});
+
+test("P23: credentials a server echoes back are replaced in the record (Basic, user:password, password)", async (t) => {
+  if (!BASE_URL_USERINFO) return t.skip("--base-url refuses userinfo: nothing is sent that a server could echo");
+  const basic = `Basic ${Buffer.from("alice:s3cret-pw", "latin1").toString("base64")}`;
+  const echo = `denied: Authorization: ${basic}; user alice:s3cret-pw; password s3cret-pw`;
+  for (const format of ["text", "jsonl"]) {
+    const r = await cli(["--log-format", format, "--base-url", "https://alice:s3cret-pw@mirror.example", ...SIMPLE_COMMAND], errorAnswer(echo));
+    const all = r.err.join("\n");
+    assert.ok(all.includes("denied"), `${format}: the message is there:\n${all}`);
+    for (const form of [basic.slice("Basic ".length), "alice:s3cret-pw", "s3cret-pw"]) {
+      assert.ok(!all.includes(form), `${format}: ${form} printed:\n${all}`);
     }
   }
 });
