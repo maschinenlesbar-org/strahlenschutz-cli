@@ -23,6 +23,8 @@ const SIMPLE_COMMAND = ["latest"];
 const okBody = { type: "FeatureCollection", features: [] };
 /** The exit code of a usage error. */
 const USAGE_EXIT = 1; // strahlenschutz's usage errors exit 1 (commander's default)
+/** Whether commander shows the command's whole help after a usage error (autobahn-cli: a one-line pointer). */
+const HELP_AFTER_ERROR = true;
 /** Whether --base-url accepts userinfo (destatis-genesis/regionalstatistik refuse it: nothing a server could echo). */
 const BASE_URL_USERINFO = true; // sent as HTTP Basic auth, for a mirror behind a login
 /** The option that writes the output to a file and logs where, or undefined if the CLI has none. */
@@ -231,5 +233,32 @@ test("P23: a value shaped like a:b@c that is no URL is not taken for a credentia
     const written = await cli([OUTPUT_OPTION, "run:2026-10-09@x.json", ...SIMPLE_COMMAND]);
     assert.equal(written.code, 0, written.err.join("\n"));
     assert.ok(written.err.some((line) => line.includes("run:2026-10-09@x.json")), written.err.join("\n"));
+  }
+});
+
+test("P23: commander's help after an error is one record per line, its suggestion part of the error", async () => {
+  for (const format of ["text", "jsonl"]) {
+    const r = await cli(["--log-format", format, ...SIMPLE_COMMAND, "--no-such-option"]);
+    assert.equal(r.code, USAGE_EXIT);
+    assertOneRecordEach(r.err, format, format);
+    const msgs = r.err.map((line) => (format === "jsonl" ? ((JSON.parse(line) as Record<string, unknown>)["msg"] as string) : line.slice(line.indexOf("] ") + 2)));
+    assert.ok(msgs.length > (HELP_AFTER_ERROR ? 2 : 1), `${format}: the help is several records:\n${r.err.join("\n")}`);
+    assert.ok(msgs.every((msg) => !msg.includes("\\n") && !msg.includes("\n") && msg.trim() !== ""), `${format}:\n${r.err.join("\n")}`);
+    assert.ok(!HELP_AFTER_ERROR || msgs.some((msg) => /^Usage: /.test(msg)), `${format}:\n${r.err.join("\n")}`);
+
+    const typo = await cli(["--log-format", format, `${SIMPLE_COMMAND[0]}x`]);
+    assert.equal(typo.code, USAGE_EXIT);
+    const first = format === "jsonl" ? ((JSON.parse(typo.err[0] as string) as Record<string, unknown>)["msg"] as string) : (typo.err[0] as string);
+    assert.match(first, new RegExp(`unknown command '${SIMPLE_COMMAND[0]}x' \\(Did you mean ${SIMPLE_COMMAND[0]}\\?\\)`), typo.err.join("\n"));
+  }
+});
+
+test("P23: every failed run has an ERROR record, a missing command included", async () => {
+  for (const argv of [[], [SIMPLE_COMMAND[0] as string]]) {
+    const r = await cli(argv);
+    if (r.code === 0) continue; // a command that runs on its own
+    // A group without its subcommand: "missing command"; a command without its arguments or a required option: commander's own error.
+    assert.match(r.err[0] ?? "", new RegExp(`^${TS} ERROR \\[${PROGRAM}\\.cli\\] (missing (command: \`|required argument )|required option )`), `${JSON.stringify(argv)}:\n${r.err.join("\n")}`);
+    assertOneRecordEach(r.err, "text", JSON.stringify(argv));
   }
 });

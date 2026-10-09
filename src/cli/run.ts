@@ -23,21 +23,45 @@ import {
  * commander does not propagate these to subcommands, so a parse error on a
  * subcommand would otherwise call process.exit() and bypass our error handling.
  */
-function configureTree(command: Command, deps: CliDeps): void {
+function configureTree(command: Command, deps: CliDeps, state: { errorLogged: boolean } = { errorLogged: false }): void {
   command.exitOverride();
   command.configureOutput({
     writeOut: (str) => deps.io.out(str.replace(/\n$/, "")),
-    // commander's own messages are log records too: its "error: …" an ERROR, the help it
-    // shows after one an INFO.
-    writeErr: (str) => {
-      const text = str.replace(/\n$/, "");
-      // The blank line commander writes between an error and the help it shows after.
-      if (text === "") return;
-      if (text.startsWith("error: ")) logOf(deps).error("cli", text.slice("error: ".length));
-      else logOf(deps).info("cli", text);
-    },
+    writeErr: (str) => writeCommanderErr(command, deps, state, str),
   });
-  for (const child of command.commands) configureTree(child, deps);
+  for (const child of command.commands) configureTree(child, deps, state);
+}
+
+/** `strahlenschutz station`: the command's name with its parents'. */
+function commandPath(command: Command): string {
+  const names: string[] = [];
+  for (let c: Command | null = command; c !== null; c = c.parent) names.unshift(c.name());
+  return names.join(" ");
+}
+
+/**
+ * commander's stderr output as log records, one per line. Its `error: …` is an ERROR of
+ * `cli`, with a following `(Did you mean …?)` line appended to that same record; the
+ * help it shows after an error is one INFO record per non-blank line. `help` for an
+ * unknown command, or global options with no command (`strahlenschutz --compact`), make
+ * commander show the help as an error (exit 1) with no `error:` line: an ERROR record
+ * "missing command: `strahlenschutz <subcommand>`" comes first, so every failed run has one.
+ */
+function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged: boolean }, str: string): void {
+  const log = logOf(deps);
+  const text = str.replace(/\n$/, "");
+  // The blank line commander writes between an error and the help it shows after.
+  if (text.trim() === "") return;
+  if (text.startsWith("error: ")) {
+    state.errorLogged = true;
+    log.error("cli", text.slice("error: ".length).replace(/\n(\(Did you mean .*\?\))$/, " $1"));
+    return;
+  }
+  if (!state.errorLogged) {
+    state.errorLogged = true;
+    log.error("cli", `missing command: \`${commandPath(command)} <subcommand>\``);
+  }
+  for (const line of text.split("\n")) if (line.trim() !== "") log.info("cli", line.trimEnd());
 }
 
 /**

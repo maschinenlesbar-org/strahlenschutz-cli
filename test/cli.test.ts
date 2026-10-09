@@ -313,3 +313,30 @@ test("an a:b@c argument (a station id, a User-Agent) is neither a credential in 
   assert.equal(await run(["--base-url", "alice:hunter2-pw@mirror.example", "latest"], bare.deps), 1);
   assert.ok(!bare.err.join("\n").includes("hunter2-pw"), bare.err.join("\n"));
 });
+
+test("the help after a usage error is one INFO record per line; a suggestion is part of the ERROR (L5)", async () => {
+  const cli = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["latest", "--no-such-option"], cli.deps), 1);
+  const records = cli.err.map(untimed);
+  assert.equal(records[0], "ERROR [strahlenschutz.cli] unknown option '--no-such-option'");
+  assert.ok(records.length > 3, records.join("\n"));
+  for (const record of records.slice(1)) {
+    assert.match(record, /^INFO  \[strahlenschutz\.cli\] .*\S$/);
+    assert.doesNotMatch(record, /\\n/, "one line of the help per record");
+  }
+  const typo = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["stationx"], typo.deps), 1);
+  assert.equal(untimed(typo.err[0] ?? ""), "ERROR [strahlenschutz.cli] unknown command 'stationx' (Did you mean station?)");
+});
+
+test("help for an unknown command, or options with no command, is a failed run with an ERROR first, then the help one INFO record per line (L5)", async () => {
+  for (const argv of [["help", "nosuch"], ["--compact"], ["--log-format", "text"]]) {
+    const cli = makeCli(() => jsonResponse(fc));
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    const records = cli.err.map(untimed);
+    assert.equal(records[0], "ERROR [strahlenschutz.cli] missing command: `strahlenschutz <subcommand>`", argv.join(" "));
+    assert.ok(records.length > 3, records.join("\n"));
+    for (const record of records.slice(1)) assert.match(record, /^INFO  \[strahlenschutz\.cli\] .*\S$/);
+    assert.ok(records.some((record) => /\] Usage: strahlenschutz /.test(record)), records.join("\n"));
+  }
+});
