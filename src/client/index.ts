@@ -31,6 +31,8 @@ export {
   cutForMessage,
   cutText,
   MAX_QUOTED_LENGTH,
+  MAX_QUOTED_URL_LENGTH,
+  urlForMessage,
   redactCredentials,
   redactUrl,
   toWellFormed,

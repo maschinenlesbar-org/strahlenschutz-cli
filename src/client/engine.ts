@@ -22,6 +22,7 @@ import {
   cutText,
   redactCredentials,
   redactUrl,
+  urlForMessage,
 } from "./errors.js";
 import { assertValid, baseUrlProblem, headerValueProblem, intRangeProblem } from "./validate.js";
 
@@ -364,7 +365,7 @@ export function isTransientNetworkError(err: unknown): boolean {
 export class RequestEngine {
   // A real private field (not TypeScript's `private`): util.inspect, console.log and
   // JSON.stringify of a client never show it, so a password in the base URL can't be
-  // logged by accident. Messages show request URLs through redactUrl.
+  // logged by accident. Messages show request URLs through urlForMessage (redacted, cut).
   readonly #baseUrl: string;
   /** The base URL's userinfo, raw and percent-decoded, for scrubbing server and transport text. */
   readonly #credentials: string[];
@@ -538,7 +539,7 @@ export class RequestEngine {
         if (cause instanceof StrahlError && !(cause instanceof StrahlNetworkError)) throw cause;
         const reason = cause instanceof Error ? cause.message : String(cause);
         throw new StrahlNetworkError(
-          `${method} ${redactUrl(url)} failed: ${cleanDetail(this.scrub(reason)) ?? "unknown error"}`,
+          `${method} ${urlForMessage(url)} failed: ${cleanDetail(this.scrub(reason)) ?? "unknown error"}`,
           { cause: this.scrubCause(cause) },
         );
       }
@@ -548,7 +549,7 @@ export class RequestEngine {
       const invalid = responseProblem(response);
       if (invalid !== undefined) {
         throw new StrahlNetworkError(
-          `${method} ${redactUrl(url)} failed: the transport returned an invalid response (${invalid}).`,
+          `${method} ${urlForMessage(url)} failed: the transport returned an invalid response (${invalid}).`,
         );
       }
 
@@ -558,7 +559,7 @@ export class RequestEngine {
       const finalUrl = (response as { url?: unknown }).url;
       if (typeof finalUrl === "string" && finalUrl !== "" && originOf(finalUrl) !== originOf(url)) {
         throw new StrahlNetworkError(
-          `${method} ${redactUrl(url)} failed: the transport followed a redirect to another origin ` +
+          `${method} ${urlForMessage(url)} failed: the transport followed a redirect to another origin ` +
             `(${cleanDetail(redactUrl(this.scrub(finalUrl))) ?? ""}); a transport must not follow redirects ` +
             `(HttpRequest.redirect is "manual").`,
         );
@@ -571,7 +572,7 @@ export class RequestEngine {
       // The size cap holds whatever the transport did: the default one aborts early, a custom
       // one may have read everything.
       if (this.maxResponseBytes > 0 && body.byteLength > this.maxResponseBytes) {
-        throw new StrahlNetworkError(`${method} ${redactUrl(url)} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
+        throw new StrahlNetworkError(`${method} ${urlForMessage(url)} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
       }
       const retryable = status === 429 || status === 503;
       const retryAfter = retryable ? parseRetryAfter(responseHeaders["retry-after"]) : undefined;
@@ -592,13 +593,13 @@ export class RequestEngine {
       if (status >= 300 && status < 400) {
         if (redirects >= this.maxRedirects) {
           throw new StrahlNetworkError(
-            `Too many redirects (>${this.maxRedirects}) for ${method} ${redactUrl(url)}`,
+            `Too many redirects (>${this.maxRedirects}) for ${method} ${urlForMessage(url)}`,
           );
         }
         const location = headerValue(responseHeaders["location"]);
         if (typeof location !== "string" || location.length === 0) {
           throw new StrahlNetworkError(
-            `Redirect status ${status} for ${method} ${redactUrl(url)} without a Location header`,
+            `Redirect status ${status} for ${method} ${urlForMessage(url)} without a Location header`,
           );
         }
 
@@ -610,7 +611,7 @@ export class RequestEngine {
           to = new URL(location, url);
         } catch {
           throw new StrahlNetworkError(
-            `Redirect status ${status} for ${method} ${redactUrl(url)} with an invalid Location header ` +
+            `Redirect status ${status} for ${method} ${urlForMessage(url)} with an invalid Location header ` +
               `"${cleanDetail(this.scrub(location)) ?? ""}"`,
           );
         }
@@ -621,7 +622,7 @@ export class RequestEngine {
         // transport must not be steered to file:/data:/other schemes by a hostile redirect.
         if (to.protocol !== "http:" && to.protocol !== "https:") {
           throw new StrahlNetworkError(
-            `Refusing to follow redirect to unsupported protocol "${cleanDetail(to.protocol) ?? ""}" for ${method} ${redactUrl(url)}`,
+            `Refusing to follow redirect to unsupported protocol "${cleanDetail(to.protocol) ?? ""}" for ${method} ${urlForMessage(url)}`,
           );
         }
 
@@ -629,7 +630,7 @@ export class RequestEngine {
         // redirect that strips transport security).
         if (from.protocol === "https:" && to.protocol === "http:") {
           throw new StrahlNetworkError(
-            `Refusing to follow https->http downgrade redirect from ${redactUrl(url)} to ${redactUrl(to.toString())}`,
+            `Refusing to follow https->http downgrade redirect from ${urlForMessage(url)} to ${urlForMessage(to.toString())}`,
           );
         }
 

@@ -10,7 +10,7 @@ import {
   type EngineOptions,
 } from "../src/client/engine.js";
 import { StrahlApiError, StrahlNetworkError, StrahlParseError, StrahlValidationError, cutText, toWellFormed } from "../src/client/errors.js";
-import { MAX_TIMEOUT_MS, type HttpResponse } from "../src/client/http.js";
+import { MAX_TIMEOUT_MS, type HttpRequest, type HttpResponse } from "../src/client/http.js";
 import { LIVE_EXCEPTION_REPORT, makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 /** A 30x redirect response pointing at `location`. */
@@ -521,4 +521,28 @@ test("a server detail, an ExceptionText and a charset label cut to their limits 
     assert.equal(toWellFormed(err.message), err.message);
     return true;
   });
+});
+
+test("a URL a redirect chose is quoted at most 500 characters long in every message (01-1)", async () => {
+  const long = `/ogc/opendata/ows?pad=${"A".repeat(15_000)}`;
+  const report = "<ows:ExceptionReport><ows:Exception><ows:ExceptionText>bad</ows:ExceptionText></ows:Exception></ows:ExceptionReport>";
+  const cases: Array<[string, (req: HttpRequest) => HttpResponse, EngineOptions]> = [
+    // A same-origin redirect to a long URL, then an error status.
+    ["status", (req) => (req.url.includes("pad=") ? rawResponse(report, "application/xml", 400) : redirectResponse(long)), {}],
+    // A redirect to itself until the limit: "Too many redirects … for GET <url>".
+    ["redirects", () => redirectResponse(long), { maxRedirects: 2 }],
+    // The followed URL in a network failure.
+    ["network", (req) => { if (req.url.includes("pad=")) throw new Error("socket hang up"); return redirectResponse(long); }, {}],
+    // A redirect with no Location after the long one.
+    ["no location", (req) => (req.url.includes("pad=") ? { status: 302, headers: {}, body: Buffer.alloc(0) } : redirectResponse(long)), {}],
+  ];
+  for (const [label, respond, options] of cases) {
+    const e = new RequestEngine({ baseUrl: "https://u:pw@example.test", transport: async (req) => respond(req), ...options });
+    await assert.rejects(e.getJson("/ogc/opendata/ows"), (err: Error) => {
+      assert.ok(err.message.length < 700, `${label}: ${err.message.length} characters`);
+      assert.match(err.message, /pad=A+…/, label);
+      assert.doesNotMatch(err.message, /pw/, label);
+      return true;
+    }, label);
+  }
 });

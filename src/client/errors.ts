@@ -91,6 +91,21 @@ export function cutForMessage(text: string, max = MAX_QUOTED_LENGTH): string {
   return cut.length < text.length ? `${cut}…` : text;
 }
 
+/**
+ * The longest URL (in characters) a message quotes. A request URL is the caller's base
+ * URL and query, but after a redirect it is the server's choice, up to Node's 16 KiB
+ * header limit; a longer one is cut and ends in "…".
+ */
+export const MAX_QUOTED_URL_LENGTH = 500;
+
+/**
+ * `url` as a message shows it: userinfo redacted (`redactUrl`, before the cut, so no
+ * part of a password survives a cut), then cut at `MAX_QUOTED_URL_LENGTH`.
+ */
+export function urlForMessage(url: string): string {
+  return cutForMessage(redactUrl(url), MAX_QUOTED_URL_LENGTH);
+}
+
 function isHighSurrogate(c: number): boolean {
   return c >= 0xd800 && c <= 0xdbff;
 }
@@ -136,7 +151,7 @@ export class StrahlApiError extends StrahlError {
     const detailPart = args.detail ? `: ${args.detail}` : "";
     const head =
       args.status >= 200 && args.status < 300 ? `WFS exception (HTTP ${args.status})` : `HTTP ${args.status}`;
-    super(`${head} for ${args.method} ${url}${detailPart}`);
+    super(`${head} for ${args.method} ${urlForMessage(url)}${detailPart}`);
     this.status = args.status;
     this.url = url;
     this.method = args.method;

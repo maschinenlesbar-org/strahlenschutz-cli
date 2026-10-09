@@ -92,9 +92,11 @@ not a raw `TypeError` at request time. `new StrahlenschutzClient(null)` is the s
 no options. Every input the library rejects is a `StrahlValidationError`, and every
 failure a `StrahlError` subclass; server text in a message is cut at 500 characters, and
 any other value an own message quotes from a server answer or the caller's input (a
-rejected resolution, a redirect target) at `MAX_QUOTED_LENGTH` (200, `cutForMessage`;
-a station id, a query key or a sort key at 60), never inside a surrogate pair, so
-`err.message` stays bounded and well-formed.
+rejected resolution) at `MAX_QUOTED_LENGTH` (200, `cutForMessage`; a station id, a query
+key or a sort key at 60), never inside a surrogate pair, so `err.message` stays bounded
+and well-formed. A request URL in a message (`urlForMessage`: redacted, then cut) keeps
+at most `MAX_QUOTED_URL_LENGTH` (500) characters: after a redirect it is the server's
+choice, up to Node's 16 KiB header limit. `StrahlApiError.url` keeps it whole.
 `test/conformance-p8-p9-p13-responses-and-errors.test.ts` checks the declared charset
 (P8), 2xx bodies that are no FeatureCollection (P9) and twenty wrong-typed calls (P13).
 
