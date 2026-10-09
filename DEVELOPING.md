@@ -358,7 +358,11 @@ Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp,
 (`ERROR`, `WARN`, `INFO`) and a topic, `strahlenschutz.<area>`. `--log-format text` (the
 default) writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
-and `msg`. The areas are `cli` (usage errors, commander's messages, unexpected errors, the
+and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord` over
+the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
+every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
+controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
+forge another one or steer the terminal. The areas are `cli` (usage errors, commander's messages, unexpected errors, the
 library's validation and parse errors), `api` (the API's answers: an HTTP error status or
 WFS ExceptionReport, a station the collection doesn't hold) and `http` (the connection, the
 cleartext warning); the CLI writes no files, so it has no `output` area. Code logs through
@@ -382,6 +386,8 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`client.test.ts`** — the fixed WFS params, typeName selection, `CQL_FILTER` mapping and encoding, `sortBy`/`startIndex` propagation, and `kenn` validation — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
+- **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
+  (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - **`output-errors.test.ts`** — `handleOutputErrors`: EPIPE and ENOTCONN on stdout exit 0, on
   stderr they are ignored.
 - **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (fix plan
