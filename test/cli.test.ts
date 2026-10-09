@@ -359,3 +359,20 @@ test("a parse error is logged in the format commander would have parsed (L6)", a
     assert.ok(cli.err.length > 0 && cli.err.every((line) => isJsonl(line) === jsonl), `${argv.join(" ")}:\n${cli.err.join("\n")}`);
   }
 });
+
+test("a malformed answer, and an answer for another station, is an ERROR record of strahlenschutz.api, exit 1 (L9)", async () => {
+  const other = { type: "FeatureCollection", features: [{ type: "Feature", properties: { kenn: "010010001" } }] };
+  const cases: [string[], HttpResponse][] = [
+    [["latest"], rawResponse("<html>not json</html>", "application/json")],
+    [["latest"], jsonResponse({ features: null })],
+    [["timeseries", "091811461"], jsonResponse({ type: "FeatureCollection", features: [{ type: "Feature" }] })],
+    [["station", "091811461"], jsonResponse(other)],
+    [["latest", "--station", "091811461"], jsonResponse(other)],
+    [["latest"], rawResponse("{}", "application/json; charset=x-nonsense")],
+  ];
+  for (const [argv, answer] of cases) {
+    const cli = makeCli(() => answer);
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[strahlenschutz\.api\] /, argv.join(" "));
+  }
+});

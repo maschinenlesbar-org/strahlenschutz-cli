@@ -11,6 +11,7 @@ import {
   StrahlError,
   StrahlNetworkError,
   StrahlNotFoundError,
+  StrahlParseError,
   StrahlValidationError,
   credentialsIn,
   echoedCredentialForms,
@@ -183,6 +184,18 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
 }
 
 /**
+ * The log area of a `StrahlError` that is neither an API error nor a usage error: the
+ * connection (`http`), a malformed answer (`api`: bad JSON, an unknown charset, a 2xx body
+ * that is no FeatureCollection, an answer for another station than the one asked for —
+ * the API's answer as much as an error status is), else `cli`.
+ */
+function areaOf(err: StrahlError): string {
+  if (err instanceof StrahlNetworkError) return "http";
+  if (err instanceof StrahlParseError) return "api";
+  return "cli";
+}
+
+/**
  * The log for what happens outside `run()`, in the bin shim: a stdout write error
  * (`handleOutputErrors`). Its format is the one argv asks for (`logFormatFromArgv`), and
  * it replaces the secrets of argv like the run's own log; it writes to the raw stderr.
@@ -252,7 +265,7 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return 1;
     }
     if (err instanceof StrahlError) {
-      log.error(err instanceof StrahlNetworkError ? "http" : "cli", err.message);
+      log.error(areaOf(err), err.message);
       return 1;
     }
     log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
