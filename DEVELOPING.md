@@ -269,11 +269,13 @@ login). The engine never puts it into the URL a transport sees: it sends it as a
 and `StrahlApiError.url` carry no userinfo; `buildUrl()` and `redactUrl` show it as
 `***@`. `redactUrl` also
 redacts a value that doesn't parse as a URL, by text: the exported `credentialsIn`
-finds the exact userinfo of any URL-like value (a port typo, a password with `#`,
-`?`, `/` or a space, a scheme-less `user:pw@host`), and `redactCredentials` replaces
-those strings with `***`. The CLI's `run()` wraps its output in `withRedactedOutput`:
-it collects the credentials of every argument (and of the value part of
-`--opt=value`) and redacts them, raw and JSON-escaped, from every line printed —
+finds the exact userinfo of a URL that starts with a scheme, parsed or not (a port
+typo, a password with `#`, `?`, `/` or a space), and `redactCredentials` replaces
+those strings with `***`. A bare `a:b@c` without a scheme is no URL (it is a station
+id, a User-Agent or a sort key as often as a credential). The CLI's `run()` wraps its
+output in `withRedactedOutput`: it collects the credentials of every argument that is
+a URL (and of the value part of `--opt=value`), plus the `--base-url` value read as a
+URL even when typed without its scheme, and redacts them, raw and JSON-escaped, from every line printed —
 commander's usage errors, which echo a rejected `--base-url` whole, included. The log
 replaces them in each record's *message* (`redactionFor`), before the record is cut and
 escaped, and writes the record to the raw stderr: the frame (time, level, topic) is never

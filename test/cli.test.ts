@@ -4,7 +4,7 @@ import { run } from "../src/cli/run.js";
 import { StrahlenschutzClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { StrahlValidationError } from "../src/client/errors.js";
+import { StrahlValidationError, credentialsIn } from "../src/client/errors.js";
 import { LIVE_EXCEPTION_REPORT, makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
 
 const fc = { type: "FeatureCollection", features: [] };
@@ -295,4 +295,21 @@ test("a rejected --base-url whose password holds a space and DEL, C1 or bidi is 
       assert.ok(!all.includes("secret"), `${format} ${JSON.stringify(pw)}: ${all}`);
     }
   }
+});
+
+test("an a:b@c argument (a station id, a User-Agent) is neither a credential in the log nor rewritten in the JSON on stdout (L14)", async () => {
+  const station = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["station", "1:x@y"], station.deps), 1);
+  assert.match(station.err.join("\n"), /Invalid station id "1:x@y"/);
+  const body = { type: "FeatureCollection", features: [{ type: "Feature", properties: { kenn: "091811461", name: "contact ops:team@bfs.example" } }] };
+  const ua = makeCli(() => jsonResponse(body));
+  assert.equal(await run(["--user-agent", "ops:team@bfs.example", "--compact", "latest"], ua.deps), 0);
+  assert.equal(ua.mt.last().headers?.["User-Agent"], "ops:team@bfs.example");
+  assert.match(ua.out.join("\n"), /"name":"contact ops:team@bfs\.example"/);
+  assert.deepEqual(credentialsIn("ops:team@bfs.example"), []);
+  assert.deepEqual(credentialsIn("https://alice:pw@host"), ["alice:pw"]);
+  // A base URL typed without its scheme is still read as one: its password is never echoed.
+  const bare = makeCli(() => jsonResponse(body));
+  assert.equal(await run(["--base-url", "alice:hunter2-pw@mirror.example", "latest"], bare.deps), 1);
+  assert.ok(!bare.err.join("\n").includes("hunter2-pw"), bare.err.join("\n"));
 });
