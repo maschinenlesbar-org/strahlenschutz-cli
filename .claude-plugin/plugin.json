@@ -1,6 +1,6 @@
 {
   "name": "strahlenschutz",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Live German radiation-monitoring skills powered by the strahlenschutz-cli (BfS ODL-Info ambient gamma dose-rate network).",
   "author": {
     "name": "Sebastian Schürmann",
