@@ -283,3 +283,16 @@ test("a StrahlValidationError raised in an action is a usage error: exit 1 and a
   assert.deepEqual(out, []);
   assert.deepEqual(err.map(untimed), ["ERROR [strahlenschutz.cli] Invalid sortBy: Expected a non-empty value."]);
 });
+
+test("a rejected --base-url whose password holds a space and DEL, C1 or bidi is redacted in jsonl too (#6)", async () => {
+  for (const pw of ["top secret\u007fx", "top secret\u0085x", "top secret\u202ex"]) {
+    for (const format of ["text", "jsonl"]) {
+      const cli = makeCli(() => jsonResponse(fc));
+      const code = await run(["--log-format", format, "--base-url", `http://alice:${pw}@127.0.0.1:1/?x=1`, "latest"], cli.deps);
+      assert.equal(code, 1);
+      const all = cli.err.join("\n");
+      assert.match(all, /\*\*\*@127\.0\.0\.1/, `${format} ${JSON.stringify(pw)}: ${all}`);
+      assert.ok(!all.includes("secret"), `${format} ${JSON.stringify(pw)}: ${all}`);
+    }
+  }
+});

@@ -270,7 +270,10 @@ finds the exact userinfo of any URL-like value (a port typo, a password with `#`
 those strings with `***`. The CLI's `run()` wraps its output in `withRedactedOutput`:
 it collects the credentials of every argument (and of the value part of
 `--opt=value`) and redacts them, raw and JSON-escaped, from every line printed —
-commander's usage errors, which echo a rejected `--base-url` whole, included.
+commander's usage errors, which echo a rejected `--base-url` whole, included. The log
+replaces them in each record's *message* (`redactionFor`), before the record is cut and
+escaped, and writes the record to the raw stderr: the frame (time, level, topic) is never
+touched, and a password with DEL, C1 or bidi characters is matched in its raw form.
 `test/conformance-p1-cli-redaction.test.ts` checks ten passwords in seven URL shapes
 at every argv position.
 
@@ -382,7 +385,9 @@ WFS ExceptionReport, a station the collection doesn't hold) and `http` (the conn
 cleartext warning); the CLI writes no files, so it has no `output` area. Code logs through
 `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds the logger
 from argv before commander parses it, so commander's own usage errors are records too, and
-on top of the redacted `io.err`, so a secret is kept out of the log in either format.
+with the run's redaction (`withRedactedOutput`), which replaces a secret in the message
+only, before it is escaped: the frame is never touched, and a secret is kept out of the log
+in either format.
 `CliDeps.now` makes the timestamps testable. stdout carries data only. Only the bin shim's
 `Output error: …` (a failed write to stdout, `handleOutputErrors`, outside `run()`) stays a
 plain line. Conformance test P23 checks all of this, and its body is shared across the
