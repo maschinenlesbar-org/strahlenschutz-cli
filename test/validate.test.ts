@@ -140,3 +140,27 @@ test("baseUrlProblem checks whitespace, parse, scheme and query/fragment in that
   assert.equal(baseUrlProblem("https://h#"), "A base URL cannot have a query (?) or fragment (#).");
   assert.equal(baseUrlProblem(42), "Expected a string.");
 });
+
+test("every value an own message quotes is cut, never inside a surrogate pair", async () => {
+  const lone = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+  const huge = "a" + "\u{1f600}".repeat(100_000);
+  const client = new StrahlenschutzClient({ transport: async () => jsonResponse({ type: "FeatureCollection", features: [] }) });
+  const calls: Array<[string, () => Promise<unknown>]> = [
+    ["resolution", () => client.timeseries("091811461", huge as never)],
+    ["kind", () => client.getFeature(huge as never)],
+    ["station", () => client.station(huge)],
+    ["maxFeatures", () => client.latest({ maxFeatures: huge as never })],
+    ["query key", () => client.latest({ [huge]: 1 } as never)],
+    ["sortBy", () => client.latest({ sortBy: `${huge} X` })],
+  ];
+  for (const [label, call] of calls) {
+    await assert.rejects(call, (err: unknown) => {
+      const message = (err as Error).message;
+      assert.ok(err instanceof StrahlValidationError, `${label}: ${message.slice(0, 100)}`);
+      assert.ok(message.length < 500, `${label}: ${message.length} characters`);
+      assert.doesNotMatch(message, lone, label);
+      assert.match(message, /…/, label);
+      return true;
+    }, label);
+  }
+});

@@ -5,7 +5,7 @@
 // error, so a rule is written once and the CLI and the library cannot drift apart.
 
 import { FeatureKindValues, TimeseriesResolutionValues } from "./enums.js";
-import { StrahlValidationError } from "./errors.js";
+import { StrahlValidationError, cutForMessage } from "./errors.js";
 
 /** A rule: the reason `value` is invalid (e.g. `"Expected a non-empty value."`), or `undefined` when it is valid. */
 export type Problem<T = unknown> = (value: T) => string | undefined;
@@ -104,14 +104,17 @@ export function normalizeSortBy(value: string): string {
     .join(",");
 }
 
-/** A value cut to 60 characters for a message. */
+/** A value cut to 60 characters for a message, never inside a surrogate pair. */
 function cut(text: string): string {
-  return text.length > 60 ? `${text.slice(0, 60)}…` : text;
+  return cutForMessage(text, 60);
 }
 
-/** A short description of a rejected value for a message: a string quoted, anything else as is. */
+/**
+ * A short description of a rejected value for a message: a string quoted, anything else
+ * as is, cut at `MAX_QUOTED_LENGTH` (200) characters.
+ */
 function describe(value: unknown): string {
-  return typeof value === "string" ? JSON.stringify(value) : String(value);
+  return typeof value === "string" ? JSON.stringify(cutForMessage(value)) : cutForMessage(String(value));
 }
 
 /**
@@ -149,7 +152,7 @@ export function queryKeysProblem(allowed: readonly string[]): Problem<unknown> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return "Expected an object.";
     for (const key of Object.keys(value)) {
       if (!allowed.includes(key)) {
-        return `Unknown key ${JSON.stringify(key.length > 60 ? `${key.slice(0, 60)}…` : key)}; expected one of: ${allowed.join(", ")}.`;
+        return `Unknown key ${JSON.stringify(cut(key))}; expected one of: ${allowed.join(", ")}.`;
       }
     }
     return undefined;

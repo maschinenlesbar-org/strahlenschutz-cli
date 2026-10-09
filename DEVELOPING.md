@@ -90,7 +90,11 @@ repeats the URL. The CLI's `--base-url` calls the same rule.
 (`Invalid transport: Expected a function, got string.`) when the client is built,
 not a raw `TypeError` at request time. `new StrahlenschutzClient(null)` is the same as
 no options. Every input the library rejects is a `StrahlValidationError`, and every
-failure a `StrahlError` subclass; server text in a message is cut at 500 characters.
+failure a `StrahlError` subclass; server text in a message is cut at 500 characters, and
+any other value an own message quotes from a server answer or the caller's input (a
+rejected resolution, a redirect target) at `MAX_QUOTED_LENGTH` (200, `cutForMessage`;
+a station id, a query key or a sort key at 60), never inside a surrogate pair, so
+`err.message` stays bounded and well-formed.
 `test/conformance-p8-p9-p13-responses-and-errors.test.ts` checks the declared charset
 (P8), 2xx bodies that are no FeatureCollection (P9) and twenty wrong-typed calls (P13).
 
@@ -368,8 +372,9 @@ the message (text) or the whole JSON object (jsonl), which writes CR and LF as `
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
 forge another one or steer the terminal. Before that a lone surrogate (half a
-character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`).
-The areas are `cli` (usage errors, commander's messages, unexpected errors, the
+character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`),
+and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
+code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors, the
 library's validation and parse errors), `api` (the API's answers: an HTTP error status or
 WFS ExceptionReport, a station the collection doesn't hold) and `http` (the connection, the
 cleartext warning); the CLI writes no files, so it has no `output` area. Code logs through
