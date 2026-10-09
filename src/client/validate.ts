@@ -71,6 +71,9 @@ function sortDirection(token: string): "A" | "D" | undefined {
 export const sortByProblem: Problem<unknown> = (value) => {
   const blank = nonEmptyProblem(value);
   if (blank !== undefined) return blank;
+  if (/[\u0000-\u0008\u000a-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/.test(value as string)) {
+    return "Expected no control or bidi characters.";
+  }
   for (const key of (value as string).split(",")) {
     const parts = sortKeyParts(key);
     if (parts.length === 0) return "Expected comma-separated sort keys, got an empty one.";

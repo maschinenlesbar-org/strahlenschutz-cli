@@ -44,8 +44,7 @@ function commandPath(command: Command): string {
  * commander's stderr output as log records, one per line. Its `error: …` is an ERROR of
  * `cli`, with a following `(Did you mean …?)` line appended to that same record; the
  * help it shows after an error is one INFO record per non-blank line. `help` for an
- * unknown command, or global options with no command (`strahlenschutz --compact`), make
- * commander show the help as an error (exit 1) with no `error:` line: an ERROR record
+ * unknown command makes commander show the help as an error (exit 1) with no `error:` line: an ERROR record
  * "missing command: `strahlenschutz <subcommand>`" comes first, so every failed run has one.
  */
 function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged: boolean }, str: string): void {
@@ -87,6 +86,29 @@ function valueOptionsOf(program: Command): Set<string> {
     if (option.short !== undefined) names.add(option.short);
   }
   return names;
+}
+
+/**
+ * True when `argv` holds only options the program itself knows and no command (and no
+ * help or version request): `strahlenschutz --compact`. That is a request for usage like
+ * the bare program, not a failed run. Anything else (a command, an unknown option, `--`)
+ * is left to commander.
+ */
+function onlyKnownGlobalOptions(program: Command, argv: readonly string[]): boolean {
+  const known = new Map<string, boolean>();
+  for (const option of program.options) {
+    for (const name of [option.long, option.short]) if (name !== undefined) known.set(name, option.required);
+  }
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i] as string;
+    if (token === "--help" || token === "-h" || token === "--version" || token === "-V") return false;
+    const eq = token.startsWith("--") ? token.indexOf("=") : -1;
+    const name = eq > 0 ? token.slice(0, eq) : token;
+    const takesValue = known.get(name);
+    if (takesValue === undefined) return false;
+    if (takesValue && eq < 0) i++;
+  }
+  return true;
 }
 
 /**
@@ -233,8 +255,12 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     return 0;
   }
 
+  // Global options with no command are the bare program too: parsed with `--help` added,
+  // so a rejected option value is still a usage error and the rest prints the help (exit 0).
+  const parseArgv = onlyKnownGlobalOptions(program, argv) ? [...argv, "--help"] : argv;
+
   try {
-    await program.parseAsync(argv, { from: "user" });
+    await program.parseAsync(parseArgv, { from: "user" });
     return 0;
   } catch (err) {
     if (err instanceof CommanderError) {

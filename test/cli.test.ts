@@ -190,6 +190,17 @@ test("blank --sort values are rejected at parse time before any request", async 
   }
 });
 
+test("--sort with control or bidi characters is a usage error before any request", async () => {
+  for (const value of ["kenn\nINFO x", "kenn\u001b[2J", "kenn\u0085", "kenn\u007f", "ke\u202enn", "kenn\u2028x", "kenn\u2066"]) {
+    const cli = makeCli(() => jsonResponse(fc));
+    assert.equal(await run(["latest", "--sort", value], cli.deps), 1, JSON.stringify(value));
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(untimed(cli.err[0] ?? ""), /^ERROR \[strahlenschutz\.cli\] .*--sort.*control or bidi/, JSON.stringify(value));
+  }
+  const lib = new StrahlenschutzClient({ transport: async () => jsonResponse(fc) });
+  await assert.rejects(lib.latest({ sortBy: "kenn\u202e" }), /control or bidi/);
+});
+
 test("--max-retries is bounded to 0..10", async () => {
   for (const [value, ok] of [["0", true], ["10", true], ["11", false], ["999999999999", false]] as const) {
     const cli = makeCli(() => jsonResponse(fc));
@@ -329,8 +340,8 @@ test("the help after a usage error is one INFO record per line; a suggestion is 
   assert.equal(untimed(typo.err[0] ?? ""), "ERROR [strahlenschutz.cli] unknown command 'stationx' (Did you mean station?)");
 });
 
-test("help for an unknown command, or options with no command, is a failed run with an ERROR first, then the help one INFO record per line (L5)", async () => {
-  for (const argv of [["help", "nosuch"], ["--compact"], ["--log-format", "text"]]) {
+test("help for an unknown command is a failed run with an ERROR first, then the help one INFO record per line (L5)", async () => {
+  for (const argv of [["help", "nosuch"]]) {
     const cli = makeCli(() => jsonResponse(fc));
     assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
     const records = cli.err.map(untimed);
@@ -339,6 +350,22 @@ test("help for an unknown command, or options with no command, is a failed run w
     for (const record of records.slice(1)) assert.match(record, /^INFO  \[strahlenschutz\.cli\] .*\S$/);
     assert.ok(records.some((record) => /\] Usage: strahlenschutz /.test(record)), records.join("\n"));
   }
+});
+
+test("global options with no command behave like the bare program: help on stdout, exit 0 (decision 5)", async () => {
+  const bare = makeCli(() => jsonResponse(fc));
+  assert.equal(await run([], bare.deps), 0);
+  assert.ok(bare.out.length > 0);
+  for (const argv of [["--compact"], ["--log-format", "text"], ["--log-format=jsonl", "--compact"], ["--timeout", "5000"]]) {
+    const cli = makeCli(() => jsonResponse(fc));
+    assert.equal(await run(argv, cli.deps), 0, argv.join(" "));
+    assert.deepEqual(cli.out, bare.out, argv.join(" "));
+    assert.deepEqual(cli.err, [], argv.join(" "));
+  }
+  // An invalid option value is still a usage error.
+  const bad = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["--timeout", "abc"], bad.deps), 1);
+  assert.deepEqual(bad.out, []);
 });
 
 test("a parse error is logged in the format commander would have parsed (L6)", async () => {

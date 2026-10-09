@@ -127,7 +127,7 @@ without a reading first: the WFS sorts `null` highest, so `"end_measure D"` and
 `"<prop> D"`, quoted) for descending, and separate several keys with commas
 (`"end_measure D,kenn"`). `DESC`, `A` and `ASC` work too, in any case; any other
 direction (`"end_measure DSC"`) is a usage error, since the WFS would silently read it
-as ascending. Extra whitespace is dropped before sending. `--start` is the paging offset; without `--max` you
+as ascending. Control and bidi characters (a newline, ESC, U+202E) are a usage error too. Extra whitespace is dropped before sending. `--start` is the paging offset; without `--max` you
 get everything from that offset on. The service can only
 page a sorted result, so without `--sort` the CLI sorts by `kenn` (`latest`) or
 `kenn,end_measure` (`timeseries`, oldest first).
