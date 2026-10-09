@@ -405,8 +405,10 @@ with no command (`strahlenschutz --compact`) an ERROR "missing command: `strahle
 (`writeCommanderErr`). The log is built with the run's redaction (`withRedactedOutput`), which replaces a secret in the message
 only, before it is escaped: the frame is never touched, and a secret is kept out of the log
 in either format.
-`CliDeps.now` makes the timestamps testable. stdout carries data only. A failed write to
-stdout other than a closed pipe (`handleOutputErrors`, in the bin shim, outside `run()`)
+`CliDeps.now` makes the timestamps testable. stdout carries data only, and a record waits
+for it: the default `io.err` (`stderrAfterStdout`) holds a record while stdout still has
+data queued and writes it, in order, once that is out, so with `2>&1 |` and a slow reader
+a record never lands inside the JSON. A failed write to stdout other than a closed pipe (`handleOutputErrors`, in the bin shim, outside `run()`)
 is an ERROR record of `strahlenschutz.output` (`Could not write to stdout: …`), in the
 format argv asks for and redacted like the run's log (`processLogger`). So are Node's own
 process warnings (`installWarningLog`, also installed by the shim): a WARN record of
@@ -431,7 +433,7 @@ npm test          # builds, then runs `node --test` over dist/test
   P23's.
 - **`output-errors.test.ts`** — `handleOutputErrors`: EPIPE and ENOTCONN on stdout exit 0, on
   stderr they are ignored; any other stdout write error is an ERROR record of
-  `strahlenschutz.output`.
+  `strahlenschutz.output`; `stderrAfterStdout` holds a record behind stdout's backlog.
 - **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (fix plan
   `.reviews/2026-10-05-exploratory/fix-plan.md` in the workspace), one file per pattern, the same
   code in every repo apart from an adapter block at the top: P1 credential redaction in CLI output,
