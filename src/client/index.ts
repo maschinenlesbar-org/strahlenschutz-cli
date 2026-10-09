@@ -28,8 +28,10 @@ export {
   StrahlParseError,
   StrahlValidationError,
   credentialsIn,
+  cutText,
   redactCredentials,
   redactUrl,
+  toWellFormed,
 } from "./errors.js";
 export {
   assertValid,

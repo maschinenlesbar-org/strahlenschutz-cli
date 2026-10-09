@@ -19,6 +19,7 @@ import {
   StrahlParseError,
   StrahlValidationError,
   credentialsIn,
+  cutText,
   redactCredentials,
   redactUrl,
 } from "./errors.js";
@@ -175,12 +176,13 @@ export const MAX_DETAIL_LENGTH = 500;
 /**
  * Make server text fit for a one-line error message: control characters stripped,
  * every run of whitespace (newlines included, so no forged "Error:" line) turned
- * into one space, and cut at MAX_DETAIL_LENGTH characters.
+ * into one space, and cut at MAX_DETAIL_LENGTH characters, never inside a surrogate
+ * pair (`cutText`), so the message stays well-formed.
  */
 function cleanDetail(text: string): string | undefined {
   const flat = sanitizeServerText(text).replace(/\s+/g, " ").trim();
   if (flat === "") return undefined;
-  return flat.length > MAX_DETAIL_LENGTH ? `${flat.slice(0, MAX_DETAIL_LENGTH)}…` : flat;
+  return flat.length > MAX_DETAIL_LENGTH ? `${cutText(flat, MAX_DETAIL_LENGTH)}…` : flat;
 }
 
 const XML_ENTITIES: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };

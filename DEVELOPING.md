@@ -250,7 +250,8 @@ server sends UTF-8; this matters behind a mirror or proxy that re-encodes, where
 namespace prefix, entities decoded) out with a regex — no XML dependency — and uses
 it as the `detail`, for a non-2xx status and for a 2xx body that is not JSON.
 Every detail is stripped of control characters, flattened to one line and cut at
-`MAX_DETAIL_LENGTH` (500) characters; the full body stays on `StrahlApiError.body`.
+`MAX_DETAIL_LENGTH` (500) characters, never inside a surrogate pair (the exported
+`cutText`), so the message stays well-formed; the full body stays on `StrahlApiError.body`.
 
 **Userinfo redaction.** A base URL may carry `user:password@` (for a mirror behind a
 login). The engine never puts it into the URL a transport sees: it sends it as an
@@ -365,7 +366,9 @@ and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord`
 the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
-forge another one or steer the terminal. The areas are `cli` (usage errors, commander's messages, unexpected errors, the
+forge another one or steer the terminal. Before that a lone surrogate (half a
+character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`).
+The areas are `cli` (usage errors, commander's messages, unexpected errors, the
 library's validation and parse errors), `api` (the API's answers: an HTTP error status or
 WFS ExceptionReport, a station the collection doesn't hold) and `http` (the connection, the
 cleartext warning); the CLI writes no files, so it has no `output` area. Code logs through

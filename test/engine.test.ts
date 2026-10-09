@@ -9,7 +9,7 @@ import {
   parseRetryAfter,
   type EngineOptions,
 } from "../src/client/engine.js";
-import { StrahlApiError, StrahlNetworkError, StrahlParseError, StrahlValidationError } from "../src/client/errors.js";
+import { StrahlApiError, StrahlNetworkError, StrahlParseError, StrahlValidationError, cutText, toWellFormed } from "../src/client/errors.js";
 import { MAX_TIMEOUT_MS, type HttpResponse } from "../src/client/http.js";
 import { LIVE_EXCEPTION_REPORT, makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
@@ -491,4 +491,34 @@ test("a body is decoded by its declared charset; an unknown one is a StrahlParse
     () => new RequestEngine({ transport: unknown.transport }).getJson("/ows"),
     (err) => err instanceof StrahlParseError && /charset "x-bogus"/.test(err.message),
   );
+});
+
+test("cutText never cuts inside a surrogate pair; toWellFormed replaces half a character", () => {
+  assert.equal(cutText("ab\u{1f600}cd", 3), "ab");
+  assert.equal(cutText("ab\u{1f600}cd", 4), "ab\u{1f600}");
+  assert.equal(cutText("short", 10), "short");
+  assert.equal(toWellFormed("a\ud83d b\ude00 \u{1f600}"), "a\ufffd b\ufffd \u{1f600}");
+});
+
+test("a server detail, an ExceptionText and a charset label cut to their limits keep the message well-formed", async () => {
+  for (const text of ["\u{1f600}".repeat(400), "a" + "\u{1f600}".repeat(400)]) {
+    const report = `<ows:ExceptionReport><ows:Exception><ows:ExceptionText>${text}</ows:ExceptionText></ows:Exception></ows:ExceptionReport>`;
+    for (const answer of [jsonResponse({ detail: text }, 500), rawResponse(report, "application/xml", 400), rawResponse(report, "application/xml", 200)]) {
+      const engine = new RequestEngine({ transport: async () => answer });
+      await assert.rejects(engine.getJson("/x"), (err: Error) => {
+        assert.ok(err instanceof StrahlApiError, err.message);
+        assert.equal(toWellFormed(err.message), err.message);
+        assert.match(err.message, /…/);
+        return true;
+      });
+    }
+  }
+  // A custom transport can hand over any header text: a label of 499 units and an emoji.
+  const label = "a".repeat(499) + "\u{1f600}";
+  const engine = new RequestEngine({ transport: async () => rawResponse("{}", `application/json; charset=${label}`) });
+  await assert.rejects(engine.getJson("/x"), (err: Error) => {
+    assert.ok(err instanceof StrahlParseError);
+    assert.equal(toWellFormed(err.message), err.message);
+    return true;
+  });
 });
