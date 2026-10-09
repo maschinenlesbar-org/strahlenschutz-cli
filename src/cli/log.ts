@@ -109,7 +109,12 @@ export function formatLogRecord(record: LogRecord, format: LogFormat): string {
 }
 
 export interface Logger {
-  readonly format: LogFormat;
+  /**
+   * The format records are written in. Mutable for one reason: it is read from argv
+   * before commander parses (for commander's own errors), then set again from what
+   * commander parsed, before the action runs (`run()`'s preAction hook).
+   */
+  format: LogFormat;
   error(area: string, msg: string): void;
   warn(area: string, msg: string): void;
   info(area: string, msg: string): void;
@@ -129,9 +134,15 @@ export function createLogger(options: {
 }): Logger {
   const now = options.now ?? (() => new Date());
   const redact = options.redact ?? ((text: string) => text);
-  const log = (level: LogLevel) => (area: string, msg: string): void =>
-    options.write(formatLogRecord({ ts: now().toISOString(), level, topic: `${LOG_PROGRAM}.${area}`, msg: redact(msg) }, options.format));
-  return { format: options.format, error: log("ERROR"), warn: log("WARN"), info: log("INFO") };
+  const logger: Logger = {
+    format: options.format,
+    error: (area, msg) => log("ERROR", area, msg),
+    warn: (area, msg) => log("WARN", area, msg),
+    info: (area, msg) => log("INFO", area, msg),
+  };
+  const log = (level: LogLevel, area: string, msg: string): void =>
+    options.write(formatLogRecord({ ts: now().toISOString(), level, topic: `${LOG_PROGRAM}.${area}`, msg: redact(msg) }, logger.format));
+  return logger;
 }
 
 /** Why `value` is not a log format, or undefined. */
@@ -142,15 +153,29 @@ export function logFormatProblem(value: string): string | undefined {
 /**
  * The `--log-format` in `argv`, read before commander parses it: commander's own
  * usage errors are logged too, and they happen while parsing. A missing or unknown
- * value gives the default here; commander then reports an unknown one.
+ * value gives the default here; commander then reports an unknown one. The first
+ * `--log-format` counts: commander keeps it and refuses a second one (`once()`), so that
+ * error is logged in the first one's format. This scan is only for the records of a parse
+ * error: once commander has parsed argv, its value is the format (`run()`), so
+ * `--user-agent --log-format=jsonl` (a User-Agent) logs text. `valueOptions` names the
+ * program's options that take a value (`--user-agent`, `--timeout`): the token after one
+ * is its value, never an option, as commander reads it, so `--user-agent --log-format
+ * jsonl` and `--user-agent -- --log-format jsonl` agree with commander in a parse error
+ * too.
  */
-export function logFormatFromArgv(argv: readonly string[]): LogFormat {
+export function logFormatFromArgv(argv: readonly string[], valueOptions: ReadonlySet<string> = new Set()): LogFormat {
   let format: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i] as string;
     if (token === "--") break;
+    if (token !== "--log-format" && valueOptions.has(token)) {
+      i++;
+      continue;
+    }
     if (token === "--log-format") format = argv[i + 1];
     else if (token.startsWith("--log-format=")) format = token.slice("--log-format=".length);
+    else continue;
+    break;
   }
   return format !== undefined && logFormatProblem(format) === undefined ? (format as LogFormat) : DEFAULT_LOG_FORMAT;
 }

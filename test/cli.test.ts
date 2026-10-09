@@ -340,3 +340,22 @@ test("help for an unknown command, or options with no command, is a failed run w
     assert.ok(records.some((record) => /\] Usage: strahlenschutz /.test(record)), records.join("\n"));
   }
 });
+
+test("a parse error is logged in the format commander would have parsed (L6)", async () => {
+  const isJsonl = (line: string): boolean => line.startsWith("{");
+  const cases: [string[], boolean][] = [
+    // Repeated: commander keeps the first and refuses the second (once()), so the scan takes the first.
+    [["--log-format", "jsonl", "--log-format=text", "stationx"], true],
+    [["--log-format", "text", "--log-format", "jsonl", "stationx"], false],
+    // --log-format is --user-agent's (or --timeout's) value, so `jsonl` is an unknown command, logged in text.
+    [["--user-agent", "--log-format", "jsonl", "latest"], false],
+    [["--timeout", "--log-format", "jsonl", "latest"], false],
+    // commander takes "--" as the User-Agent and then parses --log-format jsonl.
+    [["--user-agent", "--", "--log-format", "jsonl", "stationx"], true],
+  ];
+  for (const [argv, jsonl] of cases) {
+    const cli = makeCli(() => jsonResponse(fc));
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    assert.ok(cli.err.length > 0 && cli.err.every((line) => isJsonl(line) === jsonl), `${argv.join(" ")}:\n${cli.err.join("\n")}`);
+  }
+});
