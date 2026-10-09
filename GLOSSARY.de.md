@@ -152,7 +152,7 @@ als aufsteigend las, geht als `end_measure D` hinaus).
 **ExceptionReport.** Das OGC-XML-Dokument, mit dem der WFS eine fehlerhafte Anfrage beantwortet
 (meist HTTP 400, bei manchen Fehlern HTTP 200), z. B. bei einer unbekannten Eigenschaft in
 `--sort`. Die CLI zeigt seinen `ExceptionText` hinter dem Status an:
-`Error: HTTP 400 for GET …: Illegal property name: bogus_prop for feature type …`
+`ERROR [strahlenschutz.api] HTTP 400 for GET …: Illegal property name: bogus_prop for feature type …`
 (Exit-Code `1`); ein Bericht mit `200` lautet `WFS exception (HTTP 200) for GET …`.
 
 ---

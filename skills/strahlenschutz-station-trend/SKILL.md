@@ -52,7 +52,7 @@ series comes back empty, tell the two apart before saying "no data":
 strahlenschutz --compact station <kenn>
 ```
 
-Exit `4` (`Error: No station found for kenn …` on stderr) means the id doesn't exist —
+Exit `4` (`ERROR [strahlenschutz.api] No station found for kenn …` on stderr) means the id doesn't exist —
 re-check it from a fresh `latest`. Otherwise the station exists and simply has no
 readings; report its `name` and `site_status_text`.
 

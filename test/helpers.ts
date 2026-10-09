@@ -87,6 +87,20 @@ export const LIVE_EXCEPTION_REPORT =
   "    <ows:ExceptionText>Illegal property name: bogus_prop for feature type opendata:odlinfo_odl_1h_latest</ows:ExceptionText>\n" +
   "  </ows:Exception>\n</ows:ExceptionReport>\n";
 
+// ---- the log on stderr -------------------------------------------------------
+
+/**
+ * stderr with each text record's timestamp taken off: `ERROR [strahlenschutz.api] HTTP 404 …`.
+ * The format itself — timestamp, level, topic — is the conformance test's
+ * (conformance-p23-log-format); the other tests check what was said, at which level
+ * and under which topic.
+ */
+export function untimed(text: string): string {
+  return text.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z /gm, "");
+}
+
+// ---- CLI <-> library parity ---------------------------------------------------
+
 /** What the CLI did with one input: exit code, captured output, requests sent. */
 export interface CliOutcome {
   code: number;
@@ -126,7 +140,7 @@ export async function parity(
     createClient: (options) => new StrahlenschutzClient({ ...options, transport: mt.transport }),
   });
   const cliCount = mt.calls.length;
-  const cli: CliOutcome = { code, out: out.join("\n"), err: err.join("\n"), requests: mt.calls.slice(0, cliCount) };
+  const cli: CliOutcome = { code, out: out.join("\n"), err: untimed(err.join("\n")), requests: mt.calls.slice(0, cliCount) };
 
   let lib: LibOutcome;
   try {

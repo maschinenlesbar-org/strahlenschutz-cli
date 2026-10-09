@@ -160,7 +160,8 @@ src/
     validate.ts  # input rules (Problem functions) + assertValid, shared by library and CLI
     client.ts    # StrahlenschutzClient — WFS GetFeature over the engine
   cli/
-    io.ts        # injectable I/O seam (stdout/stderr/file)
+    io.ts        # injectable I/O seam (stdout/stderr/file), the logger and the clock
+    log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers, global-option resolver, JSON renderer
     commands/    # latest / station / timeseries
     program.ts   # assembles the commander program from injectable deps
@@ -236,7 +237,7 @@ nothing: it throws (from a constructor) or rejects (from a method) with
 `StrahlValidationError` and the message `Invalid <name>: <reason>`. The CLI's
 commander parsers call the same functions, so a rule exists once; `run.ts` maps a
 `StrahlValidationError` raised during an action to the usage exit code 1 (the code
-commander's own parse errors use), printed as `Error: <message>`.
+commander's own parse errors use), logged as an `ERROR` record of `strahlenschutz.cli`.
 
 **Charset.** A response body is decoded by the charset its `Content-Type` declares
 (`TextDecoder`; UTF-8 when none is given, as JSON requires), with a leading byte-order
@@ -271,8 +272,8 @@ returns one sentence when requests to `baseUrl` would travel unencrypted — `re
 <host> are sent unencrypted (http:, not https:)`, or `the base URL's credentials are sent
 unencrypted to <host> (http:, not https:)` with userinfo — and `undefined` for `https:`, an
 unparseable URL and loopback hosts. `<host>` is `url.host`, never the userinfo. The CLI's
-`action()` wrapper writes `warning: <sentence>` to stderr once per run, before the client is
-built; help, version and usage errors never warn, stdout and the exit code are unchanged,
+`action()` wrapper logs it as a `WARN` record of `strahlenschutz.http` on stderr once per run,
+before the client is built; help, version and usage errors never warn, stdout and the exit code are unchanged,
 and the library never warns. `test/conformance-p20-cleartext-warning.test.ts` checks it.
 
 **Cross-origin credential strip.** On a redirect to a different origin (scheme, host
@@ -351,6 +352,24 @@ naming the first foreign `kenn` (CLI exit 1), never another station's reading.
 (`latest`, `ts-1h`, `ts-24h`) and the map that translates each to its WFS
 `typeName` (e.g. `opendata:odlinfo_odl_1h_latest`).
 
+## The log on stderr
+
+Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic, `strahlenschutz.<area>`. `--log-format text` (the
+default) writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
+`--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
+and `msg`. The areas are `cli` (usage errors, commander's messages, unexpected errors, the
+library's validation and parse errors), `api` (the API's answers: an HTTP error status or
+WFS ExceptionReport, a station the collection doesn't hold) and `http` (the connection, the
+cleartext warning); the CLI writes no files, so it has no `output` area. Code logs through
+`logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds the logger
+from argv before commander parses it, so commander's own usage errors are records too, and
+on top of the redacted `io.err`, so a secret is kept out of the log in either format.
+`CliDeps.now` makes the timestamps testable. stdout carries data only. Only the bin shim's
+`Output error: …` (a failed write to stdout, `handleOutputErrors`, outside `run()`) stays a
+plain line. Conformance test P23 checks all of this, and its body is shared across the
+*-cli repos.
+
 ## Testing
 
 ```bash
@@ -373,7 +392,8 @@ npm test          # builds, then runs `node --test` over dist/test
   types, header shapes, resets), P6 the retry floor, P7 pipes and exit codes (spawns the built
   bin), P8/P9/P13 charset, 2xx body shapes and error classes, P10 strict query keys and repeated
   options, P20 the stderr warning for a plain-`http:` base URL, P21 README links only to files
-  the npm package ships (others by their GitHub URL).
+  the npm package ships (others by their GitHub URL), P23 the log on stderr (its body takes the
+  usage-error exit code from the adapter's `USAGE_EXIT`, `1` here).
 - **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.

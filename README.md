@@ -130,6 +130,21 @@ strahlenschutz latest --sort kenn --max 10 --start 10
 Every command prints **pretty GeoJSON to stdout**. Errors and diagnostics go to
 stderr, so piping stdout into `jq` stays clean.
 
+Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
+`INFO`) and a topic, the program and the area it comes from (`strahlenschutz.cli` for
+usage errors, `strahlenschutz.api` for the API's answers, `strahlenschutz.http` for the
+connection). By default it is written log4j style; `--log-format jsonl` writes one JSON
+object per line instead:
+
+```text
+2026-10-09T14:03:12.481Z WARN  [strahlenschutz.http] requests to mirror.test are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.902Z ERROR [strahlenschutz.api] No station found for kenn "4711".
+```
+
+```bash
+strahlenschutz --log-format jsonl station 4711 2>log.jsonl   # {"ts":"…","level":"ERROR","topic":"strahlenschutz.api","msg":"No station found …"}
+```
+
 ```bash
 # Extract dose rate and station id from a single-station lookup
 strahlenschutz --compact station 091811461 \
@@ -204,7 +219,8 @@ usage error rather than "last one wins":
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`); `http(s)` only, a path prefix is fine, no `?query`, `#fragment` or whitespace. Userinfo (`https://user:pw@mirror.example`) is sent as Basic auth (write a literal `%` in it as `%25`) and shown as `***@` in everything the CLI prints, usage errors included. A plain `http:` base URL to a remote host prints one `warning: … sent unencrypted to <host> (http:, not https:)` line on stderr before the first request (naming the base URL's credentials when it carries any, never printing them); loopback hosts (`localhost`, `127.x`, `::1`) don't warn, and stdout and the exit code are unchanged |
+| `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [strahlenschutz.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
+| `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`); `http(s)` only, a path prefix is fine, no `?query`, `#fragment` or whitespace. Userinfo (`https://user:pw@mirror.example`) is sent as Basic auth (write a literal `%` in it as `%25`) and shown as `***@` in everything the CLI prints, usage errors included. A plain `http:` base URL to a remote host logs one `WARN` record of `strahlenschutz.http` on stderr (`… sent unencrypted to <host> (http:, not https:)`) before the first request (naming the base URL's credentials when it carries any, never printing them); loopback hosts (`localhost`, `127.x`, `::1`) don't warn, and stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters, Latin-1 only) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`); each waits 200 ms, 400 ms, …, or longer if the server's `Retry-After` asks (up to 30 s; a longer one is not retried and the error names the requested wait) |

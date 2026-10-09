@@ -236,7 +236,7 @@ function isLoopbackHost(hostname: string): boolean {
 
 /**
  * Whether requests to `baseUrl` would travel unencrypted, as one sentence for a
- * warning (without a `warning: ` prefix), or `undefined` when they would not: for
+ * warning (the message of the CLI's WARN record), or `undefined` when they would not: for
  * `https:`, for a URL that does not parse, and for a loopback host (`localhost`,
  * 127.0.0.0/8, `::1`), where nothing leaves the machine.
  *
@@ -244,7 +244,7 @@ function isLoopbackHost(hostname: string): boolean {
  * secret travels with the requests: the base URL's credentials when it carries
  * userinfo, and every phrase in `secrets` (noun phrases such as "the API key"; the BfS
  * WFS takes none, so the CLI passes none). It never contains a password. The CLI
- * prints it once per run as `warning: <sentence>` on stderr.
+ * logs it once per run as a WARN record of `strahlenschutz.http` on stderr.
  */
 export function cleartextProblem(baseUrl: string, secrets: readonly string[] = []): string | undefined {
   let url: URL;

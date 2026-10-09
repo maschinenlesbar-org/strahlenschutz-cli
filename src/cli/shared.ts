@@ -3,7 +3,7 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
 import { DEFAULT_BASE_URL, cleartextProblem, type EngineOptions } from "../client/engine.js";
 import {
   baseUrlProblem,
@@ -168,8 +168,8 @@ export interface ActionContext {
  * options + this command's options) and the command's positional arguments.
  *
  * Before the client is built (so before any request), the base URL is checked: plain
- * `http:` to a remote host gets one `warning: <cleartextProblem sentence>` line on
- * stderr. An action runs once per run, so the warning does too; help, version and
+ * `http:` to a remote host gets one WARN record of `strahlenschutz.http` (the
+ * `cleartextProblem` sentence) on stderr. An action runs once per run, so the warning does too; help, version and
  * usage errors never reach an action and never warn. stdout is never touched.
  *
  * Commander invokes actions as (arg1, ..., argN, options, command); we slice off
@@ -184,7 +184,7 @@ export function action(
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
     const cleartext = cleartextProblem(global.baseUrl ?? DEFAULT_BASE_URL);
-    if (cleartext !== undefined) deps.io.err(`warning: ${cleartext}`);
+    if (cleartext !== undefined) logOf(deps).warn("http", cleartext);
     const client = deps.createClient(toEngineOptions(global));
     await fn({ client, global, opts: command.opts() }, positionals);
   };

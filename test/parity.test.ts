@@ -99,7 +99,7 @@ test("parity: an invalid timeseries resolution is rejected by the CLI and the li
       (result.lib.error as Error).message,
       `Invalid resolution: Expected one of: ts-1h, ts-24h (got ${JSON.stringify(res)}).`,
     );
-    assert.equal(result.cli.err, `Error: ${(result.lib.error as Error).message}`);
+    assert.equal(result.cli.err, `ERROR [strahlenschutz.cli] ${(result.lib.error as Error).message}`);
   }
 });
 
@@ -134,7 +134,7 @@ test("parity: station() for an unknown kenn is a not-found on both sides, after 
     new StrahlenschutzClient({ transport }).station("4711"),
   );
   assert.equal(cli.code, 4);
-  assert.equal(cli.err, 'Error: No station found for kenn "4711".');
+  assert.equal(cli.err, 'ERROR [strahlenschutz.api] No station found for kenn "4711".');
   assert.equal(lib.ok, false);
   assert.ok(lib.error instanceof StrahlNotFoundError, String(lib.error));
   assert.equal((lib.error as Error).message, 'No station found for kenn "4711".');

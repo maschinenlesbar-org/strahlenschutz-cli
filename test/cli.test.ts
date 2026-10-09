@@ -5,7 +5,7 @@ import { StrahlenschutzClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { StrahlValidationError } from "../src/client/errors.js";
-import { LIVE_EXCEPTION_REPORT, makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
+import { LIVE_EXCEPTION_REPORT, makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
 
 const fc = { type: "FeatureCollection", features: [] };
 
@@ -125,8 +125,8 @@ test("an HTTP 404 exits 1 with an endpoint note, not 4 (station not found)", asy
     assert.equal(code, 1, argv.join(" "));
     assert.equal(cli.err.length, 1);
     assert.match(
-      cli.err[0] ?? "",
-      /^Error: HTTP 404 for GET http:\/\/127\.0\.0\.1:18133\/e404\/ogc\/opendata\/ows\?\S+ \(the WFS endpoint itself was not found: a wrong --base-url, or the API moved\)$/,
+      untimed(cli.err[0] ?? ""),
+      /^ERROR \[strahlenschutz\.api\] HTTP 404 for GET http:\/\/127\.0\.0\.1:18133\/e404\/ogc\/opendata\/ows\?\S+ \(the WFS endpoint itself was not found: a wrong --base-url, or the API moved\)$/,
     );
   }
 });
@@ -208,8 +208,8 @@ test("a WFS ExceptionReport shows its reason on stderr, exit 1", async () => {
   assert.equal(code, 1);
   assert.equal(cli.err.length, 1);
   assert.match(
-    cli.err[0] ?? "",
-    /^Error: HTTP 400 for GET https:\/\/www\.imis\.bfs\.de\/ogc\/opendata\/ows\?.*sortBy=bogus_prop.*: Illegal property name: bogus_prop for feature type opendata:odlinfo_odl_1h_latest$/,
+    untimed(cli.err[0] ?? ""),
+    /^ERROR \[strahlenschutz\.api\] HTTP 400 for GET https:\/\/www\.imis\.bfs\.de\/ogc\/opendata\/ows\?.*sortBy=bogus_prop.*: Illegal property name: bogus_prop for feature type opendata:odlinfo_odl_1h_latest$/,
   );
 });
 
@@ -222,7 +222,7 @@ test("userinfo in --base-url is sent but redacted in error messages", async () =
   assert.equal(cli.mt.last().headers?.["Authorization"], `Basic ${Buffer.from("user:s3cretpw").toString("base64")}`);
   const stderr = cli.err.join("\n");
   assert.ok(!stderr.includes("s3cretpw"), stderr);
-  assert.match(stderr, /^Error: HTTP 500 for GET http:\/\/127\.0\.0\.1:18133\/e500\/ogc\/opendata\/ows\?.*: boom$/);
+  assert.match(untimed(stderr), /^ERROR \[strahlenschutz\.api\] HTTP 500 for GET http:\/\/127\.0\.0\.1:18133\/e500\/ogc\/opendata\/ows\?.*: boom$/);
 });
 
 test("--base-url with a query, fragment or surrounding whitespace is a usage error before any request", async () => {
@@ -268,7 +268,7 @@ test("station on a feature list of non-objects exits 1, not a found station", as
   assert.match(cli.err.join("\n"), /feature 0 is null\.$/);
 });
 
-test("a StrahlValidationError raised in an action is a usage error: exit 1, 'Error: <message>'", async () => {
+test("a StrahlValidationError raised in an action is a usage error: exit 1 and an ERROR record", async () => {
   const out: string[] = [];
   const err: string[] = [];
   const client = new StrahlenschutzClient({ transport: makeMockTransport(() => jsonResponse(fc)).transport });
@@ -281,5 +281,5 @@ test("a StrahlValidationError raised in an action is a usage error: exit 1, 'Err
   });
   assert.equal(code, 1);
   assert.deepEqual(out, []);
-  assert.deepEqual(err, ["Error: Invalid sortBy: Expected a non-empty value."]);
+  assert.deepEqual(err.map(untimed), ["ERROR [strahlenschutz.cli] Invalid sortBy: Expected a non-empty value."]);
 });
