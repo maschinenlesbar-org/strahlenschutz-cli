@@ -388,7 +388,8 @@ and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cu
 code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors, the
 library's validation and parse errors), `api` (the API's answers: an HTTP error status or
 WFS ExceptionReport, a station the collection doesn't hold) and `http` (the connection, the
-cleartext warning); the CLI writes no files, so it has no `output` area. Code logs through
+cleartext warning) and `output` (a failed write to stdout; the CLI writes no files, so
+there is no `-o`). Code logs through
 `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds the logger
 from argv before commander parses it (`logFormatFromArgv`, which skips the value of the
 program's value options such as `--user-agent` and takes the first `--log-format`, as
@@ -402,9 +403,10 @@ with no command (`strahlenschutz --compact`) an ERROR "missing command: `strahle
 (`writeCommanderErr`). The log is built with the run's redaction (`withRedactedOutput`), which replaces a secret in the message
 only, before it is escaped: the frame is never touched, and a secret is kept out of the log
 in either format.
-`CliDeps.now` makes the timestamps testable. stdout carries data only. Only the bin shim's
-`Output error: …` (a failed write to stdout, `handleOutputErrors`, outside `run()`) stays a
-plain line. Conformance test P23 checks all of this, and its body is shared across the
+`CliDeps.now` makes the timestamps testable. stdout carries data only. A failed write to
+stdout other than a closed pipe (`handleOutputErrors`, in the bin shim, outside `run()`)
+is an ERROR record of `strahlenschutz.output` (`Could not write to stdout: …`), in the
+format argv asks for and redacted like the run's log (`processLogger`). Conformance test P23 checks all of this, and its body is shared across the
 *-cli repos.
 
 ## Testing
@@ -422,7 +424,8 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - **`output-errors.test.ts`** — `handleOutputErrors`: EPIPE and ENOTCONN on stdout exit 0, on
-  stderr they are ignored.
+  stderr they are ignored; any other stdout write error is an ERROR record of
+  `strahlenschutz.output`.
 - **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (fix plan
   `.reviews/2026-10-05-exploratory/fix-plan.md` in the workspace), one file per pattern, the same
   code in every repo apart from an adapter block at the top: P1 credential redaction in CLI output,
