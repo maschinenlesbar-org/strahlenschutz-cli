@@ -268,3 +268,41 @@ test("an answer for another station than the one asked for is a StrahlParseError
   assert.equal((await clientWith(stationEcho()).station("083370490")).features.length, 1);
   assert.equal((await clientWith(constantJson(network)).latest()).features.length, 2);
 });
+
+test("the server's kenn in the station-filter error is quoted clean: one line, no control or bidi character (02-1)", async () => {
+  // A server-chosen kenn with a line break and a forged record, CSI and OSC sequences,
+  // the 8-bit CSI, NEL, CR, U+2028/U+2029 and U+202E.
+  const hostile = [
+    "\n0 INFO  [x.api] ok",
+    "1\u001b[2J\u001b]0;T\u0007\u202e\u009b31m",
+    "1\u2028X\u2029Y\u0085Z\rW",
+  ];
+  const calls: Array<[string, (c: StrahlenschutzClient) => Promise<unknown>]> = [
+    ["station", (c) => c.station("091811461")],
+    ["latest({ station })", (c) => c.latest({ station: "091811461" })],
+    ["timeseries", (c) => c.timeseries("091811461", "ts-24h")],
+  ];
+  for (const kenn of hostile) {
+    for (const [label, call] of calls) {
+      const mt = constantJson({ type: "FeatureCollection", features: [{ type: "Feature", properties: { kenn } }] });
+      await assert.rejects(
+        () => call(clientWith(mt)),
+        (err: unknown) => {
+          const message = (err as Error).message;
+          assert.ok(err instanceof StrahlParseError, label);
+          assert.match(message, /query for kenn "091811461" with a feature for kenn "/, label);
+          assert.doesNotMatch(
+            message,
+            /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/,
+            `${label}: ${JSON.stringify(message)}`,
+          );
+          return true;
+        },
+        label,
+      );
+    }
+  }
+  // Whitespace is folded to one space and the rest of the text stays readable.
+  const mt = constantJson({ type: "FeatureCollection", features: [{ type: "Feature", properties: { kenn: "1\n2\u202e3" } }] });
+  await assert.rejects(() => clientWith(mt).station("091811461"), /a feature for kenn "1 23"/);
+});

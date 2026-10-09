@@ -346,7 +346,10 @@ an empty result.
 `latest({ station })`, `timeseries()`) must carry that station's `kenn` in every
 feature. The live WFS applies the `CQL_FILTER`, but a mirror or proxy that drops it
 answers with the whole network and HTTP 200; that answer is a `StrahlParseError`
-naming the first foreign `kenn` (CLI exit 1), never another station's reading.
+naming the first foreign `kenn` (CLI exit 1), never another station's reading. The
+foreign `kenn` is server text, so the message quotes it through the exported
+`serverTextForMessage` (`engine.ts`): whitespace and line breaks folded to one space,
+control characters (C0, DEL, C1) and bidi controls dropped, cut at 20 characters.
 
 **`FeatureKindValues` / `TYPE_NAMES`.** The const array of valid feature kinds
 (`latest`, `ts-1h`, `ts-24h`) and the map that translates each to its WFS

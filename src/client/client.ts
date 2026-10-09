@@ -9,7 +9,7 @@
 //   client.station("091811461")
 //   client.timeseries("091811461", "ts-24h")
 
-import { RequestEngine, type EngineOptions } from "./engine.js";
+import { RequestEngine, serverTextForMessage, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import { TYPE_NAMES, type FeatureKind, type TimeseriesResolution } from "./enums.js";
 import { StrahlNotFoundError, StrahlParseError, StrahlValidationError } from "./errors.js";
@@ -129,7 +129,8 @@ function assertStation(result: FeatureCollection, kenn: string): void {
   result.features.forEach((feature, i) => {
     const got = feature.properties["kenn"];
     if (got !== kenn) {
-      const shown = typeof got === "string" ? `kenn "${got.length > 20 ? `${got.slice(0, 20)}…` : got}"` : "no kenn";
+      // The server's value, quoted clean (one line, no control or bidi character) and short.
+      const shown = typeof got === "string" ? `kenn "${serverTextForMessage(got, 20)}"` : "no kenn";
       throw new StrahlParseError(
         `The WFS answered a query for kenn "${kenn}" with a feature for ${shown} (feature ${i} of ` +
           `${result.features.length}): it did not apply the station filter, so this is not that station's data. ` +
