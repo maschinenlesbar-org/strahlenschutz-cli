@@ -350,7 +350,8 @@ answers with the whole network and HTTP 200; that answer is a `StrahlParseError`
 naming the first foreign `kenn` (CLI exit 1), never another station's reading. The
 foreign `kenn` is server text, so the message quotes it through the exported
 `serverTextForMessage` (`engine.ts`): whitespace and line breaks folded to one space,
-control characters (C0, DEL, C1) and bidi controls dropped, cut at 20 characters.
+control characters (C0, DEL, C1) and bidi controls dropped, cut at 20 characters,
+never inside a surrogate pair.
 
 **`FeatureKindValues` / `TYPE_NAMES`.** The const array of valid feature kinds
 (`latest`, `ts-1h`, `ts-24h`) and the map that translates each to its WFS

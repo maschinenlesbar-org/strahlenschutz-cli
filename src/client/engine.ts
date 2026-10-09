@@ -159,7 +159,7 @@ function isBidiControl(n: number): boolean {
  * (line breaks, U+2028/U+2029 included) folded to one space, so it stays on one line;
  * control characters (`sanitizeServerText`: C0, DEL, C1) and the bidi controls dropped,
  * so no escape sequence reaches a terminal; trimmed and cut at `max` characters (200),
- * ending in "…" when cut.
+ * never inside a surrogate pair (`cutText`), ending in "…" when cut.
  */
 export function serverTextForMessage(text: string, max = 200): string {
   let clean = "";
@@ -167,7 +167,7 @@ export function serverTextForMessage(text: string, max = 200): string {
     if (!isBidiControl(ch.codePointAt(0) ?? 0)) clean += ch;
   }
   clean = clean.trim();
-  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+  return clean.length > max ? `${cutText(clean, max)}…` : clean;
 }
 
 /** Longest error detail kept in a message; the full body stays on `StrahlApiError.body`. */

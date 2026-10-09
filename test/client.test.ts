@@ -306,3 +306,20 @@ test("the server's kenn in the station-filter error is quoted clean: one line, n
   const mt = constantJson({ type: "FeatureCollection", features: [{ type: "Feature", properties: { kenn: "1\n2\u202e3" } }] });
   await assert.rejects(() => clientWith(mt).station("091811461"), /a feature for kenn "1 23"/);
 });
+
+test("the 20-character cut of the server's kenn never splits a surrogate pair (02-2)", async () => {
+  // 19 characters and an emoji: a cut at 20 units would keep only its high surrogate.
+  for (const kenn of ["A".repeat(19) + "\u{1f600}rest", "A".repeat(18) + "\u{1f600}\u{1f600}rest"]) {
+    const mt = constantJson({ type: "FeatureCollection", features: [{ type: "Feature", properties: { kenn } }] });
+    await assert.rejects(
+      () => clientWith(mt).station("091811461"),
+      (err: unknown) => {
+        const message = (err as Error).message;
+        assert.ok(err instanceof StrahlParseError, message);
+        assert.doesNotMatch(message, /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/, JSON.stringify(message));
+        assert.match(message, /kenn "A+(\u{1f600})*…"/u, message);
+        return true;
+      },
+    );
+  }
+});
