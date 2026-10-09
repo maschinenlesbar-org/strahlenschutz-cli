@@ -408,7 +408,10 @@ in either format.
 `CliDeps.now` makes the timestamps testable. stdout carries data only. A failed write to
 stdout other than a closed pipe (`handleOutputErrors`, in the bin shim, outside `run()`)
 is an ERROR record of `strahlenschutz.output` (`Could not write to stdout: …`), in the
-format argv asks for and redacted like the run's log (`processLogger`). Conformance test P23 checks all of this, and its body is shared across the
+format argv asks for and redacted like the run's log (`processLogger`). So are Node's own
+process warnings (`installWarningLog`, also installed by the shim): a WARN record of
+`strahlenschutz.cli`, `(node) <name>: <message>`, instead of Node's plain `(node:PID)
+Warning: …` line (e.g. with `NODE_TLS_REJECT_UNAUTHORIZED=0`). Conformance test P23 checks all of this, and its body is shared across the
 *-cli repos.
 
 ## Testing
@@ -424,7 +427,8 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
 - **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
-  (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
+  (`escapeForRecord`, `formatLogRecord`, `installWarningLog`); the CLI-level checks are
+  P23's.
 - **`output-errors.test.ts`** — `handleOutputErrors`: EPIPE and ENOTCONN on stdout exit 0, on
   stderr they are ignored; any other stdout write error is an ERROR record of
   `strahlenschutz.output`.
