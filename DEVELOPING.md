@@ -22,14 +22,14 @@ The package ships both a CLI (`strahlenschutz`) and a typed WFS client
 
 ```bash
 npm install
-npm run build        # compiles TypeScript to dist/
+npm run build        # compiles every workspace (tsc -b) to its dist/
 ```
 
 Run the locally built CLI without a global install:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link`:
+node apps/cli/dist/src/cli/index.js --help    # or: npm start -- --help
+# or, after `npm link --workspace apps/cli`:
 strahlenschutz --help
 ```
 
@@ -97,7 +97,7 @@ key or a sort key at 60), never inside a surrogate pair, so `err.message` stays 
 and well-formed. A request URL in a message (`urlForMessage`: redacted, then cut) keeps
 at most `MAX_QUOTED_URL_LENGTH` (500) characters: after a redirect it is the server's
 choice, up to Node's 16 KiB header limit. `StrahlApiError.url` keeps it whole.
-`test/conformance-p8-p9-p13-responses-and-errors.test.ts` checks the declared charset
+`apps/cli/test/conformance-p8-p9-p13-responses-and-errors.test.ts` checks the declared charset
 (P8), 2xx bodies that are no FeatureCollection (P9) and twenty wrong-typed calls (P13).
 
 `userAgent` must be a usable header value: not blank, no control character other
@@ -135,7 +135,7 @@ used to return the whole network; now it is a `StrahlValidationError` (`Invalid 
 Unknown key "statoin"; expected one of: …`) before any request, an own `__proto__`
 key included (rule: `queryKeysProblem`). On the CLI a single-value option given twice
 (`--station A --station B`, `--sort kenn --sort "value D"`) is a usage error instead
-of "last one wins". `test/conformance-p10-strict-filters.test.ts` checks both.
+of "last one wins". `apps/cli/test/conformance-p10-strict-filters.test.ts` checks both.
 
 Every query is sent with a `sortBy`: the caller's, or `DEFAULT_SORT_BY[kind]`
 (`kenn` for `latest`, `kenn,end_measure` for the time series). The BfS layers have
@@ -154,9 +154,46 @@ are left as typed; a wrong one is an HTTP 400 with GeoServer's reason. The CLI's
 
 ## Architecture
 
+The repository is an **npm workspace** with two folders: `apps/` holds the programs it
+publishes, `packages/` the libraries they are built from.
+
 ```
-src/
-  client/
+package.json         # private workspace manifest: no version, never packed
+apps/cli/            # @maschinenlesbar.org/strahlenschutz-cli — the published package
+  package.json       # its version, bin, files, bundleDependencies
+  src/index.ts       # library entry: re-exports @maschinenlesbar.org/strahlenschutz-client
+  src/cli/           # the CLI (below)
+  test/              # CLI tests and every conformance-*.test.ts
+packages/client/     # @maschinenlesbar.org/strahlenschutz-client — private, bundled into the CLI
+  src/               # the API client (below)
+  test/              # tests that only touch the client, + the transport helpers
+tools/pack/          # prepack/postpack: bundle the client and commander into the tarball
+tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
+```
+
+- **The client is its own package** so a later MCP app can share it with the CLI. It is
+  never published on its own: `apps/cli`'s `prepack` copies it (and commander) into the
+  app's `node_modules`, and `bundleDependencies` ships it inside the tarball. The library
+  entry re-exports the client's `"."`, so `import { StrahlenschutzClient } from
+  "@maschinenlesbar.org/strahlenschutz-cli"` is unchanged.
+- **The client's exports:** `"."` is the public library surface (`src/index.ts`);
+  `"./internal/*"` maps to any module (`…/strahlenschutz-client/internal/engine`) for what
+  the CLI needs beyond that; `"./test/*"` reaches the client's test helpers from the CLI's
+  tests (not bundled). Only `"."` is part of the library.
+- **Dependencies point one way:** the app depends on the client, the client on nothing
+  in the workspace.
+- **The version lives in `apps/cli/package.json`.** The root has none; a plain
+  `npm version` at the root is refused. Release with `npm run bump -- <patch|minor|major>`,
+  which bumps the app, commits (the bare version as the message) and tags `vX.Y.Z`.
+- **TypeScript:** `tsconfig.base.json` holds the compiler options; every workspace has a
+  `tsconfig.json` (`src/`) and a `tsconfig.test.json` (`test/`), and the root
+  `tsconfig.json`/`tsconfig.test.json` reference them, built with `tsc -b`.
+
+The client (`packages/client/src/`) and the CLI (`apps/cli/src/`):
+
+```
+packages/client/src/
     enums.ts     # FeatureKind value set + TYPE_NAMES (friendly -> WFS typeName)
     types.ts     # GeoJSON Feature / FeatureCollection + query object
     query.ts     # dependency-free query-string builder
@@ -165,7 +202,8 @@ src/
     errors.ts    # StrahlError / StrahlApiError / StrahlNetworkError / StrahlParseError / StrahlValidationError
     validate.ts  # input rules (Problem functions) + assertValid, shared by library and CLI
     client.ts    # StrahlenschutzClient — WFS GetFeature over the engine
-  cli/
+    index.ts     # the client's public surface (the library entry re-exports it)
+apps/cli/src/cli/
     io.ts        # injectable I/O seam (stdout/stderr/file), the logger and the clock
     log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers, global-option resolver, JSON renderer
@@ -186,13 +224,13 @@ src/
   `head` stopping early) exits 0 quietly instead of an unhandled stack trace and exit 1; an EPIPE
   on stderr is ignored, so a failed run keeps its exit code. ENOTCONN counts the same (stdout is a
   socket when a Node parent spawns the CLI with piped stdio on macOS; `output-errors.test.ts`).
-  `test/conformance-p7-pipes-exit-codes.test.ts` runs the built bin to check both.
+  `apps/cli/test/conformance-p7-pipes-exit-codes.test.ts` runs the built bin to check both.
 - The WFS boilerplate (`service=WFS`, `request=GetFeature`, `outputFormat=application/json`) is hidden
   behind friendly feature-kind methods; GeoJSON is returned faithfully.
 
 ## Technical terms
 
-**API client.** [`StrahlenschutzClient`](src/client/client.ts) — the typed
+**API client.** [`StrahlenschutzClient`](packages/client/src/client.ts) — the typed
 wrapper over the WFS that hides the boilerplate and exposes the feature kinds as
 methods. Usable as a library independently of the CLI.
 
@@ -200,22 +238,22 @@ methods. Usable as a library independently of the CLI.
 `station(kenn)` and `timeseries(kenn, resolution, query)`.
 
 **Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`http.ts`](src/client/http.ts)). The default uses Node's built-in
+([`http.ts`](packages/client/src/http.ts)). The default uses Node's built-in
 `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
-**Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
+**Request engine.** [`RequestEngine`](packages/client/src/engine.ts) — builds URLs,
 serialises queries, applies retry/backoff, handles redirects, decodes JSON and
 maps errors. Sits between the client's methods and the transport.
 
-**Query-string builder.** [`query.ts`](src/client/query.ts) — a dependency-free
+**Query-string builder.** [`query.ts`](packages/client/src/query.ts) — a dependency-free
 serialiser: omits `undefined`/`null`, repeats keys for arrays, stringifies
 booleans, ISO-formats `Date`, and encodes spaces as `%20`.
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object. Lets the whole
+([`io.ts`](apps/cli/src/cli/io.ts)): a client factory plus an I/O object. Lets the whole
 CLI run in tests with a mocked client and captured output — no subprocess.
 
-**Error types.** [`errors.ts`](src/client/errors.ts): `StrahlApiError` (non-2xx,
+**Error types.** [`errors.ts`](packages/client/src/errors.ts): `StrahlApiError` (non-2xx,
 or a 2xx OGC `ExceptionReport` where GeoJSON was expected; carries
 `status`/`detail`/`isRetryable`), `StrahlNetworkError` (transport
 failure/timeout, a redirect the engine refuses, or a non-http(s) URL at a hop of the
@@ -239,7 +277,7 @@ included: every command requests the one fixed WFS path, so a 404 means that
 path is missing (a wrong `--base-url`, or the API moved), never an unknown
 station, and the CLI appends a note saying so.
 
-**Input validation.** [`validate.ts`](src/client/validate.ts) holds the
+**Input validation.** [`validate.ts`](packages/client/src/validate.ts) holds the
 library's input rules as pure `<thing>Problem(value)` functions, which return the
 reason a value is invalid or `undefined`. The client enforces them with
 `assertValid(name, value, problem)` before any request, so a rejected input sends
@@ -282,7 +320,7 @@ commander's usage errors, which echo a rejected `--base-url` whole, included. Th
 replaces them in each record's *message* (`redactionFor`), before the record is cut and
 escaped, and writes the record to the raw stderr: the frame (time, level, topic) is never
 touched, and a password with DEL, C1 or bidi characters is matched in its raw form.
-`test/conformance-p1-cli-redaction.test.ts` checks ten passwords in seven URL shapes
+`apps/cli/test/conformance-p1-cli-redaction.test.ts` checks ten passwords in seven URL shapes
 at every argv position.
 
 **Plain `http:` warning.** `cleartextProblem(baseUrl, secrets?)` (`engine.ts`, exported)
@@ -292,7 +330,7 @@ unencrypted to <host> (http:, not https:)` with userinfo — and `undefined` for
 unparseable URL and loopback hosts. `<host>` is `url.host`, never the userinfo. The CLI's
 `action()` wrapper logs it as a `WARN` record of `strahlenschutz.http` on stderr once per run,
 before the client is built; help, version and usage errors never warn, stdout and the exit code are unchanged,
-and the library never warns. `test/conformance-p20-cleartext-warning.test.ts` checks it.
+and the library never warns. `apps/cli/test/conformance-p20-cleartext-warning.test.ts` checks it.
 
 **Cross-origin credential strip.** On a redirect to a different origin (scheme, host
 or port), the engine drops credential-bearing headers
@@ -303,7 +341,7 @@ to the same origin, with a relative or an absolute `Location`, keeps them. Useri
 a `Location` is never used. Transports are told `redirect: "manual"`
 (`HttpRequest.redirect`): the engine follows redirects itself, and a response whose
 `HttpResponse.url` lies on another origin (a fetch transport that followed one) is
-rejected as a `StrahlNetworkError`. `test/conformance-p3-redirect-credentials.test.ts`
+rejected as a `StrahlNetworkError`. `apps/cli/test/conformance-p3-redirect-credentials.test.ts`
 checks this with a two-port mock pair.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
@@ -316,7 +354,7 @@ the past waits the backoff, so a server that just answered 429 never gets a burs
 `Retry-After` above `MAX_RETRY_AFTER_MS` (30 s) is not retried: the `StrahlApiError`
 surfaces at once, and its message names the requested wait and says retrying sooner
 won't help. `retryDelayMs` is bounded to `0`–`MAX_RETRY_AFTER_MS`.
-`test/conformance-p6-retry-policy.test.ts` checks both.
+`apps/cli/test/conformance-p6-retry-policy.test.ts` checks both.
 `StrahlApiError.isRetryable` is `true` for those two statuses. A reset connection
 (`ECONNRESET`/`EPIPE`/`ECONNABORTED`, or undici's `UND_ERR_SOCKET`, anywhere in the
 error's `cause` chain — the exported `isTransientNetworkError`) is retried with the
@@ -328,7 +366,7 @@ Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exporte
 redacted) `}`) is called once per retry right before the sleep, never when there is none, and
 a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` record of
 `strahlenschutz.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s` (`retryMessage`; host only, whole
-seconds, ms under 1 s). Tests: `test/retry-log.test.ts`.
+seconds, ms under 1 s). Tests: `apps/cli/test/retry-log.test.ts`.
 
 **Transport contract.** The engine enforces its limits for every transport, not only
 the built-in one: each call runs under the `timeoutMs` deadline (the request carries
@@ -340,7 +378,7 @@ realm, and reads headers from a plain object in any case, a `Headers` object or 
 `Map`. A malformed response (no or a non-numeric status, no headers, a string body)
 and anything a transport throws become a `StrahlNetworkError`. A redirect to a scheme
 other than `http:`/`https:` (`file:`, `data:`, `javascript:`) is refused before the
-transport is called. `test/conformance-p5-transport-contract.test.ts` checks this
+transport is called. `apps/cli/test/conformance-p5-transport-contract.test.ts` checks this
 with a never-answering transport, fetch against a silent server, a 2 MiB body, five
 body types and four header shapes.
 
@@ -383,7 +421,7 @@ never inside a surrogate pair.
 
 ## The log on stderr
 
-Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+Every diagnostic line on stderr is a log record (`apps/cli/src/cli/log.ts`): a timestamp, a level
 (`ERROR`, `WARN`, `INFO`) and a topic, `strahlenschutz.<area>`. `--log-format text` (the
 default) writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
@@ -428,8 +466,13 @@ Warning: …` line (e.g. with `NODE_TLS_REJECT_UNAUTHORIZED=0`). Conformance tes
 ## Testing
 
 ```bash
-npm test          # builds, then runs `node --test` over dist/test
+npm test          # builds, then runs `node --test` over each workspace's dist/test
+npm run coverage  # the same tests in one run, with a coverage report
+node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
+
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+everything that drives the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
@@ -437,7 +480,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`client.test.ts`** — the fixed WFS params, typeName selection, `CQL_FILTER` mapping and encoding, `sortBy`/`startIndex` propagation, and `kenn` validation — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
-- **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
+- **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`, `installWarningLog`); the CLI-level checks are
   P23's.
 - **`output-errors.test.ts`** — `handleOutputErrors`: EPIPE and ENOTCONN on stdout exit 0, on
@@ -453,7 +496,7 @@ npm test          # builds, then runs `node --test` over dist/test
   options, P20 the stderr warning for a plain-`http:` base URL, P21 README links only to files
   the npm package ships (others by their GitHub URL), P23 the log on stderr (its body takes the
   usage-error exit code from the adapter's `USAGE_EXIT`, `1` here).
-- **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
+- **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.
 
@@ -461,9 +504,13 @@ npm test          # builds, then runs `node --test` over dist/test
 
 GitHub Actions workflows under `.github/workflows/`:
 
-- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`, and create a GitHub Release with the tarball.
-- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): publish to npm via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
+- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR; then pack the
+  real tarball, check the pack left nothing behind, install it globally with the registry out
+  of reach and run the bin.
+- **release.yml** — on a `v*` tag (made by `npm run bump`): verify the tag matches
+  `apps/cli/package.json`, test, write the SBOMs (scoped to the `apps/cli` workspace), then
+  `npm pack --workspace apps/cli`, and create a GitHub Release with the tarball.
+- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): `npm publish --workspace apps/cli` via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
 - **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
   under `/api/`, and deploy both to GitHub Pages on each `v*` tag.
   TypeDoc runs from the isolated, lockfile-pinned `tools/docs/` toolchain because it
@@ -480,7 +527,9 @@ TypeDoc API reference under `/api/`. Its content comes from this repository: the
 and quick start, the command tree of the built CLI (`site/scripts/cli-reference.mjs`),
 `Usage.md`, `GLOSSARY.md` and its German version `GLOSSARY.de.md`, the skills, and the skill
 examples in `EXAMPLE.md` and `EXAMPLE.de.md`. The only repo-specific files are
-`site/_config.yml` and `site/_data/project.yml` (the German intro and the access requirements);
+`site/_config.yml` (which also says where the published manifest and the built program are:
+`manifest: apps/cli/package.json`, `program: apps/cli/dist/src/cli/program.js`) and
+`site/_data/project.yml` (the German intro and the access requirements);
 the rest of `site/` is identical in every maschinenlesbar.org CLI, so change it in all of them
 together. When the README intro changes, update the German intro in `site/_data/project.yml`.
 

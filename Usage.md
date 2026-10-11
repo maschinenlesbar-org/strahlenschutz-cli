@@ -13,7 +13,7 @@ npm i -g @maschinenlesbar.org/strahlenschutz-cli
 ```
 
 This installs the **`strahlenschutz`** bin. Without a global install you can run
-the same commands via `node dist/src/cli/index.js …` after `npm run build`.
+the same commands via `node apps/cli/dist/src/cli/index.js …` after `npm run build`.
 
 Verify:
 
