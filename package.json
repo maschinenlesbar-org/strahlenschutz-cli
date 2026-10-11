@@ -1,69 +1,29 @@
 {
-  "name": "@maschinenlesbar.org/strahlenschutz-cli",
-  "version": "0.6.0",
-  "description": "TypeScript API client and CLI for the open BfS ODL-Info radiation API (imis.bfs.de)",
+  "name": "strahlenschutz-workspace",
+  "private": true,
+  "description": "Workspace of @maschinenlesbar.org/strahlenschutz-cli: the CLI in apps/cli, the API client in packages/client.",
   "type": "module",
-  "bin": {
-    "strahlenschutz": "dist/src/cli/index.js"
-  },
-  "main": "dist/src/index.js",
-  "types": "dist/src/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/src/index.d.ts",
-      "import": "./dist/src/index.js"
-    }
-  },
-  "files": [
-    "dist/src",
-    "!dist/src/**/*.map",
-    "LICENSING.md",
-    "DATA_LICENSE.md",
-    "CONTRIBUTING.md"
+  "workspaces": [
+    "apps/*",
+    "packages/*"
   ],
   "engines": {
     "node": ">=22.12"
   },
   "scripts": {
-    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "prepack": "npm run build",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node -e \"const {rmSync,readdirSync}=require('fs');for(const d of ['apps','packages'])for(const p of readdirSync(d))rmSync(d+'/'+p+'/dist',{recursive:true,force:true})\"",
+    "build": "tsc -b tsconfig.json tsconfig.test.json",
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "pretest": "npm run build",
-    "test": "node --test --test-timeout=5000 dist/test/*.test.js",
-    "docs": "node tools/docs/node_modules/typedoc/bin/typedoc src/index.ts --out out",
-    "start": "node dist/src/cli/index.js"
+    "test": "npm test --workspaces --if-present",
+    "coverage": "node --test $(node -p \"+process.versions.node.split('.')[0] >= 24 ? '--test-timeout=5000' : ''\") --experimental-test-coverage --test-coverage-exclude=\"**/test/**\" apps/*/dist/test/*.test.js packages/*/dist/test/*.test.js",
+    "docs": "node tools/docs/node_modules/typedoc/bin/typedoc apps/cli/src/index.ts --tsconfig tsconfig.docs.json --name @maschinenlesbar.org/strahlenschutz-cli --out out",
+    "start": "node apps/cli/dist/src/cli/index.js",
+    "pack": "npm pack -w apps/cli",
+    "bump": "node tools/bump.mjs",
+    "preversion": "echo \"The root has no version. Bump the app: npm run bump -- <patch|minor|major>\" >&2 && exit 1"
   },
-  "keywords": [
-    "strahlenschutz",
-    "bfs",
-    "odl",
-    "radiation",
-    "environment",
-    "germany",
-    "cli",
-    "api-client"
-  ],
-  "author": "Sebastian Schürmann <sebs@2xs.org>",
   "license": "AGPL-3.0-or-later",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/maschinenlesbar-org/strahlenschutz-cli.git"
-  },
-  "bugs": {
-    "url": "https://github.com/maschinenlesbar-org/strahlenschutz-cli/issues"
-  },
-  "homepage": "https://maschinenlesbar-org.github.io/strahlenschutz-cli/",
-  "funding": {
-    "type": "github",
-    "url": "https://github.com/sponsors/sebs"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "dependencies": {
-    "commander": "15.0.0"
-  },
   "devDependencies": {
     "@types/node": "^22.20.5",
     "typescript": "7.0.2"
