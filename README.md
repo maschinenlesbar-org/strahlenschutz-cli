@@ -4,7 +4,7 @@
 [![Release](https://github.com/maschinenlesbar-org/strahlenschutz-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/strahlenschutz-cli/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/strahlenschutz-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/strahlenschutz-cli)
 
-**Website:** [English](https://maschinenlesbar-org.github.io/strahlenschutz-cli/) · [Deutsch](https://maschinenlesbar-org.github.io/strahlenschutz-cli/de/) — command reference, guides and API docs
+**Website:** [English](https://maschinenlesbar.org/strahlenschutz-cli/) · [Deutsch](https://maschinenlesbar.org/strahlenschutz-cli/de/) — command reference, guides and API docs
 
 Query Germany's **ambient gamma dose-rate (ODL) monitoring network** from your
 terminal. `strahlenschutz` is a command-line tool over the open
