@@ -495,7 +495,7 @@ everything that drives the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
-- **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, and redirect handling (same-origin follow, cross-origin credential strip, https→http downgrade refusal, missing-Location, too-many-redirects) — mocked transport.
+- **`engine.test.ts`** — URL building, JSON decoding (and the number check), error mapping (a timeout, the size cap, a refused connection and a DNS failure read `GET <url> failed: <reason>`), 429/503 retry, and redirect handling (same-origin follow, cross-origin credential strip, https→http downgrade refusal, missing-Location, too-many-redirects) — mocked transport.
 - **`client.test.ts`** — the fixed WFS params, typeName selection, `CQL_FILTER` mapping and encoding, `sortBy`/`startIndex` propagation, and `kenn` validation — mocked transport.
 - **`types.test.ts`** — a consumer compiled by `tsc` with `exactOptionalPropertyTypes` may pass
   `undefined` for every optional field of `EngineOptions` and `FeatureQuery` (`?: T | undefined`),

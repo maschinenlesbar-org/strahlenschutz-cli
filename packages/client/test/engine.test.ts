@@ -729,3 +729,31 @@ test("owsExceptionText gives what the regex gave, on 5 000 random reports (01-2)
     assert.equal(owsExceptionText(body), regexOwsExceptionText(body), JSON.stringify(body));
   }
 });
+
+test("a timeout, the size cap, a refused connection and a DNS failure name the request; the original is the cause", async () => {
+  const base = "http://user:pw@mirror.test";
+  const fail = (err: Error) => async (): Promise<HttpResponse> => {
+    throw err;
+  };
+  const refused = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:9"), { code: "ECONNREFUSED" });
+  const dns = Object.assign(new Error("getaddrinfo ENOTFOUND mirror.test"), { code: "ENOTFOUND" });
+  const cases: Array<[string, EngineOptions, string, unknown]> = [
+    ["timeout", { timeoutMs: 20, transport: () => new Promise<HttpResponse>(() => {}) }, "Request timed out after 20ms", undefined],
+    ["size cap", { maxResponseBytes: 4, transport: async () => rawResponse("[1,2,3]", "application/json") },
+      "Response exceeded the size limit of 4 bytes (maxResponseBytes; --max-response-bytes on the CLI)", undefined],
+    ["size cap of the default transport", { transport: fail(new StrahlNetworkError("Response exceeded the size limit of 4 bytes")) },
+      "Response exceeded the size limit of 4 bytes", "same"],
+    ["refused", { maxRetries: 0, transport: fail(refused) }, "connect ECONNREFUSED 127.0.0.1:9", refused],
+    ["dns", { transport: fail(dns) }, "getaddrinfo ENOTFOUND mirror.test", dns],
+  ];
+  for (const [name, options, reason, cause] of cases) {
+    const e = new RequestEngine({ baseUrl: base, ...options });
+    await assert.rejects(e.getJson("/ogc/opendata/ows"), (err: unknown) => {
+      assert.ok(err instanceof StrahlNetworkError, name);
+      assert.equal(err.message, `GET http://mirror.test/ogc/opendata/ows failed: ${reason}`, name);
+      if (cause !== undefined && cause !== "same") assert.equal(err.cause, cause, name);
+      if (cause === "same") assert.equal((err.cause as Error).message, reason, name);
+      return true;
+    });
+  }
+});
