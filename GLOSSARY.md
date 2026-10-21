@@ -165,7 +165,7 @@ commander's messages, unexpected errors), `api` (the API's answers: an error sta
 ExceptionReport, an unknown station, and a malformed answer — not JSON, not a
 FeatureCollection, an unknown charset, a number that can't be represented exactly, features for another station than the one asked
 for), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and `output` (a failed write to
-stdout). A record is always one line; control characters in it are escaped.
+stdout, an answer too deeply nested to print). A record is always one line; control characters in it are escaped.
 
 ---
 

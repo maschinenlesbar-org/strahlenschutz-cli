@@ -5,6 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
+import { OutputError } from "./shared.js";
 import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
 import {
   StrahlApiError,
@@ -209,9 +210,11 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
  * The log area of a `StrahlError` that is neither an API error nor a usage error: the
  * connection (`http`), a malformed answer (`api`: bad JSON, an unknown charset, a 2xx body
  * that is no FeatureCollection, an answer for another station than the one asked for —
- * the API's answer as much as an error status is), else `cli`.
+ * the API's answer as much as an error status is), an answer too deep to print (`output`),
+ * else `cli`.
  */
 function areaOf(err: StrahlError): string {
+  if (err instanceof OutputError) return "output";
   if (err instanceof StrahlNetworkError) return "http";
   if (err instanceof StrahlParseError) return "api";
   return "cli";

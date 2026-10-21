@@ -456,8 +456,8 @@ library's validation errors), `api` (the API's answers: an HTTP error status or 
 ExceptionReport, a station the collection doesn't hold, and a malformed answer — a
 `StrahlParseError`: bad JSON, an unknown charset, a 2xx body that is no FeatureCollection,
 a number that can't be represented exactly, an answer for another station than the one asked for) and `http` (the connection, the
-cleartext warning) and `output` (a failed write to stdout; the CLI writes no files, so
-there is no `-o`). Code logs through
+cleartext warning) and `output` (a failed write to stdout, an answer too deeply nested to print — an
+`OutputError`; the CLI writes no files, so there is no `-o`). Code logs through
 `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds the logger
 from argv before commander parses it (`logFormatFromArgv`, which skips the value of the
 program's value options such as `--user-agent` and takes the first `--log-format`, as
@@ -502,6 +502,11 @@ everything that drives the CLI is in `apps/cli/test/`.
   and at run time such an option means its default, as an omitted one does.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
+- **`output.test.ts`** — `renderJson`: an answer nested too deeply to pretty-print is an ERROR
+  of `strahlenschutz.output` that suggests `--compact` (exit 1); `--compact` takes V8's fast
+  path unless the answer holds a string or key of 64 Mi characters or more (`holdsHugeString`:
+  on Node 26 the fast path aborts on a ~250 MB string, the gap path prints it), pinned with a
+  mocked `JSON.stringify`.
 - **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`, `installWarningLog`); the CLI-level checks are
   P23's.

@@ -134,7 +134,7 @@ Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `W
 `INFO`) and a topic, the program and the area it comes from (`strahlenschutz.cli` for
 usage errors, `strahlenschutz.api` for the API's answers, a malformed answer included,
 `strahlenschutz.http` for the
-connection, `strahlenschutz.output` for a failed write to stdout). By default it is written log4j style; `--log-format jsonl` writes one JSON
+connection, `strahlenschutz.output` for a failed write to stdout or an answer too deeply nested to print). By default it is written log4j style; `--log-format jsonl` writes one JSON
 object per line instead. A record is always one line: a line break, a control character
 or a bidi control in a message (a server's text, a value you typed) is written as an
 escape (`\n`, `\u001b`, `\u202e`), so it can neither split a record nor forge another
@@ -172,7 +172,8 @@ strahlenschutz --compact latest --max 5
 
 `--compact` (and every global option) works **before or after** the command —
 both `strahlenschutz --compact latest …` and `strahlenschutz latest … --compact`
-do the same thing.
+do the same thing. An answer nested too deeply to pretty-print (a broken or hostile
+server) is an error that suggests `--compact`, exit 1.
 
 **Exit codes** make the CLI easy to use in scripts:
 
