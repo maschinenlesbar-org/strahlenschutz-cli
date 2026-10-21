@@ -12,6 +12,7 @@ export {
   MAX_RETRY_AFTER_MS,
   owsExceptionText,
   parseRetryAfter,
+  isBidiControl,
   isTransientNetworkError,
   serverTextForMessage,
 } from "./engine.js";

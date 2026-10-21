@@ -234,6 +234,10 @@ apps/cli/src/cli/
   on stderr is ignored, so a failed run keeps its exit code. ENOTCONN counts the same (stdout is a
   socket when a Node parent spawns the CLI with piped stdio on macOS; `output-errors.test.ts`).
   `apps/cli/test/conformance-p7-pipes-exit-codes.test.ts` runs the built bin to check both.
+- The JSON on stdout escapes what `JSON.stringify` leaves raw although a terminal acts on it:
+  DEL, the C1 range U+0080–U+009F and the bidi controls (`isBidiControl`, exported by the
+  client: U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069), as `\uXXXX`
+  (`escapeControlChars` in `shared.ts`); the output parses to the same value.
 - The WFS boilerplate (`service=WFS`, `request=GetFeature`, `outputFormat=application/json`) is hidden
   behind friendly feature-kind methods; GeoJSON is returned faithfully.
 

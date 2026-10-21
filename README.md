@@ -128,7 +128,9 @@ strahlenschutz latest --sort kenn --max 10 --start 10
 ## Output & scripting
 
 Every command prints **pretty GeoJSON to stdout**. Errors and diagnostics go to
-stderr, so piping stdout into `jq` stays clean.
+stderr, so piping stdout into `jq` stays clean. Characters a terminal would act on — DEL,
+the C1 controls and the bidi controls (U+202E and the like) — are printed as JSON escapes
+(`\u202e`), so the data is the same and the terminal stays untouched.
 
 Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
 `INFO`) and a topic, the program and the area it comes from (`strahlenschutz.cli` for

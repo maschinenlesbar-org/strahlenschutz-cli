@@ -56,3 +56,16 @@ test("--compact takes the gap path only for an answer holding a huge string, the
   assert.deepEqual(calls.map((args) => (args.length >= 3 ? args[2] : "none")), ["", "none", "", "", 2]);
   assert.deepEqual(out, ['"stub"', '"stub"', '"stub"', '"stub"', '"stub"']);
 });
+
+test("DEL, C1 and the bidi controls in server data are escaped in the JSON output, pretty and --compact", async () => {
+  const controls = String.fromCharCode(0x7f, 0x9b, 0x202e, 0x2066, 0x200f, 0x061c);
+  const served = { type: "FeatureCollection", features: [{ type: "Feature", id: "x", geometry: null, properties: { name: `A1${controls}live` } }] };
+  for (const argv of [["latest"], ["--compact", "latest"]]) {
+    const cli = makeCli(() => jsonResponse(served));
+    assert.equal(await run(argv, cli.deps), 0);
+    const text = cli.out.join("\n");
+    assert.ok(!/[\u007f\u009b‮⁦‏؜]/.test(text), argv.join(" "));
+    assert.match(text, /A1\\u007f\\u009b\\u202e\\u2066\\u200f\\u061clive/);
+    assert.deepEqual(JSON.parse(text), served);
+  }
+});
