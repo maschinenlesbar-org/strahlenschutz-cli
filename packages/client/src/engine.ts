@@ -48,20 +48,20 @@ export interface RawResponse {
 
 export interface EngineOptions {
   /** Base URL of the API. Defaults to https://www.imis.bfs.de */
-  baseUrl?: string;
+  baseUrl?: string | undefined;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
-  transport?: Transport;
+  transport?: Transport | undefined;
   /**
    * Value of the User-Agent header: non-blank, no control characters (tab
    * allowed), nothing above U+00FF. Defaults to `strahlenschutz-cli`.
    */
-  userAgent?: string;
+  userAgent?: string | undefined;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
    * only idle gaps: an integer from 0 (disables) to MAX_TIMEOUT_MS (2^31 - 1 ms).
    * Defaults to 30 s. Enforced by the engine for every transport.
    */
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   /**
    * Number of automatic retries for transient (429/503) responses and reset
    * connections (GET/HEAD only), an integer from
@@ -69,30 +69,30 @@ export interface EngineOptions {
    * longer if the response's `Retry-After` asks (up to `MAX_RETRY_AFTER_MS`; a longer
    * one is not retried, and the error names the requested wait).
    */
-  maxRetries?: number;
+  maxRetries?: number | undefined;
   /**
    * Base backoff between retries in milliseconds (grows linearly), an integer from 0
    * to `MAX_RETRY_AFTER_MS` (30 000); the floor under any Retry-After. Defaults to 200.
    */
-  retryDelayMs?: number;
+  retryDelayMs?: number | undefined;
   /**
    * Number of HTTP redirects (301/302/303/307/308) to follow, an integer from 0 to
    * MAX_REDIRECTS (10). Defaults to 5.
    */
-  maxRedirects?: number;
+  maxRedirects?: number | undefined;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
    * from a hostile/buggy endpoint), a non-negative safe integer. Defaults to
    * 100 MiB; set to 0 for no limit. Enforced by the engine for every transport.
    */
-  maxResponseBytes?: number;
+  maxResponseBytes?: number | undefined;
   /** Injectable sleep, primarily for deterministic tests. */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: ((ms: number) => Promise<void>) | undefined;
   /**
    * Called once per retry, right before the backoff sleep, for each retried 429/503
    * and reset connection; never when there is no retry. A throw is swallowed.
    */
-  onRetry?: (event: RetryEvent) => void;
+  onRetry?: ((event: RetryEvent) => void) | undefined;
 }
 
 /** What `EngineOptions.onRetry` is told about one retry. */
@@ -652,7 +652,7 @@ export class RequestEngine {
   async request(
     method: string,
     path: string,
-    options: { query?: QueryParams; accept: string } = { accept: "application/json" },
+    options: { query?: QueryParams | undefined; accept: string } = { accept: "application/json" },
   ): Promise<RawResponse> {
     // The transport never sees the base URL's userinfo: the engine sends it as an
     // Authorization header, per hop, so a redirect to the same origin (relative or

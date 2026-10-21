@@ -41,7 +41,7 @@ export interface FeatureCollection {
 /** Common options for a feature query. */
 export interface FeatureQuery {
   /** Restrict to a station by its `kenn` id (becomes `CQL_FILTER=kenn='<id>'`). */
-  station?: string;
+  station?: string | undefined;
   /**
    * Property to sort by; append " D" (a space) for descending, e.g. "end_measure D";
    * several keys are comma-separated ("end_measure D,kenn"). Defaults to
@@ -52,9 +52,9 @@ export interface FeatureQuery {
    * direction as ascending. Sent normalised (`normalizeSortBy`): keys trimmed, inner
    * whitespace collapsed, the direction as `A` or `D`.
    */
-  sortBy?: string;
+  sortBy?: string | undefined;
   /** Max features to return (sent as the WFS 2.0 `count` parameter). */
-  maxFeatures?: number;
+  maxFeatures?: number | undefined;
   /** Offset for paging (WFS 2.0 `startIndex`); without `maxFeatures`, everything from it on. */
-  startIndex?: number;
+  startIndex?: number | undefined;
 }

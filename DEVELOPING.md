@@ -86,6 +86,10 @@ so it throws `StrahlValidationError` (`Invalid baseUrl: Only "http:" and "https:
 base URLs are supported.`), never `StrahlNetworkError`, and the message never
 repeats the URL. The CLI's `--base-url` calls the same rule.
 
+Every optional field of `EngineOptions` and `FeatureQuery` is typed `?: T | undefined`:
+`undefined` means the default, as an omitted field does, so a consumer compiled with
+`exactOptionalPropertyTypes` can write `{ baseUrl: process.env.X }`.
+
 `transport` and `sleep` must be functions; anything else is a `StrahlValidationError`
 (`Invalid transport: Expected a function, got string.`) when the client is built,
 not a raw `TypeError` at request time. `new StrahlenschutzClient(null)` is the same as
@@ -486,13 +490,16 @@ npm run coverage  # the same tests in one run, with a coverage report
 node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
 
-The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`, `types`),
 everything that drives the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
 - **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, and redirect handling (same-origin follow, cross-origin credential strip, https→http downgrade refusal, missing-Location, too-many-redirects) — mocked transport.
 - **`client.test.ts`** — the fixed WFS params, typeName selection, `CQL_FILTER` mapping and encoding, `sortBy`/`startIndex` propagation, and `kenn` validation — mocked transport.
+- **`types.test.ts`** — a consumer compiled by `tsc` with `exactOptionalPropertyTypes` may pass
+  `undefined` for every optional field of `EngineOptions` and `FeatureQuery` (`?: T | undefined`),
+  and at run time such an option means its default, as an omitted one does.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
 - **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
