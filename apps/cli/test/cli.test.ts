@@ -403,3 +403,32 @@ test("a malformed answer, and an answer for another station, is an ERROR record 
     assert.match(untimed(cli.err.join("\n")), /^ERROR \[strahlenschutz\.api\] /, argv.join(" "));
   }
 });
+
+test("every single-value option given twice is a usage error before any request; flags may repeat", async () => {
+  const B = "http://127.0.0.1:1";
+  const cases: string[][] = [
+    ["--timeout", "1000", "--timeout", "2000", "latest"],
+    ["--timeout=1000", "latest", "--timeout", "2000"],
+    ["--base-url", B, "--base-url", B, "latest"],
+    ["latest", "--base-url", B, "--base-url=http://127.0.0.1:2"],
+    ["--log-format", "text", "latest", "--log-format", "jsonl"],
+    ["--log-format=jsonl", "--log-format=jsonl", "latest"],
+    ["--user-agent", "a", "--user-agent", "b", "latest"],
+    ["--max-retries", "1", "latest", "--max-retries", "2"],
+    ["--max-response-bytes", "10", "--max-response-bytes", "20", "latest"],
+    ["latest", "--max", "1", "--max", "2"],
+    ["latest", "--start", "1", "--start=2"],
+    ["latest", "--station", "083370490", "--station", "010010001"],
+    ["timeseries", "083370490", "--resolution", "ts-1h", "--resolution", "ts-24h"],
+    ["timeseries", "083370490", "--sort", "kenn", "--sort", "end_measure D"],
+  ];
+  for (const argv of cases) {
+    const cli = makeCli(() => jsonResponse(fc));
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0, argv.join(" "));
+    assert.match(cli.err.join("\n"), /was given more than once; give it once\./, argv.join(" "));
+  }
+  const flags = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["--compact", "latest", "--compact"], flags.deps), 0);
+  assert.equal(flags.mt.calls.length, 1);
+});

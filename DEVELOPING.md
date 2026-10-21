@@ -137,9 +137,11 @@ for `timeseries()` (whose station is its own argument). GeoServer ignores a para
 it doesn't know, so a misspelled key (`{ statoin: "083370490" }`, `{ maxfeatures: 2 }`)
 used to return the whole network; now it is a `StrahlValidationError` (`Invalid query:
 Unknown key "statoin"; expected one of: …`) before any request, an own `__proto__`
-key included (rule: `queryKeysProblem`). On the CLI a single-value option given twice
-(`--station A --station B`, `--sort kenn --sort "value D"`) is a usage error instead
-of "last one wins". `apps/cli/test/conformance-p10-strict-filters.test.ts` checks both.
+key included (rule: `queryKeysProblem`). On the CLI every single-value option given twice
+(`--station A --station B`, `--sort kenn --sort "value D"`, and the global ones such as
+`--timeout`, `--base-url` and `--log-format`, before or after the command) is a usage error
+(`once()`, exit 1, no request) instead of "last one wins"; a flag such as `--compact` may
+repeat. `apps/cli/test/conformance-p10-strict-filters.test.ts` checks both.
 
 Every query is sent with a `sortBy`: the caller's, or `DEFAULT_SORT_BY[kind]`
 (`kenn` for `latest`, `kenn,end_measure` for the time series). The BfS layers have
