@@ -260,8 +260,9 @@ CLI run in tests with a mocked client and captured output — no subprocess.
 or a 2xx OGC `ExceptionReport` where GeoJSON was expected; carries
 `status`/`detail`/`isRetryable`), `StrahlNetworkError` (transport
 failure/timeout, a redirect the engine refuses, or a non-http(s) URL at a hop of the
-default transport), `StrahlParseError` (bad JSON, or a 2xx body that is not a FeatureCollection
-whose every feature is a JSON object with a `properties` object) and `StrahlNotFoundError`
+default transport), `StrahlParseError` (bad JSON, a 2xx body that is not a FeatureCollection
+whose every feature is a JSON object with a `properties` object, or a number JSON.parse
+can't carry exactly — see below) and `StrahlNotFoundError`
 (raised by `station()` for an unknown id) and `StrahlValidationError` (an input rejected
 before any request) — all extending `StrahlError`. Whatever an injected transport
 throws becomes a `StrahlNetworkError` (`GET <url> failed: <reason>`, the original as
@@ -295,6 +296,17 @@ commander's own parse errors use), logged as an `ERROR` record of `strahlenschut
 mark dropped. An unknown charset label is a `StrahlParseError` naming it. The BfS
 server sends UTF-8; this matters behind a mirror or proxy that re-encodes, where
 `µSv/h` and umlauts in station names would otherwise turn into `�`.
+
+**Numbers.** `JSON.parse` rounds a number past 2^53 to the nearest double, turns one out of
+a double's range (`1e400`) into `Infinity` (printed as `null`) and a non-zero one too small
+for a double (`1e-400`) into `0`, without a word. `getJson` scans the body once after the
+parse (strings skipped) and refuses such an answer with a `StrahlParseError`
+(`Unexpected response from /ogc/opendata/ows: the number 12345678901234567890 cannot be
+represented exactly.`, CLI exit 1), never a changed value. Past 2^53 a number passes when it
+prints as written (`1E23`, `1.7976931348623157E308`: a double in its shortest form); below
+2^53 a decimal fraction keeps a double's precision, as JSON means it. The BfS answer carries
+dose rates and coordinates as decimals and small counts, which all pass; the station id
+`kenn` is a string.
 
 **Error detail.** GeoServer reports a bad request as an OGC `ows:ExceptionReport`
 (XML). The engine's exported `owsExceptionText` pulls its `ExceptionText` (any
@@ -439,7 +451,7 @@ code point and ends in `… (N more characters)`. The areas are `cli` (usage err
 library's validation errors), `api` (the API's answers: an HTTP error status or WFS
 ExceptionReport, a station the collection doesn't hold, and a malformed answer — a
 `StrahlParseError`: bad JSON, an unknown charset, a 2xx body that is no FeatureCollection,
-an answer for another station than the one asked for) and `http` (the connection, the
+a number that can't be represented exactly, an answer for another station than the one asked for) and `http` (the connection, the
 cleartext warning) and `output` (a failed write to stdout; the CLI writes no files, so
 there is no `-o`). Code logs through
 `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds the logger

@@ -40,6 +40,51 @@ test("getJson throws StrahlParseError on invalid JSON", async () => {
   await assert.rejects(() => e.getJson("/x"), StrahlParseError);
 });
 
+test("a number the JSON cannot carry exactly is a parse error, never a changed value", async () => {
+  // JSON.parse rounds 12345678901234567890 (in any form: .0, e0, E-1) and 9007199254740992.5 to the
+  // nearest double, turns 1e400 into Infinity (printed as null) and 1e-400 into 0, silently.
+  const body = (n: string) => `{"id":"a","n":${n},"text":"12345678901234567890 in a string"}`;
+  for (const n of [
+    "12345678901234567890", "-9007199254740993", "1e400", "-1E400", "12345678901234567890.0", "9007199254740993e0",
+    "90071992547409930E-1", "9007199254740992.5", "-9007199254740992.5", "1e-400", "-0.0001e-399",
+    "123456789012345678901234567890",
+  ]) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
+    await assert.rejects(e.getJson("/ogc/opendata/ows"), (err: unknown) => {
+      assert.ok(err instanceof StrahlParseError, n);
+      assert.equal(err.message, `Unexpected response from /ogc/opendata/ows: the number ${n} cannot be represented exactly.`);
+      return true;
+    });
+  }
+  // What a double carries exactly, or as JSON means it (a decimal fraction below 2^53), passes.
+  const exact: Array<[string, number]> = [
+    ["9007199254740991", 9007199254740991], ["9007199254740992.0", 2 ** 53], ["9007199254740992e0", 2 ** 53],
+    ["90071992547409920E-1", 2 ** 53], ["1e21", 1e21], ["1.2e21", 1.2e21], ["0", 0], ["-0", -0], ["0.0e-500", 0],
+    ["1.10", 1.1], ["0.1", 0.1], ["1.00000000000000001", 1], ["5e-324", 5e-324],
+    // A double a server printed in its shortest form reads back as that double and prints as the
+    // same number: not a changed value, though the decimal is not the double's exact binary value.
+    ["1e23", 1e23], ["100000000000000000000000", 1e23], ["1E23", 1e23], ["1.7976931348623157E308", Number.MAX_VALUE], ["-1.7976931348623157e308", -Number.MAX_VALUE],
+    ["4.35e30", 4.35e30],
+    // What the BfS WFS sends: dose rates, coordinates as doubles.
+    ["0.087", 0.087], ["9.993889", 9.993889], ["53.553333333333335", 53.553333333333335],
+  ];
+  for (const [n, value] of exact) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
+    assert.equal((await e.getJson<{ n: number }>("/x")).n, value, n);
+  }
+});
+
+test("the number check skips strings and costs one pass over the text", async () => {
+  // Escaped quotes and backslashes must not end a string early and expose its digits.
+  const tricky = `{"id":"a","s":"\\\\\\"12345678901234567890\\\\","t":"1e400","n":[1,2.5,-3e2]}`;
+  const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(tricky, "application/json")).transport });
+  assert.deepEqual(await e.getJson("/x"), JSON.parse(tricky));
+  // 1 MB of numbers: the scan is linear.
+  const big = `[${Array.from({ length: 200_000 }, (_, i) => i * 7).join(",")}]`;
+  const f = new RequestEngine({ transport: makeMockTransport(() => rawResponse(big, "application/json")).transport });
+  assert.equal((await f.getJson<number[]>("/x")).length, 200_000);
+});
+
 test("a 503 is retried up to maxRetries then surfaces as StrahlApiError", async () => {
   let calls = 0;
   const mt = makeMockTransport(() => {

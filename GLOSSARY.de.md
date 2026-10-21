@@ -161,7 +161,7 @@ eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `strahlenschutz.<Bereich>`, a
 Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
 Antworten der API: ein Fehlerstatus oder ein ExceptionReport, eine unbekannte Messstelle,
 und eine fehlerhafte Antwort – kein JSON, keine FeatureCollection, ein unbekannter
-Zeichensatz, Features einer anderen Messstelle als der angefragten), `http` (die
+Zeichensatz, eine Zahl, die sich nicht exakt darstellen lässt, Features einer anderen Messstelle als der angefragten), `http` (die
 Verbindung, die Warnung vor unverschlüsseltem `http:` und je Wiederholung eine WARN-Zeile vor dem Warten) und `output` (ein
 fehlgeschlagenes Schreiben auf stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen
 darin werden maskiert.
