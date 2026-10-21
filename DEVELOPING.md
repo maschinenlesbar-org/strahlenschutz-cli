@@ -528,7 +528,11 @@ everything that drives the CLI is in `apps/cli/test/`.
   bin), P8/P9/P13 charset, 2xx body shapes and error classes, P10 strict query keys and repeated
   options, P20 the stderr warning for a plain-`http:` base URL, P21 README links only to files
   the npm package ships (others by their GitHub URL), P23 the log on stderr (its body takes the
-  usage-error exit code from the adapter's `USAGE_EXIT`, `1` here).
+  usage-error exit code from the adapter's `USAGE_EXIT`, `1` here), P24 the input corpus (no
+  text filter here; the station id, read from the `CQL_FILTER`, stands in for a path id, and
+  every corpus value is refused on both sides), P25 the response corpus (a number a double
+  can't carry, and an empty answer, are exit 1 and the parse error; on `latest`). P26 (`-o`) is
+  not copied: the CLI writes no files.
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.
