@@ -454,14 +454,16 @@ function bodyBytes(value: unknown): Buffer | undefined {
  */
 function plainHeaders(headers: object): Record<string, string | string[] | undefined> {
   const h = headers as { get?: unknown; forEach?: unknown };
+  // Records built from an answer have no prototype: a header named `__proto__` is an own
+  // entry like any other, never the record's prototype (whose entries would read as headers).
   if (typeof h.get === "function" && typeof h.forEach === "function") {
-    const record: Record<string, string> = {};
+    const record = Object.create(null) as Record<string, string>;
     (h.forEach as (cb: (value: string, name: string) => void) => void).call(headers, (value, name) => {
       record[String(name).toLowerCase()] = value;
     });
     return record;
   }
-  const record: Record<string, string | string[] | undefined> = {};
+  const record = Object.create(null) as Record<string, string | string[] | undefined>;
   for (const [name, value] of Object.entries(headers as Record<string, string | string[] | undefined>)) {
     record[name.toLowerCase()] = value;
   }

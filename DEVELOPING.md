@@ -400,7 +400,7 @@ engine rejects at the deadline whether the transport stops or not), and the body
 gets back is checked against `maxResponseBytes`. It accepts any `ArrayBuffer` view
 (`Buffer`, a fetch `Uint8Array`, a `DataView`) or `ArrayBuffer` as the body, from any
 realm, and reads headers from a plain object in any case, a `Headers` object or a
-`Map`. A malformed response (no or a non-numeric status, no headers, a string body)
+`Map` (into a record without a prototype, so a header named `__proto__` is an ordinary one). A malformed response (no or a non-numeric status, no headers, a string body)
 and anything a transport throws become a `StrahlNetworkError`. A redirect to a scheme
 other than `http:`/`https:` (`file:`, `data:`, `javascript:`) is refused before the
 transport is called. `apps/cli/test/conformance-p5-transport-contract.test.ts` checks this
