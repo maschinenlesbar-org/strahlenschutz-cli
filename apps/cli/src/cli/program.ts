@@ -58,7 +58,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .option("--base-url <url>", "API base URL", once("--base-url", parseBaseUrl), "https://www.imis.bfs.de")
     .option(
       "--timeout <ms>",
-      "time limit per request in milliseconds, whole response included",
+      "time limit per request in milliseconds, whole response included; 0 = no limit (default 30000)",
       once("--timeout", parseBoundedInt(0, MAX_TIMEOUT_MS)),
     )
     .option("--user-agent <ua>", "User-Agent header value", once("--user-agent", parseHeaderValue))

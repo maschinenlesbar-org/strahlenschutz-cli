@@ -513,3 +513,10 @@ test("a global option given last without its value and no command is commander's
     assert.equal(cli.mt.calls.length, 0);
   }
 });
+
+test("--help says what --timeout 0 means: no time limit, as the library's timeoutMs (04#8)", async () => {
+  const cli = makeCli(() => jsonResponse(fc));
+  assert.equal(await run(["--help"], cli.deps), 0);
+  const help = cli.out.join("\n").replace(/\s+/g, " ");
+  assert.match(help, /--timeout <ms> time limit per request in milliseconds, whole response included; 0 = no limit/);
+});

@@ -196,7 +196,8 @@ strahlenschutz --base-url https://www.imis.bfs.de \
 `--base-url` overrides the API host (an `http(s)` URL, optionally with a path
 prefix; a `?query` or `#fragment` is refused, since the WFS path is appended to
 it, and so is any whitespace or control character), `--timeout` sets the time limit per request in
-milliseconds (reading the whole response included), and `--user-agent` sets the request `User-Agent`.
+milliseconds (reading the whole response included; `0` means no limit, so the CLI waits as long
+as the server takes), and `--user-agent` sets the request `User-Agent`.
 A mirror on plain `http:` works, but the CLI says on stderr that its requests travel
 unencrypted (`WARN  [strahlenschutz.http] requests to mirror.example are sent unencrypted (http:, not https:)`);
 a loopback host like `localhost` doesn't warn.
@@ -225,7 +226,7 @@ Global options go **before** the command (e.g. `strahlenschutz --compact latest 
 | --- | --- |
 | `-V, --version` | print the version |
 | `--base-url <url>` | API base URL (default `https://www.imis.bfs.de`). A plain `http:` base URL to a remote host logs one `WARN` record of `strahlenschutz.http` on stderr (`… sent unencrypted to <host> (http:, not https:)`) before the first request (naming the base URL's credentials when it carries any, never printing them); loopback hosts (`localhost`, `127.x`, `::1`) don't warn, and stdout and the exit code are unchanged |
-| `--timeout <ms>` | time limit per request in milliseconds, whole response included (at most `2147483647`) |
+| `--timeout <ms>` | time limit per request in milliseconds, whole response included (default `30000`, at most `2147483647`; `0` = no limit) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`; each waits 200 ms, 400 ms, … or the server's longer `Retry-After`, up to 30 s). Each retry logs one WARN record of `strahlenschutz.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`) |
 | `--max-response-bytes <n>` | cap response body size in bytes (`0` = unlimited; default 100 MiB) |
