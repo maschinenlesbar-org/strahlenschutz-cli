@@ -3,6 +3,9 @@
 // - A large flat answer prints with --compact under a small heap: the check for huge strings
 //   before printing walks it without an allocation per value (Object.entries made one pair per
 //   element: 7 GB and a crash on 48M numbers).
+// - An answer full of DEL characters, each printed as six (`\u007f`), prints under a small heap,
+//   or, past V8's longest string, is an ERROR record of <bin>.output that says it is too large;
+//   one `+=` per character made a rope of 100 M pieces and crashed.
 // The memory cases run the built bin in a child process with --max-old-space-size. Shared across
 // the *-cli repos that print JSON; only the adapter differs.
 
@@ -24,6 +27,10 @@ const bodyWith = (json: string): string =>
 /** The value from the CLI's printed result. */
 type Answer = { features: Array<{ properties: { x: unknown } }> };
 const fromCli = (out: string): unknown => (JSON.parse(out) as Answer).features[0]?.properties.x;
+/** The log program, as in `ERROR [<bin>.output]`. */
+const PROGRAM = "strahlenschutz";
+/** The exit code of a failed output in this repo (most repos use 1). */
+const OUTPUT_EXIT = 1;
 // --------------------------------------------------------------------------------------
 
 // These tests start the built CLI as a process: 30 s instead of the suite's 5 s.
@@ -76,4 +83,23 @@ test("P27: a large flat answer prints with --compact within a small heap", START
   assert.equal(run.code, 0, run.stderr.slice(0, 500));
   const printed = fromCli(run.stdout.toString("utf8")) as unknown[];
   assert.equal(printed.length, n);
+});
+
+test("P27: an answer full of DEL characters prints escaped within a small heap", STARTS_A_PROCESS, async () => {
+  const n = 20_000_000;
+  const run = await runWithAnswer(Buffer.from(bodyWith(`"${"\u007f".repeat(n)}"`), "latin1"), 512, ["--compact"]);
+  noCrash(run, "DEL");
+  assert.equal(run.code, 0, run.stderr.slice(0, 500));
+  const text = run.stdout.toString("utf8");
+  assert.ok(!text.includes("\u007f"), "a DEL is printed raw");
+  assert.equal(fromCli(text), "\u007f".repeat(n));
+});
+
+test("P27: an answer that escaped would pass V8's longest string is an ERROR record, not a crash", STARTS_A_PROCESS, async () => {
+  // 90 MB of DEL, under the default size cap: printed as `\u007f` each, 540 M characters.
+  const run = await runWithAnswer(Buffer.from(bodyWith(`"${"\u007f".repeat(90_000_000)}"`), "latin1"), 512);
+  noCrash(run, "90 MB of DEL");
+  assert.equal(run.code, OUTPUT_EXIT, run.stderr.slice(0, 500));
+  assert.equal(run.stdout.length, 0);
+  assert.match(run.stderr, new RegExp(`ERROR \\[${PROGRAM}\\.output\\] The answer is too large to print`), run.stderr.slice(0, 500));
 });

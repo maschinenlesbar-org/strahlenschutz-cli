@@ -238,7 +238,11 @@ apps/cli/src/cli/
 - The JSON on stdout escapes what `JSON.stringify` leaves raw although a terminal acts on it:
   DEL, the C1 range U+0080–U+009F and the bidi controls (`isBidiControl`, exported by the
   client: U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069), as `\uXXXX`
-  (`escapeControlChars` in `shared.ts`); the output parses to the same value.
+  (`escapeControlChars` in `shared.ts`); the output parses to the same value. Each such
+  character becomes six, so the escaped length is counted first: past V8's longest string the
+  answer is an `OutputError` ("The answer is too large to print (N characters once its control
+  characters are escaped)."), never a heap crash; otherwise the text is built in 64 Ki chunks and
+  joined once.
 - The WFS boilerplate (`service=WFS`, `request=GetFeature`, `outputFormat=application/json`) is hidden
   behind friendly feature-kind methods; GeoJSON is returned faithfully.
 
@@ -549,7 +553,8 @@ everything that drives the CLI is in `apps/cli/test/`.
   every corpus value is refused on both sides), P25 the response corpus (a number a double
   can't carry, and an empty answer, are exit 1 and the parse error; on `latest`). P26 (`-o`) is
   not copied: the CLI writes no files. P27 big and odd answers (spawns the built bin under a small
-  heap): a large flat answer prints with `--compact`.
+  heap): a large flat answer prints with `--compact`; 20 M DEL characters print escaped under a
+  512 MB heap, 90 M are an ERROR record of `strahlenschutz.output`, not a crash.
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.

@@ -64,6 +64,20 @@ test("an answer too large to print is called too large, not too deep; the hint o
     /^The answer is too large \(more than \d+ characters of JSON\) to print\.$/.test(err.message));
 });
 
+test("terminal controls are escaped in chunks: the same text as one pass, across chunk edges (D7)", () => {
+  const DEL = String.fromCharCode(0x7f);
+  const C1 = String.fromCharCode(0x9b);
+  const RLO = String.fromCharCode(0x202e);
+  // Controls right before, at and after the 64 Ki edges, and a run of them.
+  const text = ["a".repeat(65535), DEL, C1, "b".repeat(65534), RLO, DEL.repeat(70000), "ü😀", C1].join("");
+  const { deps, out } = makeCli();
+  renderJson(deps, { compact: true }, { text });
+  const expected = JSON.stringify({ text }).replace(/[\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  assert.equal(out[0], expected);
+  assert.deepEqual(JSON.parse(out[0]!), { text });
+});
+
 test("--compact takes the gap path only for an answer holding a huge string, the fast path otherwise", (t) => {
   // On Node 26 V8's fast stringifier (no gap) aborts the process on a ~250 MB string that
   // JSON.parse made ("Zone Allocation failed", exit 134); the gap path prints it. Only the fast
