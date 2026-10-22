@@ -476,7 +476,7 @@ library's validation errors), `api` (the API's answers: an HTTP error status or 
 ExceptionReport, a station the collection doesn't hold, and a malformed answer — a
 `StrahlParseError`: bad JSON, an unknown charset, a 2xx body that is no FeatureCollection,
 a number that can't be represented exactly, an answer for another station than the one asked for) and `http` (the connection, the
-cleartext warning) and `output` (a failed write to stdout, an answer too deeply nested to print — an
+cleartext warning) and `output` (a failed write to stdout, an answer too deeply nested, or too large, to print — an
 `OutputError`; the CLI writes no files, so there is no `-o`). Code logs through
 `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds the logger
 from argv before commander parses it (`logFormatFromArgv`, which skips the value of the
@@ -522,8 +522,10 @@ everything that drives the CLI is in `apps/cli/test/`.
   and at run time such an option means its default, as an omitted one does.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
-- **`output.test.ts`** — `renderJson`: an answer nested too deeply to pretty-print is an ERROR
-  of `strahlenschutz.output` that suggests `--compact` (exit 1); `--compact` takes V8's fast
+- **`output.test.ts`** — `renderJson`: an answer nested too deeply, or too large, to print is an
+  ERROR of `strahlenschutz.output` that names the cause (exit 1) and suggests `--compact` only
+  where `--compact` prints that answer (probed, not assumed: whether the compact printer survives
+  deep nesting depends on the Node version); `--compact` takes V8's fast
   path unless the answer holds a string or key of 64 Mi characters or more (`holdsHugeString`:
   on Node 26 the fast path aborts on a ~250 MB string, the gap path prints it), pinned with a
   mocked `JSON.stringify`.
@@ -546,7 +548,8 @@ everything that drives the CLI is in `apps/cli/test/`.
   text filter here; the station id, read from the `CQL_FILTER`, stands in for a path id, and
   every corpus value is refused on both sides), P25 the response corpus (a number a double
   can't carry, and an empty answer, are exit 1 and the parse error; on `latest`). P26 (`-o`) is
-  not copied: the CLI writes no files.
+  not copied: the CLI writes no files. P27 big and odd answers (spawns the built bin under a small
+  heap): a large flat answer prints with `--compact`.
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.

@@ -174,8 +174,9 @@ strahlenschutz --compact latest --max 5
 
 `--compact` (and every global option) works **before or after** the command —
 both `strahlenschutz --compact latest …` and `strahlenschutz latest … --compact`
-do the same thing. An answer nested too deeply to pretty-print (a broken or hostile
-server) is an error that suggests `--compact`, exit 1.
+do the same thing. An answer nested too deeply, or too large, to print (a broken or hostile
+server) is an `ERROR` record of `strahlenschutz.output` that names the cause, exit 1; it
+suggests `--compact` only where `--compact` prints that answer (deep nesting: from Node 26).
 
 **Exit codes** make the CLI easy to use in scripts:
 
