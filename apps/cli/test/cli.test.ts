@@ -520,3 +520,18 @@ test("--help says what --timeout 0 means: no time limit, as the library's timeou
   const help = cli.out.join("\n").replace(/\s+/g, " ");
   assert.match(help, /--timeout <ms> time limit per request in milliseconds, whole response included; 0 = no limit/);
 });
+
+test("the search for URLs inside an argument is linear: a long argument without :// costs no time (T15)", async () => {
+  // A pattern retried at every position (`/[A-Za-z][A-Za-z0-9+.-]*:\/\//g`) took ~3 s on 40 000
+  // letters and grew with the square of the length.
+  const { redactionFor } = await import("../src/cli/run.js");
+  for (const big of ["a".repeat(1_000_000), `${"a".repeat(500_000)}://${"b".repeat(500_000)}`, "a://b@ ".repeat(150_000)]) {
+    const started = performance.now();
+    const redaction = redactionFor(["station", big]);
+    assert.equal(redaction.err("x"), "x");
+    assert.ok(performance.now() - started < 1500, `${Math.round(performance.now() - started)} ms`);
+  }
+  // A URL far inside a long argument is still found.
+  const far = redactionFor(["latest", "--sort", `${"x ".repeat(10_000)}https://bob:s3cretpw@h.example/`]);
+  assert.equal(far.err("https://bob:s3cretpw@h.example/ and s3cretpw"), "https://***@h.example/ and ***");
+});

@@ -381,7 +381,8 @@ those strings with `***`. A bare `a:b@c` without a scheme is no URL (it is a sta
 id, a User-Agent or a sort key as often as a credential). The CLI's `run()` wraps its
 output in `withRedactedOutput`: it collects the credentials of every URL inside any
 argument — at its start, after padding or a dash, mid-phrase, and in its percent-decoded form
-(and of the value part of `--opt=value`) —, plus the `--base-url` value read as a URL even when
+(and of the value part of `--opt=value`); each `://` found with indexOf, at most 64 URLs per
+argument, so a long argument costs linear time —, plus the `--base-url` value read as a URL even when
 typed without its scheme, and redacts them, raw, JSON-escaped, as commander's escaped echo shows
 them and percent-encoded, from every line printed —
 commander's usage errors, which echo a rejected `--base-url` whole, included. The log
