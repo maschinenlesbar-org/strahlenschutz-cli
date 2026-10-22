@@ -464,3 +464,30 @@ test("no option can be switched both ways: no --x/--no-x pair, no optional value
     }
   }
 });
+
+test("a URL with a password anywhere in an argument is redacted on stderr: padded, mid-phrase, dash-led, encoded (T15)", async () => {
+  const url = "https://bob:s3cretpw@mirror.example/x";
+  const cases: string[][] = [];
+  for (const value of [` ${url}`, `\t${url}`, `x ${url} y`, ` -${url}`, `de${url}`, encodeURIComponent(` ${url}`)]) {
+    cases.push(
+      ["station", value], // the library's refusal quotes it
+      ["latest", "--station", value],
+      ["timeseries", "091811461", "--resolution", value],
+      ["latest", "--sort", value], // commander's echo of a rejected value, and the reason
+      ["latest", "--max", value],
+      [value], // an unknown command
+      ["latest", value], // a stray argument
+    );
+  }
+  for (const argv of cases) {
+    for (const format of [[], ["--log-format", "jsonl"]]) {
+      const cli = makeCli(() => jsonResponse(fc));
+      const code = await run([...format, ...argv], cli.deps);
+      const err = cli.err.join("\n");
+      assert.notEqual(code, 0, argv.join(" "));
+      assert.ok(err !== "", argv.join(" "));
+      assert.ok(!err.includes("s3cretpw") && !err.includes("bob:"), `${JSON.stringify(argv)}: ${err}`);
+      assert.equal(cli.mt.calls.length, 0, argv.join(" "));
+    }
+  }
+});

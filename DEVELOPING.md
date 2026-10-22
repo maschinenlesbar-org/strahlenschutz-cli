@@ -379,9 +379,11 @@ finds the exact userinfo of a URL that starts with a scheme, parsed or not (a po
 typo, a password with `#`, `?`, `/` or a space), and `redactCredentials` replaces
 those strings with `***`. A bare `a:b@c` without a scheme is no URL (it is a station
 id, a User-Agent or a sort key as often as a credential). The CLI's `run()` wraps its
-output in `withRedactedOutput`: it collects the credentials of every argument that is
-a URL (and of the value part of `--opt=value`), plus the `--base-url` value read as a
-URL even when typed without its scheme, and redacts them, raw and JSON-escaped, from every line printed —
+output in `withRedactedOutput`: it collects the credentials of every URL inside any
+argument — at its start, after padding or a dash, mid-phrase, and in its percent-decoded form
+(and of the value part of `--opt=value`) —, plus the `--base-url` value read as a URL even when
+typed without its scheme, and redacts them, raw, JSON-escaped, as commander's escaped echo shows
+them and percent-encoded, from every line printed —
 commander's usage errors, which echo a rejected `--base-url` whole, included. The log
 replaces them in each record's *message* (`redactionFor`), before the record is cut and
 escaped, and writes the record to the raw stderr: the frame (time, level, topic) is never

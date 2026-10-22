@@ -197,7 +197,7 @@ export function redactionFor(argv: readonly string[]): Redaction {
   const passwords = new Set<string>();
   // A base URL typed without its scheme is read as if it had one.
   const baseUrls = flagValues(argv, BASE_URL_FLAGS).map((value) => (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) ? value : `http://${value}`));
-  for (const source of [...values, ...baseUrls]) {
+  for (const source of [...values.flatMap(withDecoded).flatMap(urlsWithin), ...baseUrls]) {
     for (const secret of credentialsIn(source)) {
       secrets.add(secret);
       // As commander's echo shows it (escapeCommanderError), and as a JSON string.
@@ -205,6 +205,9 @@ export function redactionFor(argv: readonly string[]): Redaction {
       secrets.add(JSON.stringify(secret).slice(1, -1));
       // What a server echoes back: the Basic value and the decoded user:password on
       // stdout and stderr, the password alone (it may well occur in the data) on stderr.
+      // Percent-encoded, as a request URL or an encoded argument carries it.
+      const encoded = encodeURIComponent(secret);
+      if (encoded !== secret) echoed.add(encoded);
       const [basic, pair, password] = echoedCredentialForms(secret);
       if (basic !== undefined) echoed.add(basic);
       if (pair !== undefined) echoed.add(pair);
@@ -218,6 +221,31 @@ export function redactionFor(argv: readonly string[]): Redaction {
   const passwordList = [...passwords].sort((a, b) => b.length - a.length);
   const out = (text: string): string => redactSecrets(redactUserinfo(redactCredentials(text, list)), echoedList);
   return { out, err: (text) => redactSecrets(out(text), passwordList) };
+}
+
+/** Where a scheme (`https://`) starts inside a value: anywhere, not only at its start. */
+const SCHEME_START = /[A-Za-z][A-Za-z0-9+.-]*:\/\//g;
+
+/**
+ * `value` and the rest of it from each place a URL starts inside it, for `credentialsIn`
+ * (which reads a URL at the start of its input only). A kenn is sent trimmed, and every
+ * refusal quotes the value as typed, so a padded `" https://user:pw@host"`, one after a dash
+ * (`" -https://…"`) or inside a phrase reached the messages that quote it, and commander's echo.
+ */
+function urlsWithin(value: string): string[] {
+  const found = [value];
+  for (const match of value.matchAll(SCHEME_START)) if (match.index > 0) found.push(value.slice(match.index));
+  return found;
+}
+
+/** `value`, and its percent-decoded form when it has one (an argument typed encoded). */
+function withDecoded(value: string): string[] {
+  try {
+    const decoded = decodeURIComponent(value);
+    return decoded === value ? [value] : [value, decoded];
+  } catch {
+    return [value];
+  }
 }
 
 /**
