@@ -18,9 +18,11 @@ import {
   featureKindProblem,
   normalizeInput,
   normalizeSortBy,
+  normalizeToken,
   queryKeysProblem,
   sortByProblem,
   timeseriesResolutionProblem,
+  tokenProblem,
 } from "./validate.js";
 import type { FeatureCollection, FeatureQuery } from "./types.js";
 
@@ -55,6 +57,10 @@ export const DEFAULT_SORT_BY: Record<FeatureKind, string> = {
 const KENN_PATTERN = /^\d+$/;
 
 function assertKenn(raw: unknown): string {
+  // A token first: blank (or only invisible characters), a lone surrogate, a control or format
+  // character is named as such, the value quoted visibly.
+  const token = typeof raw === "string" ? tokenProblem(raw) : undefined;
+  if (token !== undefined) throw new StrahlValidationError(`Invalid station id: ${token}`);
   // Trimmed (and NFC) before the check: `" 083370490 "` means 083370490.
   const kenn = normalizeInput(raw);
   // Type first: an array `["083370490"]` or a number would pass the pattern after
@@ -162,10 +168,12 @@ export class StrahlenschutzClient {
 
   /**
    * Generic WFS GetFeature for one of the published feature kinds. A `kind`
-   * outside `FeatureKindValues` is a `StrahlValidationError` before any request.
+   * outside `FeatureKindValues` (trimmed and in NFC, as a token) is a
+   * `StrahlValidationError` before any request.
    */
   async getFeature(kind: FeatureKind, query: FeatureQuery = {}): Promise<FeatureCollection> {
-    assertValid("kind", kind, featureKindProblem);
+    // A closed set, as a token: `" latest "` is `latest`.
+    kind = normalizeToken(assertValid("kind", kind, featureKindProblem));
     // Only the documented keys: an unknown or misspelled one would be dropped and the
     // whole layer returned.
     assertValid("query", query, queryKeysProblem(FEATURE_QUERY_KEYS));
@@ -228,7 +236,8 @@ export class StrahlenschutzClient {
     resolution: TimeseriesResolution = "ts-1h",
     query: FeatureQuery = {},
   ): Promise<FeatureCollection> {
-    assertValid("resolution", resolution, timeseriesResolutionProblem);
+    // A closed set, as a token: `" ts-24h "` is `ts-24h`.
+    resolution = normalizeToken(assertValid("resolution", resolution, timeseriesResolutionProblem));
     // The station is the `kenn` argument; a `station` in the query would be overridden.
     assertValid("query", query, queryKeysProblem(TIMESERIES_QUERY_KEYS));
     return this.getFeature(resolution, { ...query, station: kenn });

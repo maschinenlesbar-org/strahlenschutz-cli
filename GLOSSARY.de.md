@@ -55,8 +55,10 @@ liegen die Messwerte bei einem Bruchteil eines Mikrosieverts pro Stunde.
 Gamma-Ortsdosisleistung vor Ort misst. Rund 1.700 Sonden decken Deutschland ab.
 
 **kenn (Messstellen-ID).** Die Kennung der Messstelle. Eine **numerische** Zeichenkette mit
-festem Format (nur Ziffern), z. B. `091811461`. Der Client entfernt umgebende Leerzeichen und
-prüft dann das Format (nur Ziffern, nicht leer), bevor er sie in den WFS-`CQL_FILTER` einsetzt (`kenn='<id>'`), und prüft, dass jedes Feature
+festem Format (nur Ziffern), z. B. `091811461`. Der Client entfernt umgebende Leerzeichen,
+lehnt ein unsichtbares, Steuer- oder halbes Zeichen ab (ein mitkopiertes Leerzeichen der
+Breite null wird benannt und maskiert gezeigt, `"\u200b091811461"`) und prüft dann das
+Format (nur Ziffern, nicht leer), bevor er sie in den WFS-`CQL_FILTER` einsetzt (`kenn='<id>'`), und prüft, dass jedes Feature
 der Antwort diese `kenn` trägt (ein Server, der den Filter weglässt, ist ein Fehler, keine
 Daten einer anderen Messstelle). CLI: `station <kenn>`, `--station <kenn>`,
 `timeseries <kenn>`.
@@ -97,7 +99,9 @@ Diese Werte bilden das const-Array `FeatureKindValues`; die Map `TYPE_NAMES` (be
 als `TimeseriesResolutionValues` exportiert. Die Bibliothek prüft jede Art vor jeder Anfrage
 gegen diese Listen: `getFeature()` lehnt alles außerhalb von `FeatureKindValues` ab,
 `timeseries()` (CLI: `--resolution`) alles außerhalb von `TimeseriesResolutionValues`, auch
-`latest`, jeweils mit einem `StrahlValidationError`.
+`latest`, jeweils mit einem `StrahlValidationError`. Verglichen wird der Wert ohne umgebende
+Leerzeichen und in NFC (`" ts-24h"` ist `ts-24h`); ein leerer oder unsichtbarer Wert wird als
+solcher abgelehnt.
 
 ---
 
@@ -145,7 +149,11 @@ weil sie diesen Standard ersetzen würde. Als Richtung gelten nur `D`/`DESC` (ab
 `A`/`ASC` (aufsteigend), in beliebiger Schreibweise: Jedes andere Wort (`DSC`, ein Tippfehler)
 liest der WFS ohne Fehler als aufsteigend, deshalb lehnt der Client es ab. Leerzeichen werden
 vor dem Senden vereinheitlicht (`"end_measure  D"` mit zwei Leerzeichen, das der WFS ebenfalls
-als aufsteigend las, geht als `end_measure D` hinaus).
+als aufsteigend las, geht als `end_measure D` hinaus), und ein Eigenschaftsname geht in
+zusammengesetztem Unicode (NFC) hinaus. Eine Eigenschaft muss ein XML-Name sein (ein Buchstabe
+oder `_`, dann Buchstaben, Ziffern, `_`, `.` oder `-`, mit optionalem Präfix wie `opendata:`),
+`kenn+D` oder `a/b` ist also ein Bedienfehler; ein unsichtbares, Steuer- oder Formatzeichen im
+Wert (ein Leerzeichen der Breite null) wird abgelehnt und benannt, nie gesendet.
 
 **outputFormat.** Fest auf `application/json` gesetzt, damit jede Antwort GeoJSON ist.
 

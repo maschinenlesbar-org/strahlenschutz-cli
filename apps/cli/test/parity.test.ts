@@ -90,7 +90,7 @@ test("parity: whitespace and direction spellings in sortBy are sent normalised b
 });
 
 test("parity: an invalid timeseries resolution is rejected by the CLI and the library before any request", async () => {
-  for (const res of ["latest", "ts-7d", "TS-1H", " ts-1h", "", "bogus", "__proto__", "toString", "constructor"]) {
+  for (const res of ["latest", "ts-7d", "TS-1H", "bogus", "__proto__", "toString", "constructor"]) {
     const result = await parity(["--compact", "timeseries", "091811461", "--resolution", res], (transport) =>
       new StrahlenschutzClient({ transport }).timeseries("091811461", res as never),
     );
@@ -103,10 +103,24 @@ test("parity: an invalid timeseries resolution is rejected by the CLI and the li
   }
 });
 
-test("parity: a valid resolution sends the identical request from both sides", async () => {
-  for (const res of ["ts-1h", "ts-24h"] as const) {
+test("parity: a blank or invisible resolution is refused as a token, the character shown escaped (D8)", async () => {
+  for (const [res, message] of [
+    ["", "Expected a non-empty value."],
+    ["\u200b", "Expected a non-empty value."],
+    ["ts-1h\u200b", '"ts-1h\\u200b" contains an invisible or control character (U+200B).'],
+  ] as const) {
+    const result = await parity(["--compact", "timeseries", "091811461", "--resolution", res], (transport) =>
+      new StrahlenschutzClient({ transport }).timeseries("091811461", res as never),
+    );
+    assertBothReject(JSON.stringify(res), result);
+    assert.equal((result.lib.error as Error).message, `Invalid resolution: ${message}`);
+  }
+});
+
+test("parity: a valid resolution sends the identical request from both sides, a padded one trimmed (D8)", async () => {
+  for (const res of ["ts-1h", "ts-24h", " ts-1h", "ts-24h\n"] as const) {
     const { cli, lib } = await parity(["timeseries", "091811461", "--resolution", res], (transport) =>
-      new StrahlenschutzClient({ transport }).timeseries("091811461", res),
+      new StrahlenschutzClient({ transport }).timeseries("091811461", res as never),
     );
     assert.equal(cli.code, 0);
     assert.equal(lib.ok, true);
@@ -115,7 +129,7 @@ test("parity: a valid resolution sends the identical request from both sides", a
 });
 
 test("getFeature rejects an unknown feature kind, inherited names included, before any request", async () => {
-  for (const kind of ["bogus", "", "constructor", "__proto__", "toString", "LATEST"]) {
+  for (const kind of ["bogus", "constructor", "__proto__", "toString", "LATEST"]) {
     const { lib } = await parity(["latest"], (transport) =>
       new StrahlenschutzClient({ transport }).getFeature(kind as never),
     );

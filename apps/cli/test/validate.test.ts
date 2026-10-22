@@ -8,6 +8,8 @@ import {
   headerValueProblem,
   intRangeProblem,
   nonEmptyProblem,
+  normalizeSortBy,
+  sortByProblem,
   timeseriesResolutionProblem,
   type Problem,
 } from "@maschinenlesbar.org/strahlenschutz-client/internal/validate";
@@ -89,9 +91,14 @@ test("featureKindProblem and timeseriesResolutionProblem accept only their own v
     timeseriesResolutionProblem("latest"),
     'Expected one of: ts-1h, ts-24h (got "latest").',
   );
-  for (const bad of ["__proto__", "constructor", "toString", "hasOwnProperty", "", " latest", 1, undefined]) {
+  for (const bad of ["__proto__", "constructor", "toString", "hasOwnProperty", "LATEST", 1, undefined]) {
     assert.match(featureKindProblem(bad) ?? "", /^Expected one of: latest, ts-1h, ts-24h \(got .*\)\.$/, String(bad));
   }
+  // A closed set is a token (D8): a padded value is the value (sent trimmed), a blank or
+  // invisible one is refused as such.
+  assert.equal(featureKindProblem(" latest\n"), undefined);
+  assert.equal(featureKindProblem(""), "Expected a non-empty value.");
+  assert.equal(timeseriesResolutionProblem("ts-1h\u00ad"), '"ts-1h\\u00ad" contains an invisible or control character (U+00AD).');
 });
 
 test("intRangeProblem accepts safe integers within [min, max] and words its reasons like the CLI", () => {
@@ -163,4 +170,18 @@ test("every value an own message quotes is cut, never inside a surrogate pair", 
       return true;
     }, label);
   }
+});
+
+test("a sort key is a property name in the documented syntax, sent trimmed and in NFC (D8)", () => {
+  for (const ok of ["kenn", "end_measure D", "opendata:end_measure desc", "k\u00e9nn", "ke\u0301nn A", " value\tD , kenn "]) {
+    assert.equal(sortByProblem(ok), undefined, JSON.stringify(ok));
+  }
+  assert.equal(normalizeSortBy("ke\u0301nn A"), "k\u00e9nn A");
+  assert.equal(normalizeSortBy(" value\tD , kenn "), "value D,kenn");
+  for (const bad of ["kenn+D", "a/b", ":kenn", "a:b:c", "..", ".", "%2e%2e", "1kenn", "kenn,a/b D"]) {
+    assert.match(sortByProblem(bad) ?? "", /^Expected a property name \(a letter or "_", then letters, digits, "_", "\." or "-"\), got "/, JSON.stringify(bad));
+  }
+  // Blank, or only invisible characters, is blank; an invisible character inside is named.
+  for (const blank of ["", " ", "\u200b", "\u0301"]) assert.equal(sortByProblem(blank), "Expected a non-empty value.", JSON.stringify(blank));
+  assert.equal(sortByProblem("kenn\u200b"), '"kenn\\u200b" contains an invisible or control character (U+200B).');
 });

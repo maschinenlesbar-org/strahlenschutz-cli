@@ -161,8 +161,12 @@ default sort; only an omitted `sortBy` selects the default. A direction must be
 GeoServer reads any other token as ascending with HTTP 200, so `"end_measure DSC"`
 returned the oldest hours of the week. The value goes out normalised
 (`normalizeSortBy`): keys trimmed, inner whitespace collapsed to one space (two spaces
-before `D` were also read as ascending), the direction as `A` or `D`. Property names
-are left as typed; a wrong one is an HTTP 400 with GeoServer's reason. The CLI's
+before `D` were also read as ascending), the direction as `A` or `D`, the property name in
+NFC. A property name must be an XML name (`[\p{L}_][\p{L}\p{N}_.-]*`, with an optional
+`prefix:`): `kenn+D`, `..` or `a/b` is a `StrahlValidationError`; an existing name that is
+wrong is an HTTP 400 with GeoServer's reason. The value is checked like a token (below): a
+control, format or bidi character (a zero-width space), a lone surrogate or only invisible
+characters are refused and named; only a TAB may stand where a space does. The CLI's
 `--sort` calls the same rule at parse time.
 
 ## Architecture
@@ -448,8 +452,20 @@ transport while reading and by the engine to the body any transport returns. The
 message names the option and the CLI flag: `Response exceeded the size limit of <n>
 bytes (maxResponseBytes; --max-response-bytes on the CLI)`.
 
-**`kenn` validation.** The client trims the station id and applies Unicode NFC (the
-exported `normalizeInput`; `" 083370490\n"` means `083370490`), then validates it
+**Tokens.** Every value the WFS compares exactly — the station id `kenn`, a sort key, the
+feature kind and the resolution — is a token (D8 of the 2026-10-21 fix plan): `tokenProblem`
+(exported) refuses a value that is blank or holds only invisible characters and combining
+marks ("Expected a non-empty value."), a lone surrogate, and any control or format character
+(`"\u200b091811461" contains an invisible or control character (U+200B).`, quoted visibly);
+`normalizeToken` (exported) sends it trimmed and in NFC. The closed sets (`kind`,
+`resolution`) are looked up after that, so `" ts-24h"` is `ts-24h`; case is not folded. The
+kit's `textProblem`/`normalizeText` (free text) and `splitList`/`listProblem` (comma lists) are
+exported too; the WFS takes neither today. The CLI's integer parsers (`--max`, `--start`,
+`--timeout`, …) check a token first, so `--max "1\u200b"` names the zero-width space.
+`apps/cli/test/conformance-p24-input-corpus.test.ts` runs the corpus through every token.
+
+**`kenn` validation.** The client checks the station id as a token, trims it and applies
+Unicode NFC (the exported `normalizeInput`; `" 083370490\n"` means `083370490`), then validates it
 (a string, digits only, non-empty) before splicing it into the WFS `CQL_FILTER`
 (`kenn='<id>'`), and rejects anything else with a `StrahlValidationError` — defence in
 depth on top of the percent-encoding the value already receives. No case-folding or
@@ -566,8 +582,9 @@ everything that drives the CLI is in `apps/cli/test/`.
   options, P20 the stderr warning for a plain-`http:` base URL, P21 README links only to files
   the npm package ships (others by their GitHub URL), P23 the log on stderr (its body takes the
   usage-error exit code from the adapter's `USAGE_EXIT`, `1` here), P24 the input corpus (no
-  text filter here; the station id, read from the `CQL_FILTER`, stands in for a path id, and
-  every corpus value is refused on both sides), P25 the response corpus (a number a double
+  text filter and no list here; the tokens are the station id, read from the `CQL_FILTER`, the
+  `--sort` of `latest` and `timeseries` and the `--resolution`; a blank, invisible, control or
+  half character is refused on both sides and shown escaped), P25 the response corpus (a number a double
   can't carry, and an empty answer, are exit 1 and the parse error; on `latest`). P26 (`-o`) is
   not copied: the CLI writes no files. P27 big and odd answers (spawns the built bin under a small
   heap): a large flat answer prints with `--compact`; 20 M DEL characters print escaped under a

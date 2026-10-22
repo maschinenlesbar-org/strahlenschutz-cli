@@ -58,8 +58,9 @@ network that measures the local ambient gamma dose rate. Roughly 1 700 probes
 cover Germany.
 
 **kenn (station id).** The station identifier (Kennung). A fixed-format **numeric**
-string (digits only), e.g. `091811461`. The client trims surrounding whitespace, then
-validates the shape (digits only, non-empty) before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`), and checks that every
+string (digits only), e.g. `091811461`. The client trims surrounding whitespace and refuses
+an invisible, control or half character (a zero-width space copied along is named and shown
+escaped, `"\u200b091811461"`), then validates the shape (digits only, non-empty) before splicing it into the WFS `CQL_FILTER` (`kenn='<id>'`), and checks that every
 feature of the answer carries that `kenn` (a server that drops the filter is an error,
 not another station's data). CLI: `station <kenn>`, `--station <kenn>`,
 `timeseries <kenn>`.
@@ -100,7 +101,8 @@ exported) translates each friendly kind to its WFS `typeName`. The two time-seri
 kinds are also exported as `TimeseriesResolutionValues`. The library checks every
 kind against these lists before any request: `getFeature()` rejects anything outside
 `FeatureKindValues`, and `timeseries()` (CLI: `--resolution`) anything outside
-`TimeseriesResolutionValues`, `latest` included, with a `StrahlValidationError`.
+`TimeseriesResolutionValues`, `latest` included, with a `StrahlValidationError`. The value is
+compared trimmed and in NFC (`" ts-24h"` is `ts-24h`); a blank or invisible one is refused as such.
 
 ---
 
@@ -148,7 +150,11 @@ alike, since it would replace that default. The direction must be `D`/`DESC`
 (descending) or `A`/`ASC` (ascending), in any case: the WFS reads any other token
 (`DSC`, a typo) as ascending with no error, so the client rejects it; whitespace is
 normalised before sending (`"end_measure  D"`, with two spaces, also read as
-ascending upstream, goes out as `end_measure D`).
+ascending upstream, goes out as `end_measure D`), and a property name goes out in composed
+Unicode (NFC). A property must be an XML name (a letter or `_`, then letters, digits, `_`,
+`.` or `-`, with an optional prefix such as `opendata:`), so `kenn+D` or `a/b` is a usage error;
+an invisible, control or format character in the value (a zero-width space) is refused and
+named, never sent.
 
 **outputFormat.** Fixed to `application/json` so every response is GeoJSON.
 

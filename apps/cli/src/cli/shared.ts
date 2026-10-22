@@ -13,7 +13,19 @@ import {
   intRangeProblem,
   nonEmptyProblem,
   sortByProblem,
+  tokenProblem,
 } from "@maschinenlesbar.org/strahlenschutz-client/internal/validate";
+
+/**
+ * Refuse a value the library's token rule refuses ({@link tokenProblem}): blank (or only
+ * invisible characters), a lone surrogate, a control or format character. The integer parsers
+ * call it first, so such a value is named, and shown escaped (`"1\u200b" contains an invisible
+ * or control character (U+200B).`), instead of only "Expected a non-negative integer".
+ */
+function assertToken(value: string): void {
+  const problem = tokenProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
+}
 
 /**
  * commander value-parser: a non-negative integer.
@@ -24,6 +36,7 @@ import {
  * digits and reject anything that would not round-trip as a safe integer.
  */
 export function parseIntArg(value: string): number {
+  assertToken(value);
   if (!/^[0-9]+$/.test(value)) {
     throw new InvalidArgumentError("Expected a non-negative integer.");
   }

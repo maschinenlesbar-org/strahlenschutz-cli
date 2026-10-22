@@ -127,7 +127,10 @@ without a reading first: the WFS sorts `null` highest, so `"end_measure D"` and
 `"<prop> D"`, quoted) for descending, and separate several keys with commas
 (`"end_measure D,kenn"`). `DESC`, `A` and `ASC` work too, in any case; any other
 direction (`"end_measure DSC"`) is a usage error, since the WFS would silently read it
-as ascending. Control and bidi characters (a newline, ESC, U+202E) are a usage error too. Extra whitespace is dropped before sending. `--start` is the paging offset; without `--max` you
+as ascending. A property must be an XML name (a letter or `_`, then letters, digits, `_`, `.`
+or `-`; `kenn+D` is a usage error), and control, format and bidi characters (a newline, ESC,
+U+202E, a zero-width space) are a usage error too, the character named. Extra whitespace is
+dropped and property names go out in NFC. `--start` is the paging offset; without `--max` you
 get everything from that offset on. The service can only
 page a sorted result, so without `--sort` the CLI sorts by `kenn` (`latest`) or
 `kenn,end_measure` (`timeseries`, oldest first).
@@ -160,7 +163,8 @@ The daily layer currently holds a series for **one station only**, Flensburg
 (`010010001`: 364 daily values, checked 26 Sep 2026). Every other station returns
 an empty collection with `ts-24h`; for them, average the hourly series per day.
 
-Only `ts-1h` and `ts-24h` are accepted for `--resolution`; anything else is
+Only `ts-1h` and `ts-24h` are accepted for `--resolution` (surrounding whitespace is
+dropped); anything else is
 rejected before any request (`ERROR [strahlenschutz.cli] Invalid resolution: Expected
 one of: ts-1h, ts-24h (got "weekly").`, exit `1`). The library's `timeseries()` applies the same
 rule, so a library caller gets the same `StrahlValidationError`.

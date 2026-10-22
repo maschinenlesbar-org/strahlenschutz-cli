@@ -34,9 +34,117 @@ export function normalizeInput<T>(value: T): T {
   return (typeof value === "string" ? value.trim().normalize("NFC") : value) as T;
 }
 
-/** True for an empty or whitespace-only string. */
+/** Characters that never make a value non-blank: whitespace, controls, format characters, combining marks. */
+const INVISIBLE = /[\s\p{Cc}\p{Cf}\p{M}]/gu;
+
+/** A lone surrogate: half of a character, which URLSearchParams would send as U+FFFD. */
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+/**
+ * True when nothing in `value` would match anything: it holds only whitespace, control and
+ * format characters (a zero-width space, a soft hyphen) and combining marks. Such a value reads
+ * as "no value" upstream, or matches nothing, so it is refused as blank.
+ */
 export function isBlank(value: string): boolean {
-  return value.trim() === "";
+  return value.replace(INVISIBLE, "") === "";
+}
+
+/** `U+200B` for the first character of `text` that `pattern` matches. */
+function codePointOf(text: string, pattern: RegExp): string {
+  const ch = pattern.exec(text)?.[0] ?? "";
+  return `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+/** A control character inside a text filter: C0 and C1, but not TAB, LF or CR (whitespace in a pasted phrase). */
+const TEXT_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
+
+/** A format character inside a text filter, but not ZWNJ/ZWJ (U+200C/U+200D), which some scripts and emoji need. */
+const TEXT_FORMAT = /(?![\u200c\u200d])\p{Cf}/u;
+
+/**
+ * Why `value` cannot be sent as a text filter, or undefined when it can. The WFS takes no free
+ * text today; the rule is the kit's, exported for a library caller and a future text parameter.
+ * Refused, before any request, as an API would match nothing or everything:
+ * - a value that is blank once trimmed (Unicode whitespace, U+00A0 included), or that holds only
+ *   invisible characters and combining marks (`isBlank`): an empty filter reads as "no filter";
+ * - a lone surrogate (half of a character, sent as U+FFFD);
+ * - a control character (but TAB, LF and CR) or a format character (a zero-width space, a soft
+ *   hyphen, a bidi control; ZWNJ and ZWJ are allowed): pasted along, it makes a search find
+ *   nothing.
+ * The reason quotes the value with every invisible character escaped (`quoteValue`).
+ */
+export function textProblem(value: string): string | undefined {
+  if (typeof value !== "string") return "Expected a string.";
+  if (isBlank(value)) return "Expected a non-empty value.";
+  if (LONE_SURROGATE.test(value)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TEXT_CONTROL.test(value)) return `${quoteValue(value)} contains a control character (${codePointOf(value, TEXT_CONTROL)}).`;
+  if (TEXT_FORMAT.test(value)) return `${quoteValue(value)} contains an invisible character (${codePointOf(value, TEXT_FORMAT)}).`;
+  return undefined;
+}
+
+/**
+ * A text filter as an API matches it: without surrounding whitespace and in composed Unicode,
+ * NFC (a decomposed "Müller", u plus U+0308 as pasted from a macOS file name, matched nothing).
+ * Inner whitespace is kept.
+ */
+export function normalizeText(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
+/** A control or format character in a token (after trimming): every Cc and every Cf. */
+const TOKEN_INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+
+/**
+ * Why `value` cannot be sent as a token, or undefined when it can. A token is a value the WFS
+ * compares exactly: the station id `kenn`, a sort key, the resolution (a closed set). The rules
+ * apply to the value with surrounding whitespace trimmed, as it is sent ({@link normalizeToken}):
+ * not blank (and not only invisible characters or combining marks), no lone surrogate, and no
+ * control or format character at all (a zero-width space, ZWJ, a soft hyphen, a bidi control),
+ * since an invisible character in a code only ever makes it match nothing. The reason quotes the
+ * value visibly (`"\u200b091811461" contains an invisible or control character (U+200B).`).
+ */
+export function tokenProblem(value: string): string | undefined {
+  if (typeof value !== "string") return "Expected a string.";
+  if (isBlank(value)) return "Expected a non-empty value.";
+  const token = value.trim();
+  if (LONE_SURROGATE.test(token)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TOKEN_INVISIBLE.test(token)) {
+    return `${quoteValue(value)} contains an invisible or control character (${codePointOf(token, TOKEN_INVISIBLE)}).`;
+  }
+  return undefined;
+}
+
+/**
+ * A token as it is sent: trimmed and in composed Unicode (NFC). Check it with {@link tokenProblem}
+ * first. A non-string value is returned unchanged.
+ */
+export function normalizeToken<T>(value: T): T {
+  return (typeof value === "string" ? value.trim().normalize("NFC") : value) as T;
+}
+
+/**
+ * The items of a comma-separated list, as typed: each item is checked (`listProblem`) and
+ * canonicalised (`normalizeToken`) on its own, so `"a1, a2"` sends `a2`, and `"a1,,a2"`, `"a1,"`
+ * and `","` are refused rather than sent as an empty item (which an API may read as "no
+ * filter"). The WFS takes no list option today; the rule is the kit's.
+ */
+export function splitList(value: string): string[] {
+  return value.split(",");
+}
+
+/**
+ * Why `items` cannot be sent as a list, or undefined when it can: not an array of strings, no
+ * item at all (an empty list reads as "no filter"), or an item that `itemProblem` refuses (by
+ * default {@link tokenProblem}: a blank item is refused, never dropped). The reason names the item.
+ */
+export function listProblem(items: readonly string[], itemProblem: Problem<string> = tokenProblem): string | undefined {
+  if (!Array.isArray(items)) return "Expected a list of strings.";
+  if (items.length === 0) return "Expected at least one value.";
+  for (let i = 0; i < items.length; i++) {
+    const problem = itemProblem(items[i] as string);
+    if (problem !== undefined) return items.length === 1 ? problem : `item ${i + 1} of ${items.length}: ${problem}`;
+  }
+  return undefined;
 }
 
 /**
@@ -61,26 +169,52 @@ function sortDirection(token: string): "A" | "D" | undefined {
 }
 
 /**
+ * A property name as GeoServer knows it: an XML name (a letter or "_", then letters, digits,
+ * "_", "." or "-"), with an optional namespace prefix (`opendata:end_measure`). `kenn+D` (a
+ * direction typed without its space), `..` or `a/b` are no property names.
+ */
+const PROPERTY_NAME = /^(?:[\p{L}_][\p{L}\p{N}_.-]*:)?[\p{L}_][\p{L}\p{N}_.-]*$/u;
+
+/**
+ * What a sort value may not hold once trimmed: a token's control and format characters (but TAB,
+ * which separates a property from its direction like a space), and the line and paragraph
+ * separators U+2028/U+2029 (whitespace to a split, a line break to a terminal).
+ */
+const SORT_INVISIBLE = /(?!\t)[\p{Cc}\p{Cf}\u2028\u2029]/u;
+
+/**
  * A WFS `sortBy`: comma-separated keys, each a property name with an optional
  * direction — `A`/`ASC` (ascending) or `D`/`DESC` (descending), any case. GeoServer
  * reads any other direction token (`DSC`, `X`), and a key with two spaces before the
  * direction, as ascending with HTTP 200: `"end_measure DSC"` returned the oldest hours
- * where the newest were meant. Whitespace is fine here (normalizeSortBy collapses it);
- * an unknown direction, an empty key (`kenn,,value`) or a third word is the problem.
+ * where the newest were meant. The value is checked as a token ({@link tokenProblem}): not
+ * blank (or only invisible characters), no lone surrogate, no control or format character (a
+ * zero-width space pasted along made a property name that looks right but matched nothing);
+ * only a TAB may stand where a space does. Whitespace between
+ * a property and its direction is fine (normalizeSortBy collapses it); an unknown direction, an
+ * empty key (`kenn,,value`), a third word, or a property that is no XML name (`kenn+D`, `..`,
+ * `a/b`) is the problem. The reasons quote the value visibly (`quoteValue`).
  */
 export const sortByProblem: Problem<unknown> = (value) => {
-  const blank = nonEmptyProblem(value);
-  if (blank !== undefined) return blank;
-  if (/[\u0000-\u0008\u000a-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/.test(value as string)) {
-    return "Expected no control or bidi characters.";
+  if (typeof value !== "string" || isBlank(value)) return "Expected a non-empty value.";
+  const trimmed = value.trim();
+  if (LONE_SURROGATE.test(trimmed)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (SORT_INVISIBLE.test(trimmed)) {
+    return `${quoteValue(value)} contains an invisible or control character (${codePointOf(trimmed, SORT_INVISIBLE)}).`;
   }
-  for (const key of (value as string).split(",")) {
+  for (const key of value.split(",")) {
     const parts = sortKeyParts(key);
     if (parts.length === 0) return "Expected comma-separated sort keys, got an empty one.";
     if (parts.length > 2) {
       return `Expected "<property>" or "<property> D" per sort key, got ${quote(key.trim())}.`;
     }
-    const direction = parts[1];
+    const [property = "", direction] = parts;
+    if (!PROPERTY_NAME.test(property.normalize("NFC"))) {
+      return (
+        `Expected a property name (a letter or "_", then letters, digits, "_", "." or "-"), got ${quote(property)}` +
+        (direction === undefined ? "." : ` in ${quote(key.trim())}.`)
+      );
+    }
     if (direction !== undefined && sortDirection(direction) === undefined) {
       return (
         `Unknown sort direction ${quote(direction)} in ${quote(key.trim())}; ` +
@@ -93,16 +227,18 @@ export const sortByProblem: Problem<unknown> = (value) => {
 
 /**
  * A `sortBy` that passed {@link sortByProblem}, in the form the client sends: each key
- * trimmed, whitespace inside it collapsed to one space, the direction as `A` or `D`
- * (`" end_measure  desc , kenn"` → `"end_measure D,kenn"`). Property names are kept as
- * typed: the WFS compares them case-sensitively and answers a wrong one with HTTP 400.
+ * trimmed, whitespace inside it collapsed to one space, the property name in composed Unicode
+ * (NFC), the direction as `A` or `D` (`" end_measure  desc , kenn"` → `"end_measure D,kenn"`).
+ * No case-folding: the WFS compares property names case-sensitively and answers a wrong one with
+ * HTTP 400.
  */
 export function normalizeSortBy(value: string): string {
   return value
     .split(",")
     .map((key) => {
-      const [property, direction] = sortKeyParts(key);
-      return direction === undefined ? (property ?? "") : `${property} ${sortDirection(direction) ?? direction}`;
+      const [property = "", direction] = sortKeyParts(key);
+      const name = normalizeToken(property);
+      return direction === undefined ? name : `${name} ${sortDirection(direction) ?? direction}`;
     })
     .join(",");
 }
@@ -122,15 +258,22 @@ function describe(value: unknown): string {
 }
 
 /**
- * A value must be one of `allowed`. Checked with `includes()` on the value list,
- * never by a keyed table lookup, so inherited names such as `__proto__`,
+ * A value must be one of `allowed`, as a token: a string is checked with {@link tokenProblem}
+ * (not blank, no invisible, control or half character, quoted visibly), then trimmed and in NFC
+ * ({@link normalizeToken}) and looked up, so `" ts-24h "` is `ts-24h` (the caller sends
+ * `normalizeToken(value)`). Case is not folded: `TS-1H` is refused. Checked with `includes()` on
+ * the value list, never by a keyed table lookup, so inherited names such as `__proto__`,
  * `toString` or `constructor` are rejected too.
  */
 export function oneOfProblem(allowed: readonly string[]): Problem<unknown> {
-  return (value) =>
-    (allowed as readonly unknown[]).includes(value)
-      ? undefined
-      : `Expected one of: ${allowed.join(", ")} (got ${describe(value)}).`;
+  return (value) => {
+    if (typeof value === "string") {
+      const token = tokenProblem(value);
+      if (token !== undefined) return token;
+      if (allowed.includes(normalizeToken(value))) return undefined;
+    }
+    return `Expected one of: ${allowed.join(", ")} (got ${describe(value)}).`;
+  };
 }
 
 /** The feature kind of `getFeature()`: one of `FeatureKindValues`. */

@@ -190,15 +190,15 @@ test("blank --sort values are rejected at parse time before any request", async 
   }
 });
 
-test("--sort with control or bidi characters is a usage error before any request", async () => {
-  for (const value of ["kenn\nINFO x", "kenn\u001b[2J", "kenn\u0085", "kenn\u007f", "ke\u202enn", "kenn\u2028x", "kenn\u2066"]) {
+test("--sort with control, format or bidi characters is a usage error before any request, the character named (D8)", async () => {
+  for (const value of ["kenn\nINFO x", "kenn\u001b[2J", "kenn\u0085", "kenn\u007f", "ke\u202enn", "kenn\u2028x", "kenn\u2066", "kenn\u200b", "ke\u00adnn D"]) {
     const cli = makeCli(() => jsonResponse(fc));
     assert.equal(await run(["latest", "--sort", value], cli.deps), 1, JSON.stringify(value));
     assert.equal(cli.mt.calls.length, 0);
-    assert.match(untimed(cli.err[0] ?? ""), /^ERROR \[strahlenschutz\.cli\] .*--sort.*control or bidi/, JSON.stringify(value));
+    assert.match(untimed(cli.err[0] ?? ""), /^ERROR \[strahlenschutz\.cli\] .*--sort.*contains an invisible or control character \(U\+[0-9A-F]{4}\)/, JSON.stringify(value));
   }
   const lib = new StrahlenschutzClient({ transport: async () => jsonResponse(fc) });
-  await assert.rejects(lib.latest({ sortBy: "kenn\u202e" }), /control or bidi/);
+  await assert.rejects(lib.latest({ sortBy: "kenn\u202e" }), /"kenn\\u202e" contains an invisible or control character \(U\+202E\)/);
 });
 
 test("--max-retries is bounded to 0..10", async () => {
@@ -437,17 +437,17 @@ test("a refused value shows an invisible character escaped, never raw: the libra
   // A kenn copied with a zero-width space was refused as `Invalid station id "<ZWSP>091811461".`,
   // which reads as a valid id on a terminal.
   for (const argv of [
-    ["station", "​091811461"],
-    ["latest", "--station", "091811461​"],
-    ["timeseries", "⁠091811461"],
-    ["latest", "--sort", "kenn​ DSC"],
-    ["latest", "--max", "1​"],
+    ["station", "\u200b091811461"],
+    ["latest", "--station", "091811461\u200b"],
+    ["timeseries", "\u2060091811461"],
+    ["latest", "--sort", "kenn\u200b DSC"],
+    ["latest", "--max", "1\u200b"],
   ]) {
     const cli = makeCli(() => jsonResponse(fc));
     assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
     assert.equal(cli.mt.calls.length, 0, argv.join(" "));
     const err = cli.err.join("\n");
     assert.match(err, /\\u(200b|2060)/, `${argv.join(" ")}: ${err}`);
-    assert.doesNotMatch(err, /[​⁠]/, argv.join(" "));
+    assert.doesNotMatch(err, /[\u200b\u2060]/, argv.join(" "));
   }
 });
