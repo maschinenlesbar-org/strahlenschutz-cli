@@ -451,3 +451,16 @@ test("a refused value shows an invisible character escaped, never raw: the libra
     assert.doesNotMatch(err, /[\u200b\u2060]/, argv.join(" "));
   }
 });
+
+test("no option can be switched both ways: no --x/--no-x pair, no optional value (kit T11 n/a)", async () => {
+  // The kit's forbidRepeatedOptions guards such options (`--x false --x` turned true silently in
+  // fragdenstaat-cli). strahlenschutz has none, and repeats of its value options are refused by
+  // once(); a new negatable or optional-value option must take the kit's guard first.
+  const { buildProgram } = await import("../src/cli/program.js");
+  const program = buildProgram(makeCli(() => jsonResponse(fc)).deps);
+  for (const command of [program, ...program.commands]) {
+    for (const option of command.options) {
+      assert.ok(!option.negate && !option.optional, `${command.name()} ${option.flags}`);
+    }
+  }
+});
