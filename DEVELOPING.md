@@ -62,6 +62,7 @@ new StrahlenschutzClient({
   maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
+  bigIntegerKeys: new Set(["_version_"]), // members whose numbers may pass 2^53: delivered as strings
 });
 ```
 
@@ -316,7 +317,13 @@ answer with a `StrahlParseError` (`Unexpected response from /ogc/opendata/ows: t
 12345678901234567890 cannot be represented exactly.`, CLI exit 1), never a changed value. Past
 2^53 and in the subnormal range a number passes when it prints as written (`1E23`,
 `1.7976931348623157E308`, `5e-324`, `1e-310`: a double in its shortest form); between them a
-decimal fraction keeps a double's precision, as JSON means it. The BfS answer carries
+decimal fraction keeps a double's precision, as JSON means it. A member named in the engine
+option `bigIntegerKeys` (a set or list of non-empty member names, copied; default none, and this
+client declares none) is the one exception: its number value is delivered as its exact literal,
+as written, as a JSON string (`"1858054135406919680"`, `"5"`), whatever its size, so its type is
+stable. The engine does both in one linear scan of the text before `JSON.parse` (`scanNumbers`,
+which quotes the declared values in place; no reviver). A value of `bigIntegerKeys` that is not a
+set or list of non-empty strings is a `StrahlValidationError` when the client is built. The BfS answer carries
 dose rates and coordinates as decimals and small counts, which all pass; the station id
 `kenn` is a string.
 
