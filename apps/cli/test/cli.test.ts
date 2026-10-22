@@ -491,3 +491,25 @@ test("a URL with a password anywhere in an argument is redacted on stderr: padde
     }
   }
 });
+
+test("a global option given last without its value and no command is commander's 'argument missing', never the value --help (04#9)", async () => {
+  // The bare-program path appends `--help` to argv, which such an option took as its value:
+  // `option '--timeout <ms>' argument '--help' is invalid.`, and `--user-agent` took `--help`
+  // as the User-Agent.
+  for (const [argv, flags] of [
+    [["--timeout"], "--timeout <ms>"],
+    [["--base-url"], "--base-url <url>"],
+    [["--log-format"], "--log-format <format>"],
+    [["--max-retries"], "--max-retries <n>"],
+    [["--compact", "--max-retries"], "--max-retries <n>"],
+    [["--user-agent"], "--user-agent <ua>"],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse(fc));
+    assert.equal(await run([...argv], cli.deps), 1, argv.join(" "));
+    assert.deepEqual(cli.out, [], argv.join(" "));
+    const err = untimed(cli.err.join("\n"));
+    assert.ok(err.startsWith(`ERROR [strahlenschutz.cli] option '${flags}' argument missing`), `${argv.join(" ")}: ${err}`);
+    assert.doesNotMatch(err, /--help'|missing command/, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0);
+  }
+});

@@ -127,8 +127,10 @@ function valueOptionsOf(program: Command): Set<string> {
 /**
  * True when `argv` holds only options the program itself knows and no command (and no
  * help or version request): `strahlenschutz --compact`. That is a request for usage like
- * the bare program, not a failed run. Anything else (a command, an unknown option, `--`)
- * is left to commander.
+ * the bare program, not a failed run. Anything else (a command, an unknown option, `--`,
+ * an option that takes a value given last without one) is left to commander: with `--help`
+ * appended, `strahlenschutz --timeout` took `--help` as the timeout ("argument '--help' is
+ * invalid"), where commander alone says "argument missing".
  */
 function onlyKnownGlobalOptions(program: Command, argv: readonly string[]): boolean {
   const known = new Map<string, boolean>();
@@ -142,7 +144,10 @@ function onlyKnownGlobalOptions(program: Command, argv: readonly string[]): bool
     const name = eq > 0 ? token.slice(0, eq) : token;
     const takesValue = known.get(name);
     if (takesValue === undefined) return false;
-    if (takesValue && eq < 0) i++;
+    if (takesValue && eq < 0) {
+      if (i + 1 >= argv.length) return false;
+      i++;
+    }
   }
   return true;
 }
