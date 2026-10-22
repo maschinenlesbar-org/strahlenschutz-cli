@@ -309,12 +309,14 @@ server sends UTF-8; this matters behind a mirror or proxy that re-encodes, where
 
 **Numbers.** `JSON.parse` rounds a number past 2^53 to the nearest double, turns one out of
 a double's range (`1e400`) into `Infinity` (printed as `null`) and a non-zero one too small
-for a double (`1e-400`) into `0`, without a word. `getJson` scans the body once after the
-parse (strings skipped) and refuses such an answer with a `StrahlParseError`
-(`Unexpected response from /ogc/opendata/ows: the number 12345678901234567890 cannot be
-represented exactly.`, CLI exit 1), never a changed value. Past 2^53 a number passes when it
-prints as written (`1E23`, `1.7976931348623157E308`: a double in its shortest form); below
-2^53 a decimal fraction keeps a double's precision, as JSON means it. The BfS answer carries
+for a double (`1e-400`) into `0`, and a subnormal one (below 2.2250738585072014e-308, where a
+double has fewer significant digits) into another number (`3e-324` into `5e-324`), without a
+word. `getJson` scans the body once after the parse (strings skipped) and refuses such an
+answer with a `StrahlParseError` (`Unexpected response from /ogc/opendata/ows: the number
+12345678901234567890 cannot be represented exactly.`, CLI exit 1), never a changed value. Past
+2^53 and in the subnormal range a number passes when it prints as written (`1E23`,
+`1.7976931348623157E308`, `5e-324`, `1e-310`: a double in its shortest form); between them a
+decimal fraction keeps a double's precision, as JSON means it. The BfS answer carries
 dose rates and coordinates as decimals and small counts, which all pass; the station id
 `kenn` is a string.
 

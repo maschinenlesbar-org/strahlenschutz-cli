@@ -48,6 +48,9 @@ test("a number the JSON cannot carry exactly is a parse error, never a changed v
     "12345678901234567890", "-9007199254740993", "1e400", "-1E400", "12345678901234567890.0", "9007199254740993e0",
     "90071992547409930E-1", "9007199254740992.5", "-9007199254740992.5", "1e-400", "-0.0001e-399",
     "123456789012345678901234567890",
+    // A subnormal double has fewer significant digits: these would print as another number
+    // (3e-324 and 4e-324 as 5e-324), so they are refused like a number past 2^53 (D4).
+    "3e-324", "4e-324", "2.5e-324", "-4.9e-324", "1.2345678901234567e-310", "2.225073858507201e-309",
   ]) {
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
     await assert.rejects(e.getJson("/ogc/opendata/ows"), (err: unknown) => {
@@ -65,6 +68,8 @@ test("a number the JSON cannot carry exactly is a parse error, never a changed v
     // same number: not a changed value, though the decimal is not the double's exact binary value.
     ["1e23", 1e23], ["100000000000000000000000", 1e23], ["1E23", 1e23], ["1.7976931348623157E308", Number.MAX_VALUE], ["-1.7976931348623157e308", -Number.MAX_VALUE],
     ["4.35e30", 4.35e30],
+    // A subnormal that prints as written passes (D4).
+    ["-5e-324", -5e-324], ["1e-310", 1e-310], ["2.2250738585072014e-308", 2.2250738585072014e-308],
     // What the BfS WFS sends: dose rates, coordinates as doubles.
     ["0.087", 0.087], ["9.993889", 9.993889], ["53.553333333333335", 53.553333333333335],
   ];

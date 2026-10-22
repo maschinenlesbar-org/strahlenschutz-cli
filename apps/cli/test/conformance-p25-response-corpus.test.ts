@@ -47,6 +47,8 @@ const INEXACT = [
   "12345678901234567890", "-9007199254740993", "1e400", "-1E400", "12345678901234567890.0", "9007199254740993e0",
   "90071992547409930E-1", "9007199254740992.5", "-9007199254740992.5", "1e-400", "-0.0001e-399",
   "123456789012345678901234567890",
+  // A subnormal that a double can't carry as written: it would print as another number (D4).
+  "3e-324", "4e-324", "-4e-324", "1.2345678901234567e-310",
 ];
 const EXACT: Array<[string, number]> = [
   ["0", 0], ["-0", -0], ["42", 42], ["9007199254740991", 9007199254740991], ["9007199254740992.0", 2 ** 53],
@@ -54,6 +56,8 @@ const EXACT: Array<[string, number]> = [
   ["-2.5e-3", -0.0025], ["5e-324", 5e-324], ["0.0e-500", 0],
   // A double printed in its shortest form (an ArcGIS sentinel, a Java Double): the same number back.
   ["1e23", 1e23], ["100000000000000000000000", 1e23], ["1.7976931348623157E308", Number.MAX_VALUE], ["-1.7976931348623157e308", -Number.MAX_VALUE],
+  // A subnormal that prints as written (D4).
+  ["1e-310", 1e-310], ["-5e-324", -5e-324], ["2.2250738585072014e-308", 2.2250738585072014e-308],
 ];
 
 test("P25: a number the answer can't carry exactly is an error, never a changed value", async () => {
