@@ -155,13 +155,17 @@ als aufsteigend las, geht als `end_measure D` hinaus).
 `ERROR [strahlenschutz.api] HTTP 400 for GET …: Illegal property name: bogus_prop for feature type …`
 (Exit-Code `1`); ein Bericht mit `200` lautet `WFS exception (HTTP 200) for GET …`.
 
+**Ersetzter Text.** Bytes einer Antwort, die in ihrem Zeichensatz ungültig sind, und halbe
+Zeichen (einzelne Surrogate) werden durch U+FFFD ersetzt und in einem `WARN`-Eintrag von
+`strahlenschutz.api` mit Anzahl und Anfrage gemeldet; der Lauf gelingt trotzdem.
+
 **Log-Eintrag.** Jede Diagnosezeile, die die CLI auf stderr schreibt: ein Zeitstempel,
 eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `strahlenschutz.<Bereich>`, als Text
 (im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die
 Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
 Antworten der API: ein Fehlerstatus oder ein ExceptionReport, eine unbekannte Messstelle,
 und eine fehlerhafte Antwort – kein JSON, keine FeatureCollection, ein unbekannter
-Zeichensatz, eine Zahl, die sich nicht exakt darstellen lässt, Features einer anderen Messstelle als der angefragten), `http` (die
+Zeichensatz, eine Zahl, die sich nicht exakt darstellen lässt, Features einer anderen Messstelle als der angefragten –, durch U+FFFD ersetzter Text), `http` (die
 Verbindung, die Warnung vor unverschlüsseltem `http:` und je Wiederholung eine WARN-Zeile vor dem Warten) und `output` (ein
 fehlgeschlagenes Schreiben auf stdout, eine zu tief verschachtelte oder zu große Antwort). Ein Eintrag ist immer eine Zeile; Steuerzeichen
 darin werden maskiert.

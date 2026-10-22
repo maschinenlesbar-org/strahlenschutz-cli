@@ -63,6 +63,7 @@ new StrahlenschutzClient({
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
   bigIntegerKeys: new Set(["_version_"]), // members whose numbers may pass 2^53: delivered as strings
+  onWarning: (message) => console.warn(message), // an answer delivered changed (U+FFFD), see Charset
 });
 ```
 
@@ -308,7 +309,13 @@ commander's own parse errors use), logged as an `ERROR` record of `strahlenschut
 
 **Charset.** A response body is decoded by the charset its `Content-Type` declares
 (`TextDecoder`; UTF-8 when none is given, as JSON requires), with a leading byte-order
-mark dropped. An unknown charset label is a `StrahlParseError` naming it.
+mark dropped. An unknown charset label is a `StrahlParseError` naming it. Text is never
+changed silently: bytes that aren't valid in the answer's charset and lone surrogates written
+as JSON escapes (`\ud800`) become U+FFFD (the result is well-formed, so `jq` reads the CLI's
+output), and the engine option `onWarning` gets one message naming the count and the request
+(`GET <url>: 2 characters of the answer were not valid text (invalid bytes or a lone surrogate)
+and replaced with U+FFFD.`); the CLI's `action()` logs it as a `WARN` record of
+`strahlenschutz.api`. One bad character never sinks a whole answer.
 Every error about an answer (an unknown charset, an empty body, bad JSON — naming the
 Content-Type when it isn't a JSON type —, a number that can't be represented exactly, a body
 that is no FeatureCollection, a feature for another station) names the request it answers:
@@ -477,7 +484,7 @@ character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellF
 and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
 code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors, the
 library's validation errors), `api` (the API's answers: an HTTP error status or WFS
-ExceptionReport, a station the collection doesn't hold, and a malformed answer — a
+ExceptionReport, a station the collection doesn't hold, text replaced with U+FFFD (a `WARN`), and a malformed answer — a
 `StrahlParseError`: bad JSON, an unknown charset, a 2xx body that is no FeatureCollection,
 a number that can't be represented exactly, an answer for another station than the one asked for) and `http` (the connection, the
 cleartext warning) and `output` (a failed write to stdout, an answer too deeply nested, or too large, to print — an
@@ -554,7 +561,8 @@ everything that drives the CLI is in `apps/cli/test/`.
   can't carry, and an empty answer, are exit 1 and the parse error; on `latest`). P26 (`-o`) is
   not copied: the CLI writes no files. P27 big and odd answers (spawns the built bin under a small
   heap): a large flat answer prints with `--compact`; 20 M DEL characters print escaped under a
-  512 MB heap, 90 M are an ERROR record of `strahlenschutz.output`, not a crash.
+  512 MB heap, 90 M are an ERROR record of `strahlenschutz.output`, not a crash; a lone surrogate
+  or invalid bytes become U+FFFD with a `WARN` record of `strahlenschutz.api`.
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.

@@ -130,13 +130,16 @@ strahlenschutz latest --sort kenn --max 10 --start 10
 Every command prints **pretty GeoJSON to stdout**. Errors and diagnostics go to
 stderr, so piping stdout into `jq` stays clean. Characters a terminal would act on — DEL,
 the C1 controls and the bidi controls (U+202E and the like) — are printed as JSON escapes
-(`\u202e`), so the data is the same and the terminal stays untouched.
+(`\u202e`), so the data is the same and the terminal stays untouched. Text in an answer is
+never changed silently: bytes that are not valid in its charset and half characters (lone
+surrogates) are replaced with U+FFFD, so the output stays readable for `jq`, and a `WARN`
+record of `strahlenschutz.api` says how many and names the request.
 
 Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
 `INFO`) and a topic, the program and the area it comes from (`strahlenschutz.cli` for
-usage errors, `strahlenschutz.api` for the API's answers, a malformed answer included,
+usage errors, `strahlenschutz.api` for the API's answers, a malformed answer and replaced text included,
 `strahlenschutz.http` for the
-connection, `strahlenschutz.output` for a failed write to stdout or an answer too deeply nested to print). By default it is written log4j style; `--log-format jsonl` writes one JSON
+connection, `strahlenschutz.output` for a failed write to stdout or an answer too deeply nested or too large to print). By default it is written log4j style; `--log-format jsonl` writes one JSON
 object per line instead. A record is always one line: a line break, a control character
 or a bidi control in a message (a server's text, a value you typed) is written as an
 escape (`\n`, `\u001b`, `\u202e`), so it can neither split a record nor forge another

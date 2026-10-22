@@ -314,6 +314,8 @@ export function action(
     if (cleartext !== undefined) logOf(deps).warn("http", cleartext);
     const options = toEngineOptions(global);
     options.onRetry = (event) => logOf(deps).warn("http", retryMessage(event));
+    // Text in an answer replaced with U+FFFD is never silent: one WARN record of the api area.
+    options.onWarning = (message) => logOf(deps).warn("api", message);
     const client = deps.createClient(options);
     await fn({ client, global, opts: command.opts() }, positionals);
   };

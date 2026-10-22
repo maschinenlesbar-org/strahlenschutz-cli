@@ -158,13 +158,17 @@ property. The CLI shows its `ExceptionText` after the status:
 `ERROR [strahlenschutz.api] HTTP 400 for GET …: Illegal property name: bogus_prop for feature type …`
 (exit `1`); a `200` one reads `WFS exception (HTTP 200) for GET …`.
 
+**Replaced text.** Bytes of an answer that are not valid in its charset, and half characters
+(lone surrogates), are replaced with U+FFFD and reported in one `WARN` record of
+`strahlenschutz.api` with the count and the request; the run still succeeds.
+
 **Log record.** Every diagnostic line the CLI writes to stderr: a timestamp, a level
 (`ERROR`, `WARN`, `INFO`) and a topic `strahlenschutz.<area>`, as text (log4j style) or
 with `--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
 commander's messages, unexpected errors), `api` (the API's answers: an error status or an
 ExceptionReport, an unknown station, and a malformed answer — not JSON, not a
 FeatureCollection, an unknown charset, a number that can't be represented exactly, features for another station than the one asked
-for), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and `output` (a failed write to
+for —, text replaced with U+FFFD), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and `output` (a failed write to
 stdout, an answer too deeply nested or too large to print). A record is always one line; control characters in it are escaped.
 
 ---
