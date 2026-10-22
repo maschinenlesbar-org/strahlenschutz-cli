@@ -315,7 +315,12 @@ as JSON escapes (`\ud800`) become U+FFFD (the result is well-formed, so `jq` rea
 output), and the engine option `onWarning` gets one message naming the count and the request
 (`GET <url>: 2 characters of the answer were not valid text (invalid bytes or a lone surrogate)
 and replaced with U+FFFD.`); the CLI's `action()` logs it as a `WARN` record of
-`strahlenschutz.api`. One bad character never sinks a whole answer.
+`strahlenschutz.api`. One bad character never sinks a whole answer. A body too large to become
+one string (512 MB and more, possible only with `maxResponseBytes: 0` or
+`--max-response-bytes 0`) is a `StrahlParseError`, `GET <url>: the answer is too large to read
+as text (N bytes; the longest string is 536870888 characters).`, not a plain `Error`
+("Unexpected error" in the CLI); an error status with such a body keeps its `StrahlApiError`,
+without the body.
 Every error about an answer (an unknown charset, an empty body, bad JSON — naming the
 Content-Type when it isn't a JSON type —, a number that can't be represented exactly, a body
 that is no FeatureCollection, a feature for another station) names the request it answers:
