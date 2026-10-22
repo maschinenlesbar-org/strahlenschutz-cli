@@ -83,7 +83,7 @@ Each feature's `properties`:
 | `value` | ambient gamma dose rate, **µSv/h** — the series value |
 | `unit` | `µSv/h` |
 | `start_measure` / `end_measure` | ISO (UTC `Z`) window of each hourly step |
-| `validated` | `1` if validated |
+| `validated` | `1` = validated; `2` = **not** marked validated (spike hours often carry `2`); `null` = no reading |
 | `duration` | `1h` |
 
 (The hourly series carries fewer fields than `latest` — no `value_cosmic` /
@@ -129,6 +129,9 @@ Egelsbach (kenn 064380031) — hourly ODL, last 48 h
 
 Rules:
 - Lead with the **latest** value + its timestamp, then the range/mean, then a verdict.
+- Write `(validated)` after the latest value only when its `validated` is `1`; for `2` write
+  `(not yet validated)`. When the highest hours of the window carry `2`, say so: a spike that
+  is not validated is not a confirmed rise.
 - Always give units and timestamps (UTC); say the cadence is hourly snapshots.
 - For a chart, offer a CSV extract:
   `… | jq -r '.features[] | [.properties.end_measure, .properties.value] | @csv'`

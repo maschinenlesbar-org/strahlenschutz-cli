@@ -47,6 +47,13 @@ liegen die Messwerte bei einem Bruchteil eines Mikrosieverts pro Stunde.
 **Messwert.** Ein einzelner ODL-Wert einer Messstelle zu einem Zeitpunkt, enthalten in den
 `properties` eines GeoJSON-Features.
 
+**validated.** Das Prüfkennzeichen eines Messwerts, in `latest` und den Zeitreihen: `1`
+(geprüft), `2` oder `null` (kein Messwert). Die BfS-Daten sagen zu `2` nichts weiter, ein Wert
+mit `2` ist also nicht als geprüft gekennzeichnet; nennen Sie ihn nicht geprüft. Das ist
+häufig: Am 21. Okt. 2026 hatten 1 231 Messstellen `1`, 334 `2` (darunter die fünf höchsten)
+und 109 `null`, und in der Stundenreihe einer Messstelle waren genau die drei Stunden einer
+Spitze die mit `2`.
+
 ---
 
 ## Messstellen & Geografie

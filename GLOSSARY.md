@@ -49,6 +49,12 @@ the order of a fraction of a microsievert per hour at normal background levels.
 **Reading / measurement value.** A single ODL value for a station at a point in
 time, carried in a GeoJSON feature's `properties`.
 
+**validated.** A reading's check flag, in `latest` and the time series: `1` (validated), `2`
+or `null` (no reading). The BfS data doesn't say more about `2`, so a reading with `2` is not
+marked validated; don't call it validated. It is common: on 21 Oct 2026, 1 231 stations had `1`,
+334 had `2` (the five highest among them) and 109 `null`, and in one station's hourly series
+the three hours of a spike were exactly the ones with `2`.
+
 ---
 
 ## Stations & geography

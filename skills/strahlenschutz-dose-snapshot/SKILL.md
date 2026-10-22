@@ -53,7 +53,7 @@ Each feature has `geometry.coordinates` = `[lon, lat]` and a `properties` object
 | `value_cosmic` / `value_terrestrial` | the cosmic vs ground contributions (sum ≈ `value`) |
 | `unit` | always `µSv/h` |
 | `site_status` / `site_status_text` | `1`/`in Betrieb`, `2`/`defekt`, `3`/`Testbetrieb` |
-| `validated` | `1` if the reading is validated, else `null` |
+| `validated` | `1` = validated; `2` = **not** marked validated (common: about a fifth of the stations, often the highest readings); `null` = no reading. Only call a reading validated when it is `1` |
 | `start_measure` / `end_measure` | ISO window of the reading (UTC, `Z`) — **not the same hour for every station** (Step 5) |
 | `height_above_sea` | metres — elevation drives terrestrial dose, useful context |
 | `nuclide` | `Gamma-ODL-Brutto` (gross gamma) |
