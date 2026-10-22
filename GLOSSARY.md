@@ -174,7 +174,7 @@ with `--log-format jsonl` as one JSON object per line. The areas: `cli` (usage e
 commander's messages, unexpected errors), `api` (the API's answers: an error status or an
 ExceptionReport, an unknown station, and a malformed answer — not JSON, not a
 FeatureCollection, an unknown charset, a number that can't be represented exactly, features for another station than the one asked
-for —, text replaced with U+FFFD), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and `output` (a failed write to
+for —, text replaced with U+FFFD), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and `output` (a failed or cut-short write to
 stdout, an answer too deeply nested or too large to print). A record is always one line; control characters in it are escaped.
 
 ---

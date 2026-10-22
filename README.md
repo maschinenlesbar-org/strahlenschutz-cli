@@ -139,7 +139,9 @@ Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `W
 `INFO`) and a topic, the program and the area it comes from (`strahlenschutz.cli` for
 usage errors, `strahlenschutz.api` for the API's answers, a malformed answer and replaced text included,
 `strahlenschutz.http` for the
-connection, `strahlenschutz.output` for a failed write to stdout or an answer too deeply nested or too large to print). By default it is written log4j style; `--log-format jsonl` writes one JSON
+connection, `strahlenschutz.output` for a failed or cut-short write to stdout — `> out.json` on a full disk
+or under a file-size limit is exit 1, never a truncated file with exit 0 — or an answer too
+deeply nested or too large to print). By default it is written log4j style; `--log-format jsonl` writes one JSON
 object per line instead. A record is always one line: a line break, a control character
 or a bidi control in a message (a server's text, a value you typed) is written as an
 escape (`\n`, `\u001b`, `\u202e`), so it can neither split a record nor forge another

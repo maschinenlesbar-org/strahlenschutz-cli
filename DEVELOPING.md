@@ -239,7 +239,9 @@ apps/cli/src/cli/
   uses `node:http`/`node:https`; tests inject a mock. This keeps the client free of any HTTP framework.
 - The CLI is built around injectable `CliDeps` (client factory + I/O), so the whole program can be
   driven in-process by tests with a mocked client and captured output — no subprocesses.
-- Output goes through `process.stdout.write`/`process.stderr.write` (`defaultIO`). The bin shim
+- Output goes through `process.stdout.write`/`process.stderr.write` (`defaultIO`); stdout
+  redirected to a regular file is written with `writeAll` instead (`stdoutWriter`), so a write
+  cut short is an error, never a truncated file with exit 0. The bin shim
   installs `handleOutputErrors()` (`io.ts`) before `run()`: an EPIPE on stdout (a reader such as
   `head` stopping early) exits 0 quietly instead of an unhandled stack trace and exit 1; an EPIPE
   on stderr is ignored, so a failed run keeps its exit code. ENOTCONN counts the same (stdout is a
@@ -532,7 +534,10 @@ in either format.
 for it: the default `io.err` (`stderrAfterStdout`) holds a record while stdout still has
 data queued and writes it, in order, once that is out, so with `2>&1 |` and a slow reader
 a record never lands inside the JSON. A failed write to stdout other than a closed pipe (`handleOutputErrors`, in the bin shim, outside `run()`)
-is an ERROR record of `strahlenschutz.output` (`Could not write to stdout: …`), in the
+is an ERROR record of `strahlenschutz.output` (`Could not write to stdout: …`) with exit 1 — also
+a write cut short when stdout is a regular file (`> out.json` under a file-size limit or on a full
+disk: EFBIG, ENOSPC), which `stdoutWriter` (`io.ts`) writes with `writeAll` and reports as
+stdout's `error`, where Node's stream ignored the short count and exited 0 —, in the
 format argv asks for and redacted like the run's log (`processLogger`). So are Node's own
 process warnings (`installWarningLog`, also installed by the shim): a WARN record of
 `strahlenschutz.cli`, `(node) <name>: <message>`, instead of Node's plain `(node:PID)
@@ -571,7 +576,8 @@ everything that drives the CLI is in `apps/cli/test/`.
   P23's.
 - **`output-errors.test.ts`** — `handleOutputErrors`: EPIPE and ENOTCONN on stdout exit 0, on
   stderr they are ignored; any other stdout write error is an ERROR record of
-  `strahlenschutz.output`; `stderrAfterStdout` holds a record behind stdout's backlog.
+  `strahlenschutz.output`; `stderrAfterStdout` holds a record behind stdout's backlog;
+  `stdoutWriter` writes every byte to a redirected file or reports the error.
 - **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (fix plan
   `.reviews/2026-10-05-exploratory/fix-plan.md` in the workspace), one file per pattern, the same
   code in every repo apart from an adapter block at the top: P1 credential redaction in CLI output,
@@ -585,8 +591,9 @@ everything that drives the CLI is in `apps/cli/test/`.
   text filter and no list here; the tokens are the station id, read from the `CQL_FILTER`, the
   `--sort` of `latest` and `timeseries` and the `--resolution`; a blank, invisible, control or
   half character is refused on both sides and shown escaped), P25 the response corpus (a number a double
-  can't carry, and an empty answer, are exit 1 and the parse error; on `latest`). P26 (`-o`) is
-  not copied: the CLI writes no files. P27 big and odd answers (spawns the built bin under a small
+  can't carry, and an empty answer, are exit 1 and the parse error; on `latest`). P26 output
+  integrity (stdout redirected to a file and cut short is an `ERROR` record, exit 1; its `-o`
+  tests are skipped, `HAS_OUTPUT_OPTION = false`: the CLI writes no files). P27 big and odd answers (spawns the built bin under a small
   heap): a large flat answer prints with `--compact`; 20 M DEL characters print escaped under a
   512 MB heap, 90 M are an ERROR record of `strahlenschutz.output`, not a crash; a lone surrogate
   or invalid bytes become U+FFFD with a `WARN` record of `strahlenschutz.api`.

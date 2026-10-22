@@ -175,7 +175,7 @@ Antworten der API: ein Fehlerstatus oder ein ExceptionReport, eine unbekannte Me
 und eine fehlerhafte Antwort – kein JSON, keine FeatureCollection, ein unbekannter
 Zeichensatz, eine Zahl, die sich nicht exakt darstellen lässt, Features einer anderen Messstelle als der angefragten –, durch U+FFFD ersetzter Text), `http` (die
 Verbindung, die Warnung vor unverschlüsseltem `http:` und je Wiederholung eine WARN-Zeile vor dem Warten) und `output` (ein
-fehlgeschlagenes Schreiben auf stdout, eine zu tief verschachtelte oder zu große Antwort). Ein Eintrag ist immer eine Zeile; Steuerzeichen
+fehlgeschlagenes oder abgeschnittenes Schreiben auf stdout, eine zu tief verschachtelte oder zu große Antwort). Ein Eintrag ist immer eine Zeile; Steuerzeichen
 darin werden maskiert.
 
 ---
