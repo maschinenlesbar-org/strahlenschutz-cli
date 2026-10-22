@@ -328,3 +328,23 @@ test("the 20-character cut of the server's kenn never splits a surrogate pair (0
     );
   }
 });
+
+test("a refused kenn, sort key or query key is quoted visibly: an invisible character escaped (D10)", async () => {
+  const mt = constantJson(fc);
+  const cases: Array<[() => Promise<unknown>, string]> = [
+    [() => clientWith(mt).station("​091811461"), '"\\u200b091811461"'],
+    [() => clientWith(mt).latest({ station: "09­1811461" }), '"09\\u00ad1811461"'],
+    [() => clientWith(mt).latest({ sortBy: "kenn X​" }), '"X\\u200b"'],
+    [() => clientWith(mt).latest({ ["a‮b"]: 1 } as never), '"a\\u202eb"'],
+    [() => clientWith(mt).latest({ maxFeatures: "1​" as never }), '"1\\u200b"'],
+  ];
+  for (const [call, shown] of cases) {
+    await assert.rejects(call, (err: unknown) => {
+      assert.ok(err instanceof StrahlValidationError, String(err));
+      assert.ok(err.message.includes(shown), err.message);
+      assert.doesNotMatch(err.message, /[​­‮]/);
+      return true;
+    });
+  }
+  assert.equal(mt.calls.length, 0);
+});

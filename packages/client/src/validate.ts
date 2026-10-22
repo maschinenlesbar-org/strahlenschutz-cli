@@ -5,7 +5,7 @@
 // error, so a rule is written once and the CLI and the library cannot drift apart.
 
 import { FeatureKindValues, TimeseriesResolutionValues } from "./enums.js";
-import { StrahlValidationError, cutForMessage } from "./errors.js";
+import { StrahlValidationError, cutForMessage, quoteValue } from "./errors.js";
 
 /** A rule: the reason `value` is invalid (e.g. `"Expected a non-empty value."`), or `undefined` when it is valid. */
 export type Problem<T = unknown> = (value: T) => string | undefined;
@@ -78,12 +78,12 @@ export const sortByProblem: Problem<unknown> = (value) => {
     const parts = sortKeyParts(key);
     if (parts.length === 0) return "Expected comma-separated sort keys, got an empty one.";
     if (parts.length > 2) {
-      return `Expected "<property>" or "<property> D" per sort key, got ${JSON.stringify(cut(key.trim()))}.`;
+      return `Expected "<property>" or "<property> D" per sort key, got ${quote(key.trim())}.`;
     }
     const direction = parts[1];
     if (direction !== undefined && sortDirection(direction) === undefined) {
       return (
-        `Unknown sort direction ${JSON.stringify(cut(direction))} in ${JSON.stringify(cut(key.trim()))}; ` +
+        `Unknown sort direction ${quote(direction)} in ${quote(key.trim())}; ` +
         "use D or DESC for descending, A or ASC for ascending (the WFS reads anything else as ascending)."
       );
     }
@@ -107,17 +107,18 @@ export function normalizeSortBy(value: string): string {
     .join(",");
 }
 
-/** A value cut to 60 characters for a message, never inside a surrogate pair. */
-function cut(text: string): string {
-  return cutForMessage(text, 60);
+/** A value quoted visibly for a message (`quoteValue`), cut at 60 characters, never inside a surrogate pair. */
+function quote(text: string): string {
+  return quoteValue(text, 60);
 }
 
 /**
- * A short description of a rejected value for a message: a string quoted, anything else
- * as is, cut at `MAX_QUOTED_LENGTH` (200) characters.
+ * A short description of a rejected value for a message: a string quoted visibly (an
+ * invisible, format or control character escaped, `"a\u200bb"`), anything else as is, cut at
+ * `MAX_QUOTED_LENGTH` (200) characters.
  */
 function describe(value: unknown): string {
-  return typeof value === "string" ? JSON.stringify(cutForMessage(value)) : cutForMessage(String(value));
+  return typeof value === "string" ? quoteValue(value) : cutForMessage(String(value));
 }
 
 /**
@@ -155,7 +156,7 @@ export function queryKeysProblem(allowed: readonly string[]): Problem<unknown> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return "Expected an object.";
     for (const key of Object.keys(value)) {
       if (!allowed.includes(key)) {
-        return `Unknown key ${JSON.stringify(cut(key))}; expected one of: ${allowed.join(", ")}.`;
+        return `Unknown key ${quote(key)}; expected one of: ${allowed.join(", ")}.`;
       }
     }
     return undefined;

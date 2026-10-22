@@ -432,3 +432,22 @@ test("every single-value option given twice is a usage error before any request;
   assert.equal(await run(["--compact", "latest", "--compact"], flags.deps), 0);
   assert.equal(flags.mt.calls.length, 1);
 });
+
+test("a refused value shows an invisible character escaped, never raw: the library's and commander's (D10, 02#1)", async () => {
+  // A kenn copied with a zero-width space was refused as `Invalid station id "<ZWSP>091811461".`,
+  // which reads as a valid id on a terminal.
+  for (const argv of [
+    ["station", "​091811461"],
+    ["latest", "--station", "091811461​"],
+    ["timeseries", "⁠091811461"],
+    ["latest", "--sort", "kenn​ DSC"],
+    ["latest", "--max", "1​"],
+  ]) {
+    const cli = makeCli(() => jsonResponse(fc));
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0, argv.join(" "));
+    const err = cli.err.join("\n");
+    assert.match(err, /\\u(200b|2060)/, `${argv.join(" ")}: ${err}`);
+    assert.doesNotMatch(err, /[​⁠]/, argv.join(" "));
+  }
+});

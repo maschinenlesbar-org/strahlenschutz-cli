@@ -39,6 +39,7 @@ export {
   redactCredentials,
   redactUrl,
   toWellFormed,
+  quoteValue,
 } from "./errors.js";
 export {
   assertValid,

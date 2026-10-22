@@ -131,6 +131,36 @@ export function cutForMessage(text: string, max = MAX_QUOTED_LENGTH): string {
   return cut.length < text.length ? `${cut}…` : text;
 }
 
+/** Unicode General Category Cf (format): bidi controls, zero-width characters, U+00AD, U+FEFF, … */
+const FORMAT_CHAR = /\p{Cf}/u;
+
+/**
+ * Quote a value for an error message, as `JSON.stringify` does, and also escape what it
+ * leaves raw although a terminal acts on it: DEL, the C1 controls, every Unicode
+ * format character (bidi overrides, zero-width characters, a soft hyphen) and the line and
+ * paragraph separators U+2028/U+2029, which a viewer may break the line at. A refused value
+ * is echoed in messages, and an invisible character in it must be seen (`"a\u200bb"`), never
+ * hidden; an override would reorder the rest of the line ("Trojan Source"). A lone surrogate
+ * is escaped by `JSON.stringify` itself. A value longer than `max` characters (default
+ * `MAX_QUOTED_LENGTH`) is cut, never inside a surrogate pair, and the "…" goes after the
+ * closing quote (`"AAAA"…`), so it does not read as part of the value. The quoted part stays a
+ * valid JSON string.
+ */
+export function quoteValue(value: string, max = MAX_QUOTED_LENGTH): string {
+  const cut = value.length > max;
+  let out = "";
+  for (const ch of JSON.stringify(cut ? cutText(value, max) : value)) {
+    const n = ch.codePointAt(0) ?? 0;
+    if ((n >= 0x7f && n <= 0x9f) || n === 0x2028 || n === 0x2029 || FORMAT_CHAR.test(ch)) {
+      // One escape per UTF-16 unit, so a character above U+FFFF stays valid JSON.
+      for (let i = 0; i < ch.length; i++) out += `\\u${ch.charCodeAt(i).toString(16).padStart(4, "0")}`;
+    } else {
+      out += ch;
+    }
+  }
+  return cut ? `${out}…` : out;
+}
+
 /**
  * The longest URL (in characters) a message quotes. A request URL is the caller's base
  * URL and query, but after a redirect it is the server's choice, up to Node's 16 KiB

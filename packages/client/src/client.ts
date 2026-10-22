@@ -12,7 +12,7 @@
 import { RequestEngine, serverTextForMessage, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import { TYPE_NAMES, type FeatureKind, type TimeseriesResolution } from "./enums.js";
-import { StrahlNotFoundError, StrahlParseError, StrahlValidationError, cutForMessage } from "./errors.js";
+import { StrahlNotFoundError, StrahlParseError, StrahlValidationError, quoteValue } from "./errors.js";
 import {
   assertValid,
   featureKindProblem,
@@ -60,7 +60,8 @@ function assertKenn(raw: unknown): string {
   // Type first: an array `["083370490"]` or a number would pass the pattern after
   // coercion (and a number loses the leading zero).
   if (typeof kenn !== "string" || !KENN_PATTERN.test(kenn)) {
-    const shown = typeof kenn === "string" ? `"${cutForMessage(kenn, 60)}"` : `of type ${Array.isArray(kenn) ? "array" : kenn === null ? "null" : typeof kenn}`;
+    // Quoted visibly: a zero-width space in a copied id is shown escaped, never hidden.
+    const shown = typeof kenn === "string" ? quoteValue(kenn, 60) : `of type ${Array.isArray(kenn) ? "array" : kenn === null ? "null" : typeof kenn}`;
     throw new StrahlValidationError(`Invalid station id ${shown}. Expected a non-empty numeric kenn (digits only).`);
   }
   return kenn;
@@ -80,7 +81,7 @@ function assertPagingInt(name: string, value: unknown): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     const got =
       typeof value === "string"
-        ? JSON.stringify(cutForMessage(value, 60))
+        ? quoteValue(value, 60)
         : typeof value === "number" || value === undefined || value === null
           ? String(value)
           : `a value of type ${Array.isArray(value) ? "array" : typeof value}`;
