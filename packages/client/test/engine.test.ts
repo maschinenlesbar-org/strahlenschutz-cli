@@ -58,7 +58,7 @@ test("a number the JSON cannot carry exactly is a parse error, never a changed v
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
     await assert.rejects(e.getJson("/ogc/opendata/ows"), (err: unknown) => {
       assert.ok(err instanceof StrahlParseError, n);
-      assert.equal(err.message, `Unexpected response from /ogc/opendata/ows: the number ${n} cannot be represented exactly.`);
+      assert.equal(err.message, `GET https://www.imis.bfs.de/ogc/opendata/ows: the number ${n} cannot be represented exactly.`);
       return true;
     });
   }
@@ -812,4 +812,22 @@ test("bigIntegerKeys: a declared member's number is its exact literal as a strin
   // Without declarations the scan is the plain number check.
   assert.equal(firstInexactNumber('{"a":"1e400","b":3e-324}'), "3e-324");
   assert.deepEqual(scanNumbers('{"a":1}'), { json: '{"a":1}', inexact: undefined });
+});
+
+test("an answer error names the request: method and URL, without the base URL's userinfo (D9)", async () => {
+  const answers: Array<[string, () => HttpResponse]> = [
+    ['the answer is not valid JSON (expected JSON, got Content-Type "text/html").', () => rawResponse("<html>", "text/html")],
+    ["the answer is not valid JSON.", () => rawResponse("{", "application/json")],
+    ["empty response body.", () => rawResponse(" ", "application/json")],
+    ["the number 1e400 cannot be represented exactly.", () => rawResponse('{"n":1e400}', "application/json")],
+    ['unsupported response charset "x-bogus".', () => rawResponse("{}", "application/json; charset=x-bogus")],
+  ];
+  for (const [what, respond] of answers) {
+    const e = new RequestEngine({ baseUrl: "https://alice:s3cret@mirror.example/m", transport: makeMockTransport(respond).transport });
+    await assert.rejects(e.getJson("/ogc/opendata/ows", { typeName: "x" }), (err: unknown) => {
+      assert.ok(err instanceof StrahlParseError, what);
+      assert.equal(err.message, `GET https://mirror.example/m/ogc/opendata/ows?typeName=x: ${what}`);
+      return true;
+    });
+  }
 });

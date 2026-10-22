@@ -203,8 +203,11 @@ test("every feature must be a JSON object with a properties object", async () =>
       () => clientWith(mt).latest(),
       (err: unknown) =>
         err instanceof StrahlParseError &&
-        err.message ===
-          `Unexpected response shape from the WFS: expected every feature to be a JSON object with a properties object, ${message}`,
+        // The error names the request it answers (D9).
+        /^GET https:\/\/www\.imis\.bfs\.de\/ogc\/opendata\/ows\?service=WFS&request=GetFeature&typeName=opendata%3Aodlinfo_odl_1h_latest&[^ ]*: /.test(err.message) &&
+        err.message.endsWith(
+          `: unexpected response shape: expected every feature to be a JSON object with a properties object, ${message}`,
+        ),
     );
   }
 });
@@ -257,7 +260,9 @@ test("an answer for another station than the one asked for is a StrahlParseError
     await assert.rejects(
       () => call(clientWith(mt)),
       (err: unknown) =>
-        err instanceof StrahlParseError && /query for kenn "083370490" with a feature for kenn "010010001"/.test((err as Error).message),
+        err instanceof StrahlParseError &&
+        /^GET https:\/\/www\.imis\.bfs\.de\/ogc\/opendata\/ows\?[^ ]*CQL_FILTER=kenn%3D%27083370490%27[^ ]*: /.test((err as Error).message) &&
+        /query for kenn "083370490" with a feature for kenn "010010001"/.test((err as Error).message),
       label,
     );
   }

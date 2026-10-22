@@ -304,7 +304,12 @@ commander's own parse errors use), logged as an `ERROR` record of `strahlenschut
 
 **Charset.** A response body is decoded by the charset its `Content-Type` declares
 (`TextDecoder`; UTF-8 when none is given, as JSON requires), with a leading byte-order
-mark dropped. An unknown charset label is a `StrahlParseError` naming it. The BfS
+mark dropped. An unknown charset label is a `StrahlParseError` naming it.
+Every error about an answer (an unknown charset, an empty body, bad JSON — naming the
+Content-Type when it isn't a JSON type —, a number that can't be represented exactly, a body
+that is no FeatureCollection, a feature for another station) names the request it answers:
+`GET <url>: …`, the URL absolute and without the base URL's userinfo, as the network errors
+show it (`RequestEngine#describeUrl`). The BfS
 server sends UTF-8; this matters behind a mirror or proxy that re-encodes, where
 `µSv/h` and umlauts in station names would otherwise turn into `�`.
 
@@ -313,7 +318,7 @@ a double's range (`1e400`) into `Infinity` (printed as `null`) and a non-zero on
 for a double (`1e-400`) into `0`, and a subnormal one (below 2.2250738585072014e-308, where a
 double has fewer significant digits) into another number (`3e-324` into `5e-324`), without a
 word. `getJson` scans the body once after the parse (strings skipped) and refuses such an
-answer with a `StrahlParseError` (`Unexpected response from /ogc/opendata/ows: the number
+answer with a `StrahlParseError` (`GET https://www.imis.bfs.de/ogc/opendata/ows?…: the number
 12345678901234567890 cannot be represented exactly.`, CLI exit 1), never a changed value. Past
 2^53 and in the subnormal range a number passes when it prints as written (`1E23`,
 `1.7976931348623157E308`, `5e-324`, `1e-310`: a double in its shortest form); between them a

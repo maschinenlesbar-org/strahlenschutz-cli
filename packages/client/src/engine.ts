@@ -648,6 +648,16 @@ export class RequestEngine {
     return this.composeUrl(this.#baseUrl, path, query);
   }
 
+  /**
+   * The request URL as an error about the answer shows it: absolute (so a message names the
+   * host that gave a bad answer, which matters with a custom base URL), without the base URL's
+   * userinfo (as the network errors show it), cut at MAX_QUOTED_URL_LENGTH characters
+   * (`urlForMessage`). It never throws: describing a URL for a message does not validate it.
+   */
+  describeUrl(path: string, query?: QueryParams): string {
+    return urlForMessage(this.composeUrl(withoutUserinfo(this.#baseUrl), path, query));
+  }
+
   /** `base` + path + query string. */
   private composeUrl(base: string, path: string, query: QueryParams | undefined): string {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -879,10 +889,20 @@ export class RequestEngine {
     }
   }
 
-  /** Perform a GET expecting JSON and parse it into `T`. */
+  /**
+   * Perform a GET expecting JSON and parse it into `T`. An empty (or whitespace-only) body is a
+   * StrahlParseError: the WFS always answers with a document. Every error about the answer names
+   * the request (`GET <url>: …`, without the userinfo, as the network errors show it).
+   */
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
-    const text = decodeBody(res.data, res.contentType, path);
+    const request = `GET ${this.describeUrl(path, query)}`;
+    const text = decodeBody(res.data, res.contentType, request);
+    if (text.trim() === "") {
+      // A broken answer, not "no results": printed as nothing with exit 0, it would let a
+      // script carry on as if the WFS had found nothing.
+      throw new StrahlParseError(`${request}: empty response body.`);
+    }
     // Declared big integers are quoted first, so JSON.parse delivers them exactly.
     const { json, inexact } = scanNumbers(text, this.bigIntegerKeys);
     let parsed: T;
@@ -895,14 +915,15 @@ export class RequestEngine {
       if (exception !== undefined) {
         throw new StrahlApiError({ status: res.status, url: res.url, method: "GET", body: this.scrub(text), detail: this.scrub(exception) });
       }
-      throw new StrahlParseError(`Failed to parse JSON response from ${path}`, { cause });
+      // A maintenance or proxy page answered with 200: say what it was.
+      const type = res.contentType.split(";")[0]?.trim() ?? "";
+      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cleanDetail(type) ?? ""}")` : "";
+      throw new StrahlParseError(`${request}: the answer is not valid JSON${hint}.`, { cause });
     }
     // JSON.parse rounds and overflows numbers silently: refuse the answer rather than print a
     // changed value. The BfS sends dose rates and coordinates as decimals, which pass.
     if (inexact !== undefined) {
-      throw new StrahlParseError(
-        `Unexpected response from ${path}: the number ${cutForMessage(inexact)} cannot be represented exactly.`,
-      );
+      throw new StrahlParseError(`${request}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
     }
     return parsed;
   }
@@ -971,15 +992,16 @@ function charsetOf(contentType: string): string | undefined {
  * that by default, where Buffer#toString kept it and JSON.parse then failed. An
  * unknown charset label is a StrahlParseError naming it. The BfS server sends UTF-8;
  * this matters for proxies and mirrors that re-encode (`µSv/h` and the umlauts of
- * station names would otherwise turn into U+FFFD with exit 0).
+ * station names would otherwise turn into U+FFFD with exit 0). `request` (`GET <url>`) starts
+ * the message of the error.
  */
-function decodeBody(body: Buffer, contentType: string, path: string): string {
+function decodeBody(body: Buffer, contentType: string, request: string): string {
   const charset = charsetOf(contentType) ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset);
   } catch {
-    throw new StrahlParseError(`Unsupported response charset "${cleanDetail(charset) ?? ""}" from ${path}.`);
+    throw new StrahlParseError(`${request}: unsupported response charset "${cleanDetail(charset) ?? ""}".`);
   }
   return decoder.decode(body);
 }

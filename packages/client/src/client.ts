@@ -97,12 +97,13 @@ function assertPagingInt(name: string, value: unknown): number {
  * `features.length` — surfacing as an untyped "Unexpected error". Each feature
  * must also be a JSON object with a `properties` object (callers read
  * `f.properties.value`, and `station` must not report `[null]` as a found
- * station). Only this top-level shape is checked, never the property schema.
+ * station). Only this top-level shape is checked, never the property schema. The error
+ * names the request it answers (`request`, `GET <url>`).
  */
-function assertFeatureCollection(value: unknown): FeatureCollection {
+function assertFeatureCollection(value: unknown, request: string): FeatureCollection {
   if (!isObject(value) || !Array.isArray(value["features"])) {
     throw new StrahlParseError(
-      "Unexpected response shape from the WFS: expected a GeoJSON FeatureCollection " +
+      `${request}: unexpected response shape: expected a GeoJSON FeatureCollection ` +
         "(an object with a `features` array).",
     );
   }
@@ -110,7 +111,7 @@ function assertFeatureCollection(value: unknown): FeatureCollection {
     const problem = !isObject(feature) ? `is ${kindOf(feature)}` : !isObject(feature["properties"]) ? "has none" : undefined;
     if (problem !== undefined) {
       throw new StrahlParseError(
-        "Unexpected response shape from the WFS: expected every feature to be a JSON object " +
+        `${request}: unexpected response shape: expected every feature to be a JSON object ` +
           `with a properties object, feature ${i} ${problem}.`,
       );
     }
@@ -125,14 +126,14 @@ function assertFeatureCollection(value: unknown): FeatureCollection {
  * printed 1 677 stations, and the README's `.features[0]` recipe reported Flensburg's
  * reading as Herrischried's. Such an answer is a StrahlParseError, never data.
  */
-function assertStation(result: FeatureCollection, kenn: string): void {
+function assertStation(result: FeatureCollection, kenn: string, request: string): void {
   result.features.forEach((feature, i) => {
     const got = feature.properties["kenn"];
     if (got !== kenn) {
       // The server's value, quoted clean (one line, no control or bidi character) and short.
       const shown = typeof got === "string" ? `kenn "${serverTextForMessage(got, 20)}"` : "no kenn";
       throw new StrahlParseError(
-        `The WFS answered a query for kenn "${kenn}" with a feature for ${shown} (feature ${i} of ` +
+        `${request}: the WFS answered a query for kenn "${kenn}" with a feature for ${shown} (feature ${i} of ` +
           `${result.features.length}): it did not apply the station filter, so this is not that station's data. ` +
           "Check --base-url / baseUrl (a mirror or proxy that drops CQL_FILTER?).",
       );
@@ -188,8 +189,10 @@ export class StrahlenschutzClient {
     // without one returns the rest of the collection from that offset.
     if (query.maxFeatures !== undefined) params["count"] = assertPagingInt("maxFeatures", query.maxFeatures);
     if (query.startIndex !== undefined) params["startIndex"] = assertPagingInt("startIndex", query.startIndex);
-    const result = assertFeatureCollection(await this.engine.getJson<unknown>(OWS, params));
-    if (station !== undefined) assertStation(result, station);
+    // Every error about the answer names the request (`GET <url>: …`).
+    const request = `GET ${this.engine.describeUrl(OWS, params)}`;
+    const result = assertFeatureCollection(await this.engine.getJson<unknown>(OWS, params), request);
+    if (station !== undefined) assertStation(result, station, request);
     return result;
   }
 

@@ -203,10 +203,15 @@ with its own code.
   has no series (e.g. it is `defekt`, or you asked for `ts-24h`). `timeseries` can't
   tell these apart; run `strahlenschutz station <kenn>` — exit `4` means the id is
   unknown.
-- **"The WFS answered a query for kenn … with a feature for kenn …" (exit `1`)** — the
-  server ignored the station filter and sent other stations (a mirror or proxy that drops
+- **"GET <url>: the WFS answered a query for kenn … with a feature for kenn …" (exit `1`)** —
+  the server ignored the station filter and sent other stations (a mirror or proxy that drops
   `CQL_FILTER`). The CLI refuses to print another station's data as the one you asked
   for; check `--base-url`.
+- **`GET <url>: unexpected response shape …` / `GET <url>: the answer is not valid JSON` /
+  `GET <url>: empty response body`** (exit `1`) — the server answered `200` with something
+  that isn't the WFS's GeoJSON (`{}`, an empty body, a proxy or maintenance page). The
+  message names the request it answered; the CLI never prints that as data. Try again later,
+  or check `--base-url`.
 - **"Unknown sort direction" (exit `1`)** — `--sort` takes ` D`/`DESC` or ` A`/`ASC`
   after the property; the WFS would read anything else (`DSC`, a typo) as ascending.
 - **Non-numeric `kenn` rejected immediately** — `kenn` must be digits only. The
