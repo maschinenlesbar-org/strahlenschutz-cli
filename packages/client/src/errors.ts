@@ -207,6 +207,13 @@ export class StrahlApiError extends StrahlError {
   readonly detail: string | undefined;
   readonly url: string;
   readonly method: string;
+  /**
+   * The response body as text, with the base URL's credentials scrubbed. It keeps its spelling,
+   * unless a credential hides behind an escape in it: then a JSON body is the decoded JSON
+   * written again (other escapes, no insignificant whitespace) with the credential scrubbed, and
+   * an XML body (an entity, a character reference or a CDATA section) is `""`. `""` too for a
+   * body too large to read as a string, or JSON too deeply nested to write again.
+   */
   readonly body: string;
 
   constructor(args: {

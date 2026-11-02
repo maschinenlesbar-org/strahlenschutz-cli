@@ -982,3 +982,108 @@ test("16 MB of server text in an error detail, an ExceptionText or a foreign ken
   assert.deepEqual(lines.map(([name, kind]) => `${name} ${kind}`), ["detail StrahlApiError", "exceptionText StrahlApiError", "kenn StrahlParseError"]);
   for (const [name, , length] of lines) assert.ok(Number(length) < 1000, `${name}: a message of ${length} characters`);
 });
+
+// ---- credentials scrubbed from decoded server text (security audit 2026-10-27, class D) -----
+// toApiError scrubbed the raw error body and only then decoded it (JSON.parse for a detail or
+// message, entities, character references and CDATA for an ExceptionText): an echo of the base
+// URL's password behind an escape passed the exact-string scrub and reached err.message and
+// err.detail in plain text, and err.body kept it one decode away.
+
+/** The password `s3cr&t<pw`, typed percent-encoded in the base URL. */
+const ECHO_PW = "s3cr&t<pw";
+const ECHO_BASE = `https://dummyuser:${encodeURIComponent(ECHO_PW)}@mirror.example`;
+const ECHO_SECRETS = [ECHO_PW, `dummyuser:${ECHO_PW}`, Buffer.from(`dummyuser:${ECHO_PW}`).toString("base64"), encodeURIComponent(ECHO_PW)];
+
+/** `xml` as an XML reader sees its text: CDATA unwrapped, entities and character references decoded. */
+const xmlDecoded = (xml: string): string =>
+  xml
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&(?:#x([0-9a-fA-F]+)|#([0-9]+)|(lt|gt|amp|quot|apos));/g, (_, hex: string | undefined, dec: string | undefined, name: string | undefined) =>
+      name !== undefined ? ({ lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" } as Record<string, string>)[name] ?? "" : String.fromCodePoint(Number.parseInt(hex ?? dec ?? "0", hex !== undefined ? 16 : 10)),
+    );
+
+/** Everything a library user may log or decode of an error: message, detail, the body as sent and decoded. */
+function everythingOf(err: StrahlApiError): string {
+  let decoded = "";
+  try {
+    const walk = (v: unknown): void => {
+      if (typeof v === "string") decoded += `\n${v}`;
+      else if (v !== null && typeof v === "object") {
+        for (const [k, w] of Object.entries(v)) {
+          decoded += `\n${k}`;
+          walk(w);
+        }
+      }
+    };
+    walk(JSON.parse(err.body));
+  } catch {
+    decoded = xmlDecoded(err.body);
+  }
+  return [err.message, err.detail ?? "", err.body, decoded].join("\n");
+}
+
+const xmlReport = (text: string): string =>
+  `<ows:ExceptionReport><ows:Exception><ows:ExceptionText>${text}</ows:ExceptionText></ows:Exception></ows:ExceptionReport>`;
+const allEscaped = (text: string): string => [...text].map((ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`).join("");
+
+test("a credential echoed behind a JSON or XML escape is scrubbed from the message, the detail and the body", async () => {
+  const echoes: Array<[string, string, string]> = [
+    ["JSON \\u escape in detail", "application/json", '{"detail":"bad auth for \\u00733cr&t<pw"}'],
+    ["JSON \\u escape in message", "application/json", '{"message":"bad auth for s3cr\\u0026t\\u003cpw"}'],
+    ["JSON, every character escaped", "application/json", `{"detail":"bad auth for ${allEscaped(ECHO_PW)}"}`],
+    ["JSON, the pair escaped", "application/json", `{"detail":"bad login ${allEscaped(`dummyuser:${ECHO_PW}`)}"}`],
+    ["JSON, the password percent-encoded", "application/json", '{"detail":"bad auth for s3cr%26t%3Cpw"}'],
+    ["XML entities", "application/xml", xmlReport("bad auth for s3cr&amp;t&lt;pw")],
+    ["XML character references", "application/xml", xmlReport("bad auth for s3cr&#38;t&#x3C;pw")],
+    ["XML split CDATA", "application/xml", xmlReport("bad auth for s3c<![CDATA[r&t<pw]]>")],
+    ["XML, the URL decoded", "application/xml", xmlReport("no access to https://dummyuser:s3cr&amp;t&lt;pw@mirror.example/x")],
+    ["XML, a control character inside", "application/xml", xmlReport("bad auth for s3cr&amp;&#x1;t&lt;pw")],
+    ["JSON, a control character inside", "application/json", '{"detail":"bad auth for s3cr&\\u0001t<pw"}'],
+  ];
+  for (const status of [400, 401, 200]) {
+    for (const [label, type, body] of echoes) {
+      // A 200 answer is an error only as an ExceptionReport.
+      if (status === 200 && type !== "application/xml") continue;
+      const e = new RequestEngine({ baseUrl: ECHO_BASE, maxRetries: 0, transport: makeMockTransport(() => rawResponse(body, type, status)).transport });
+      const err = await e.getJson("/x").catch((caught: unknown) => caught);
+      assert.ok(err instanceof StrahlApiError, `${status} ${label}: ${String(err)}`);
+      assert.match(err.detail ?? "", /\*\*\*/, `${status} ${label}: ${err.detail}`);
+      const seen = everythingOf(err);
+      for (const secret of ECHO_SECRETS) assert.ok(!seen.includes(secret), `${status} ${label}: ${secret} in ${seen}`);
+    }
+  }  // Scrubbed before the detail is cut at 500 characters, so no prefix of the password stays.
+  for (const at of [490, 495, 499]) {
+    const pad = "x".repeat(at);
+    for (const [type, body] of [["application/json", `{"detail":"${pad}s3cr\\u0026t<pw tail"}`], ["application/xml", xmlReport(`${pad}s3cr&amp;t&lt;pw tail`)]] as const) {
+      const e = new RequestEngine({ baseUrl: ECHO_BASE, maxRetries: 0, transport: makeMockTransport(() => rawResponse(body, type, 400)).transport });
+      const err = await e.getJson("/x").catch((caught: unknown) => caught);
+      assert.ok(err instanceof StrahlApiError, String(err));
+      assert.ok(!(err.detail ?? "").includes("s3cr"), `${type} at ${at}: ${(err.detail ?? "").slice(480)}`);
+    }
+  }
+});
+
+test("an error body keeps its spelling unless a credential hides behind an escape", async () => {
+  const bodyOf = async (body: string, type = "application/json"): Promise<string> => {
+    const e = new RequestEngine({ baseUrl: "https://alice:s3cret-pw@mirror.example", maxRetries: 0, transport: makeMockTransport(() => rawResponse(body, type, 500)).transport });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof StrahlApiError, String(err));
+    return err.body;
+  };
+  // No credential, or one spelled as sent: the body as sent (scrubbed), escapes kept.
+  assert.equal(await bodyOf('{"m":"caf\\u00e9 \\"x\\""}'), '{"m":"caf\\u00e9 \\"x\\""}');
+  assert.equal(await bodyOf('{"m":"pw s3cret-pw \\u00e9"}'), '{"m":"pw *** \\u00e9"}');
+  assert.equal(await bodyOf(xmlReport("a &amp; s3cret-pw")), xmlReport("a &amp; ***"));
+  // JSON with the credential behind an escape: written again decoded, scrubbed in that spelling.
+  assert.equal(await bodyOf('{"m":"pw s3cret\\u002dpw \\u00e9"}'), '{"m":"pw *** é"}');
+  // XML with the credential behind an escape: it can't be written again soundly, so it is left out
+  // (the detail still says what the server reported).
+  assert.equal(await bodyOf(xmlReport("pw s3cret&#45;pw"), "application/xml"), "");
+  assert.equal(await bodyOf(xmlReport("pw s3c<![CDATA[ret-pw]]>"), "application/xml"), "");
+  // Neither JSON nor XML: nobody decodes it, it stays as sent.
+  assert.equal(await bodyOf("pw s3cret\\u002dpw", "text/plain"), "pw s3cret\\u002dpw");
+  // Without credentials in the base URL nothing is rewritten.
+  const plain = new RequestEngine({ maxRetries: 0, transport: makeMockTransport(() => rawResponse('{"m":"\\u00e9"}', "application/json", 500)).transport });
+  const err = await plain.getJson("/x").catch((caught: unknown) => caught);
+  assert.ok(err instanceof StrahlApiError && err.body === '{"m":"\\u00e9"}', String(err));
+});

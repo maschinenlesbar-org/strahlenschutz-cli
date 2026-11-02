@@ -240,6 +240,19 @@ export function serverTextForMessage(text: string, max = 200): string {
   return clean.length > max ? `${cutText(clean, max)}…` : clean;
 }
 
+/**
+ * `form` and its spelling in a URL (`encodeURIComponent`): a server that quotes a URL with a
+ * credential in it percent-encodes it. A form that has no such spelling (a lone surrogate) is
+ * kept as it is.
+ */
+function urlSpellings(form: string): string[] {
+  try {
+    return [form, encodeURIComponent(form)];
+  } catch {
+    return [form];
+  }
+}
+
 /** Longest error detail kept in a message; the full body stays on `StrahlApiError.body`. */
 export const MAX_DETAIL_LENGTH = 500;
 
@@ -295,16 +308,19 @@ function decodeXmlText(text: string): string {
  * `exceptionCode` attribute, cleaned for a one-line message; `undefined` when the
  * body is not an ExceptionReport. No XML dependency: the elements are found by
  * `exceptionTextElements`, in time linear in the body (a body of many unclosed tags once
- * cost quadratic time, 13.5 s for 1.2 MB, after it had arrived).
+ * cost quadratic time, 13.5 s for 1.2 MB, after it had arrived). `scrub` (default: none) is
+ * applied to every decoded text before it is cleaned: the engine passes its credential scrub.
  */
-export function owsExceptionText(body: string): string | undefined {
+export function owsExceptionText(body: string, scrub: (text: string) => string = (text) => text): string | undefined {
   if (!/<(?:[\w.-]+:)?ExceptionReport[\s>]/.test(body)) return undefined;
+  // `scrub` runs on each text decoded, before it is cleaned and cut: an entity, a character
+  // reference or a split CDATA section hides a secret from a scrub of the body as sent.
   const texts = exceptionTextElements(body)
-    .map((content) => cleanDetail(decodeXmlText(content)))
+    .map((content) => cleanDetail(scrub(decodeXmlText(content))))
     .filter((t): t is string => t !== undefined);
   if (texts.length > 0) return cleanDetail([...new Set(texts)].join("; "));
   const code = /\bexceptionCode\s*=\s*"([^"]*)"/.exec(body)?.[1];
-  return code === undefined ? undefined : cleanDetail(decodeXmlText(code));
+  return code === undefined ? undefined : cleanDetail(scrub(decodeXmlText(code)));
 }
 
 /** True for a character of `[\w.-]`, the characters of an XML namespace prefix here. */
@@ -601,9 +617,10 @@ export class RequestEngine {
         return [raw];
       }
     });
-    this.#echoed = credentialsIn(this.#baseUrl)
-      .flatMap(echoedCredentialForms)
-      .sort((a, b) => b.length - a.length);
+    // Each form also percent-encoded (`urlSpellings`), as a server quoting a URL writes it.
+    this.#echoed = [...new Set(credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms).flatMap(urlSpellings))].sort(
+      (a, b) => b.length - a.length,
+    );
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only `undefined` selects the default. A blank value would go out as an empty
     // User-Agent, and a control or non-Latin-1 character would reach a custom
@@ -665,6 +682,38 @@ export class RequestEngine {
    */
   private scrub(text: string): string {
     return this.#credentials.length === 0 ? text : redactSecrets(redactCredentials(text, this.#credentials), this.#echoed);
+  }
+
+  /**
+   * An error body, already scrubbed as sent, as `StrahlApiError.body` keeps it: when it is JSON
+   * with an escape in it, or XML with an entity, a character reference or a CDATA section, it is
+   * checked decoded too. An escape (`\u0026`, `&amp;`, `<![CDATA[`) hides an echoed credential from
+   * the scrub of the text as sent, while a caller who decodes the body sees it. Such a JSON body
+   * is kept as the decoded JSON written again (`JSON.stringify`, one spelling per character) with
+   * the credential scrubbed in that spelling; such an XML body is left out (`""`), since it cannot
+   * be written again soundly (the detail still says what the server reported). A body that is
+   * neither is text nobody decodes, and stays as sent; JSON too deeply nested to write again is
+   * left out.
+   */
+  private scrubBody(scrubbed: string): string {
+    const jsonEscape = scrubbed.includes("\\");
+    if (this.#echoed.length === 0 || (!jsonEscape && !/&|<!\[CDATA\[/.test(scrubbed))) return scrubbed;
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(scrubbed);
+    } catch {
+      const text = decodeXmlText(scrubbed);
+      return this.scrub(text) === text ? scrubbed : "";
+    }
+    if (!jsonEscape) return scrubbed;
+    let rewritten: string;
+    try {
+      rewritten = JSON.stringify(decoded);
+    } catch {
+      return "";
+    }
+    const spelled = this.#echoed.map((form) => JSON.stringify(form).slice(1, -1));
+    return spelled.some((form) => rewritten.includes(form)) ? redactSecrets(rewritten, spelled) : scrubbed;
   }
 
   /**
@@ -966,9 +1015,10 @@ export class RequestEngine {
     } catch (cause) {
       // GeoServer answers some bad requests with HTTP 200 and an OGC
       // ExceptionReport (XML) instead of GeoJSON: report its reason, not a parse error.
-      const exception = owsExceptionText(text);
+      const exception = owsExceptionText(text, (t) => this.scrub(t));
       if (exception !== undefined) {
-        throw new StrahlApiError({ status: res.status, url: res.url, method: "GET", body: this.scrub(text), detail: this.scrub(exception) });
+        const body = this.scrubBody(this.scrub(text));
+        throw new StrahlApiError({ status: res.status, url: res.url, method: "GET", body, detail: this.scrub(exception) });
       }
       // A maintenance or proxy page answered with 200: say what it was.
       const type = res.contentType.split(";")[0]?.trim() ?? "";
@@ -998,20 +1048,28 @@ export class RequestEngine {
     contentType: string,
     hint?: string,
   ): StrahlApiError {
-    const text = this.scrub(decodeErrorBody(body, contentType));
+    const raw = decodeErrorBody(body, contentType);
+    // The body is kept on the error and may echo the credentials: scrubbed as sent, and checked
+    // decoded (scrubBody).
+    const text = this.scrubBody(this.scrub(raw));
+    // The detail is read from the body as sent and scrubbed once decoded: an escape (a JSON
+    // `\u0073`, an XML `&amp;`, a split CDATA section) hid a credential from a scrub of the raw
+    // text, and decoding then turned it into the plain password.
     let detail: string | undefined;
     try {
-      const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown };
+      const parsed = JSON.parse(raw) as { detail?: unknown; message?: unknown };
       if (parsed && typeof parsed.detail === "string") detail = parsed.detail;
       else if (parsed && typeof parsed.message === "string") detail = parsed.message;
     } catch {
       // Not JSON: GeoServer's errors are an OGC ExceptionReport (XML).
-      detail = owsExceptionText(text);
+      detail = owsExceptionText(raw, (t) => this.scrub(t));
     }
-    // `detail` came from the response body; strip control characters so a hostile
-    // endpoint cannot inject terminal escape sequences via the stderr error message,
-    // and keep it to one bounded line.
-    if (detail !== undefined) detail = cleanDetail(detail);
+    // `detail` came from the response body: scrubbed, then stripped of control characters so a
+    // hostile endpoint cannot inject terminal escape sequences via the stderr error message, kept
+    // to one bounded line, and scrubbed again (a dropped control character inside an echo no
+    // longer hides it).
+    if (detail !== undefined) detail = cleanDetail(this.scrub(detail));
+    if (detail !== undefined) detail = this.scrub(detail);
     if (hint !== undefined) detail = detail === undefined ? hint : `${detail}; ${hint}`;
     return new StrahlApiError({ status, url, method, body: text, detail });
   }

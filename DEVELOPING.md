@@ -301,7 +301,13 @@ percent-decoded) is scrubbed from error bodies and details, transport error text
 the `cause` chain — and with it the forms a server echoes it back in
 (`echoedCredentialForms`, exported): the `Authorization: Basic` value, the decoded
 `user:password`, and the password alone from 4 characters on (`redactSecrets`,
-exported). The CLI replaces the Basic value and the pair on stdout and stderr, the bare
+exported), each also percent-encoded. Server text is scrubbed **after it is decoded**, before
+it is cleaned and cut, and again after: an escape (a JSON `\u0073`, an XML `&amp;` or
+character reference, a CDATA section split inside the password) hid a credential from a scrub
+of the body as sent, and decoding then gave the plain password to `.message` and `.detail`
+(`owsExceptionText` takes the scrub as its second argument). `StrahlApiError.body` keeps its
+spelling unless a credential hides behind an escape in it: a JSON body is then written again
+decoded (`JSON.stringify`) with the credential scrubbed, an XML one is left out (`""`). The CLI replaces the Basic value and the pair on stdout and stderr, the bare
 password on stderr only (on stdout a short password may well occur in the data). The CLI maps
 `StrahlNotFoundError` to exit code `4`; all other errors map to `1`, an HTTP 404
 included: every command requests the one fixed WFS path, so a 404 means that
