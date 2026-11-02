@@ -365,9 +365,14 @@ namespace prefix, entities and CDATA decoded) out with a small scanner — no XM
 dependency — in time linear in the body (a regex rescanned to the end from every unclosed
 tag: a hostile 1.2 MB report cost 13.5 s of CPU after it had arrived), and uses
 it as the `detail`, for a non-2xx status and for a 2xx body that is not JSON.
-Every detail is stripped of control characters, flattened to one line and cut at
-`MAX_DETAIL_LENGTH` (500) characters, never inside a surrogate pair (the exported
-`cutText`), so the message stays well-formed; the full body stays on `StrahlApiError.body`.
+Every detail is cleaned by `sanitizeServerText` (whole terminal escape sequences, the
+remaining control characters and every format character — bidi controls, zero-width
+characters — dropped, flattened to one line) and cut at `MAX_DETAIL_LENGTH` (500)
+characters, never inside a surrogate pair (the exported `cutText`), so the message stays
+well-formed; the full body stays on `StrahlApiError.body`. The cleaning reads only the first
+16 384 characters of the server text and is one linear regex pass per step: one string append
+per character over a detail of a few MB exhausted a small heap (a V8 abort, no typed error)
+before the cut.
 
 **Userinfo redaction.** A base URL may carry `user:password@` (for a mirror behind a
 login). The engine never puts it into the URL a transport sees: it sends it as an
@@ -492,9 +497,10 @@ feature. The live WFS applies the `CQL_FILTER`, but a mirror or proxy that drops
 answers with the whole network and HTTP 200; that answer is a `StrahlParseError`
 naming the first foreign `kenn` (CLI exit 1), never another station's reading. The
 foreign `kenn` is server text, so the message quotes it through the exported
-`serverTextForMessage` (`engine.ts`): whitespace and line breaks folded to one space,
-control characters (C0, DEL, C1) and bidi controls dropped, cut at 20 characters,
-never inside a surrogate pair.
+`serverTextForMessage` (`engine.ts`): cleaned as an error detail is (`sanitizeServerText`:
+escape sequences, control characters and format characters, bidi controls among them,
+dropped; whitespace and line breaks folded to one space; at most the first 16 384 characters
+read), then cut at 20 characters, never inside a surrogate pair.
 
 **`FeatureKindValues` / `TYPE_NAMES`.** The const array of valid feature kinds
 (`latest`, `ts-1h`, `ts-24h`) and the map that translates each to its WFS

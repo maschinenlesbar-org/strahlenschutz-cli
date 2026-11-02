@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import { TextDecoder } from "node:util";
 import { Worker } from "node:worker_threads";
+import { spawn } from "node:child_process";
 import assert from "node:assert/strict";
 import {
   MAX_REDIRECTS,
@@ -11,7 +12,9 @@ import {
   firstInexactNumber,
   owsExceptionText,
   parseRetryAfter,
+  sanitizeServerText,
   scanNumbers,
+  serverTextForMessage,
   type EngineOptions,
 } from "../src/engine.js";
 import { StrahlApiError, StrahlNetworkError, StrahlParseError, StrahlValidationError, cutText, toWellFormed } from "../src/errors.js";
@@ -262,8 +265,9 @@ test("error detail is stripped of C0 and C1 terminal control characters", async 
       // prints to stderr are free of control bytes...
       assert.ok(!hasControlChars(err.detail ?? ""));
       assert.ok(!hasControlChars(err.message));
-      // ...while the printable text survives (only the control bytes were removed).
-      assert.equal(err.detail, "boom[31mred2J");
+      // ...while the printable text survives: whole escape sequences go (not only their
+      // control bytes, which left "[31m" and "2J" behind), the text around them stays.
+      assert.equal(err.detail, "boomred");
       return true;
     },
   );
@@ -400,7 +404,7 @@ test("owsExceptionText decodes entities, joins texts, flattens lines and strips 
     owsExceptionText(report("<ExceptionText>a &lt;b&gt; &amp; &#x41;&#66;\nError: forged</ExceptionText><ExceptionText>two</ExceptionText>")),
     "a <b> & AB Error: forged; two",
   );
-  assert.equal(owsExceptionText(report(`<ows:ExceptionText><![CDATA[x ${esc}[31my]]></ows:ExceptionText>`)), "x [31my");
+  assert.equal(owsExceptionText(report(`<ows:ExceptionText><![CDATA[x ${esc}[31my]]></ows:ExceptionText>`)), "x y");
   assert.equal(owsExceptionText(report("")), "NoApplicableCode");
   const long = owsExceptionText(report(`<ExceptionText>${"x".repeat(5000)}</ExceptionText>`)) ?? "";
   assert.equal(long.length, 501);
@@ -885,4 +889,96 @@ test("an answer longer than V8's longest string is a StrahlParseError naming the
   // An error status with such a body is still the API error, without the unreadable body.
   const failing = new RequestEngine({ maxResponseBytes: 0, transport: makeMockTransport(() => rawResponse(huge, "text/plain", 500)).transport });
   await assert.rejects(failing.getJson("/x"), (err: unknown) => err instanceof StrahlApiError && err.status === 500 && err.body === "");
+});
+
+// ---- server text cut before it is cleaned (security audit 2026-10-27, class C) ---------------
+// sanitizeServerText and serverTextForMessage appended one character at a time over the whole
+// server text and cut it only afterwards: one rope node per character, so an error detail, an
+// ExceptionText or a foreign kenn of a few MB aborted the process (V8 heap out of memory)
+// before the typed error was built.
+
+test("sanitizeServerText reads a bounded prefix and drops what the per-character filter dropped", () => {
+  // The filter it replaces, one character at a time: C0 but TAB to CR, DEL, C1 and Cf go.
+  const perCharacter = (text: string): string =>
+    [...text]
+      .filter((ch) => {
+        const n = ch.codePointAt(0) ?? 0;
+        return (n >= 0x09 && n <= 0x0d) || !(n <= 0x1f || (n >= 0x7f && n <= 0x9f) || /\p{Cf}/u.test(ch));
+      })
+      .join("")
+      .replace(/\s+/g, " ")
+      .trim();
+  const every = Array.from({ length: 0x3000 }, (_, i) => String.fromCharCode(i)).join("") + "\u{1f600}\u{e0001}\ud800x";
+  for (let at = 0; at < every.length; at += 512) {
+    const piece = every.slice(at, at + 512).replace(/[\u001b\u0090\u0098\u009b-\u009f]/g, "");
+    assert.equal(sanitizeServerText(piece), perCharacter(piece), `from U+${at.toString(16)}`);
+  }
+  // At most 16 384 units of the text are read, never half a surrogate pair.
+  assert.equal(sanitizeServerText("x".repeat(100_000)).length, 16_384);
+  assert.equal(sanitizeServerText(`${"x".repeat(16_383)}\u{1f600}`), "x".repeat(16_383));
+  // A whole escape sequence goes, not only its control bytes.
+  assert.equal(sanitizeServerText("a\u001b]0;title\u0007b \u001b[31mred\u001b[0m"), "ab red");
+  // A control string ends at another introducer: the first is dropped by the filter, the second
+  // string as a whole.
+  const OSC8 = String.fromCharCode(0x9d);
+  const ST8 = String.fromCharCode(0x9c);
+  assert.equal(sanitizeServerText(`a${OSC8}0;x${OSC8}0;t${ST8}b`), "a0;xb");
+  assert.equal(sanitizeServerText("a\u001b]0;x\u001b]0;t\u0007b"), "a0;xb");
+  // serverTextForMessage: the same cleaning, then its own cut.
+  assert.equal(serverTextForMessage(`a\u202e\u200b b\r\n${"c".repeat(300)}`, 10), "a b cccccc…");
+});
+
+test("an error answer of unterminated control-string introducers is cleaned in linear time", async () => {
+  // An introducer allowed inside a control string made a run of them quadratic (100 000 × U+009D: 16 s).
+  for (const opener of ["\\u009d", "\\u0090", "\\u0098", "\\u009e", "\\u009f", "\\u001b]"]) {
+    const body = `{"detail":"${opener.repeat(100_000)} tail"}`;
+    const e = new RequestEngine({ maxRetries: 0, transport: makeMockTransport(() => rawResponse(body, "application/json", 500)).transport });
+    const start = performance.now();
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    const ms = performance.now() - start;
+    assert.ok(ms < 1000, `${opener}: ${Math.round(ms)} ms`);
+    assert.ok(err instanceof StrahlApiError, String(err));
+    assert.ok(!/[\u0000-\u001f\u007f-\u009f]/.test(err.message), `${opener}: a control character in the message`);
+  }
+});
+
+// This test starts a process with a small heap: 30 s instead of the suite's 5 s.
+const STARTS_A_PROCESS = { timeout: 30_000 };
+
+test("16 MB of server text in an error detail, an ExceptionText or a foreign kenn is a typed error within a small heap", STARTS_A_PROCESS, async () => {
+  const index = new URL("../src/index.js", import.meta.url).href;
+  const script = `
+    const { StrahlenschutzClient } = await import(${JSON.stringify(index)});
+    const big = () => "x ".repeat(8_000_000);
+    const answers = {
+      detail: () => [500, "application/json", JSON.stringify({ detail: big() })],
+      exceptionText: () => [400, "application/xml", "<ows:ExceptionReport><ows:Exception><ows:ExceptionText>" + big() + "</ows:ExceptionText></ows:Exception></ows:ExceptionReport>"],
+      kenn: () => [200, "application/json", JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", geometry: null, properties: { kenn: big() } }] })],
+    };
+    for (const [name, answer] of Object.entries(answers)) {
+      const client = new StrahlenschutzClient({ maxRetries: 0, transport: async () => {
+        const [status, type, body] = answer();
+        return { status, headers: { "content-type": type }, body: Buffer.from(body) };
+      } });
+      try {
+        await client.station("1");
+        console.log(name, "no error");
+      } catch (err) {
+        console.log(name, err.name, err.message.length);
+      }
+    }
+  `;
+  const run = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string }>((resolve) => {
+    const child = spawn(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
+    child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+    child.on("close", (code, signal) => resolve({ code, signal, stdout, stderr }));
+  });
+  assert.equal(run.signal, null, `aborted: ${run.stderr.slice(0, 500)}`);
+  assert.equal(run.code, 0, run.stderr.slice(0, 500));
+  const lines = run.stdout.trim().split("\n").map((line) => line.split(" "));
+  assert.deepEqual(lines.map(([name, kind]) => `${name} ${kind}`), ["detail StrahlApiError", "exceptionText StrahlApiError", "kenn StrahlParseError"]);
+  for (const [name, , length] of lines) assert.ok(Number(length) < 1000, `${name}: a message of ${length} characters`);
 });
