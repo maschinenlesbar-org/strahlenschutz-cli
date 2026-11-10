@@ -9,7 +9,7 @@
 //   client.station("091811461")
 //   client.timeseries("091811461", "ts-24h")
 
-import { RequestEngine, serverTextForMessage, type EngineOptions } from "./engine.js";
+import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import { TYPE_NAMES, type FeatureKind, type TimeseriesResolution } from "./enums.js";
 import { StrahlNotFoundError, StrahlParseError, StrahlValidationError, quoteValue } from "./errors.js";
@@ -133,12 +133,13 @@ function assertFeatureCollection(value: unknown, request: string): FeatureCollec
  * printed 1 677 stations, and the README's `.features[0]` recipe reported Flensburg's
  * reading as Herrischried's. Such an answer is a StrahlParseError, never data.
  */
-function assertStation(result: FeatureCollection, kenn: string, request: string): void {
+function assertStation(engine: RequestEngine, result: FeatureCollection, kenn: string, request: string): void {
   result.features.forEach((feature, i) => {
     const got = feature.properties["kenn"];
     if (got !== kenn) {
-      // The server's value, quoted clean (one line, no control or bidi character) and short.
-      const shown = typeof got === "string" ? `kenn "${serverTextForMessage(got, 20)}"` : "no kenn";
+      // The server's value, quoted clean (one line, no control or bidi character), short, and
+      // with the base URL's credentials scrubbed before it is cut (quoteServerValue).
+      const shown = typeof got === "string" ? `kenn ${engine.quoteServerValue(got, 20)}` : "no kenn";
       throw new StrahlParseError(
         `${request}: the WFS answered a query for kenn "${kenn}" with a feature for ${shown} (feature ${i} of ` +
           `${result.features.length}): it did not apply the station filter, so this is not that station's data. ` +
@@ -201,7 +202,7 @@ export class StrahlenschutzClient {
     // Every error about the answer names the request (`GET <url>: …`).
     const request = `GET ${this.engine.describeUrl(OWS, params)}`;
     const result = assertFeatureCollection(await this.engine.getJson<unknown>(OWS, params), request);
-    if (station !== undefined) assertStation(result, station, request);
+    if (station !== undefined) assertStation(this.engine, result, station, request);
     return result;
   }
 

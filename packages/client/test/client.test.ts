@@ -348,3 +348,25 @@ test("a refused kenn, sort key or query key is quoted visibly: an invisible char
   }
   assert.equal(mt.calls.length, 0);
 });
+
+test("a credential in the foreign kenn the station-filter error quotes is scrubbed before it is cut (D)", async () => {
+  // assertStation quoted the server's kenn cleaned and cut to 20 characters, never scrubbed: a
+  // mirror that echoed the base URL's password, user:password or Basic value into it put (the
+  // first 20 characters of) it into the StrahlParseError's message. A control character inside
+  // the echo hid it from a scrub of the value as sent, and cleaning then joined it again.
+  const pw = "s3cret-Pw0rd";
+  const baseUrl = `https://alice:${pw}@mirror.example`;
+  const basic = Buffer.from(`alice:${pw}`, "utf8").toString("base64");
+  for (const kenn of [pw, `alice:${pw}`, basic, `x ${pw.slice(0, 4)}\u0007${pw.slice(4)}`, `${pw.slice(0, 6)}‮${pw.slice(6)}`]) {
+    const answer = { type: "FeatureCollection", features: [{ type: "Feature", id: "a", geometry: null, properties: { kenn } }] };
+    const client = new StrahlenschutzClient({ baseUrl, transport: constantJson(answer).transport });
+    const err = await client.station("083370490").then(
+      () => assert.fail("the call should have failed"),
+      (e: unknown) => e,
+    );
+    assert.ok(err instanceof StrahlParseError, String(err));
+    const message = (err as Error).message;
+    assert.match(message, /with a feature for kenn "/);
+    for (const part of [pw.slice(0, 6), pw.slice(6), basic.slice(0, 12)]) assert.ok(!message.includes(part), `${JSON.stringify(kenn)}: ${message}`);
+  }
+});

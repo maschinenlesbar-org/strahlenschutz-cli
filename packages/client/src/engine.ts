@@ -690,6 +690,19 @@ export class RequestEngine {
   }
 
   /**
+   * A value from a 2xx answer that one of the client's own messages quotes (the `kenn` of a
+   * feature for another station), as `"<text>"`: the base URL's credentials scrubbed, then made
+   * safe and short (`serverTextForMessage`: cleaned to one line, cut at `max` characters), and
+   * scrubbed again in between, so neither a cut nor a control character dropped from inside an
+   * echo leaves any part of a credential. `serverTextForMessage` alone cuts first: a password
+   * echoed there kept its first `max` characters.
+   */
+  quoteServerValue(value: string, max = 200): string {
+    const clean = this.scrub(sanitizeServerText(this.scrub(value)));
+    return `"${clean.length > max ? `${cutText(clean, max)}…` : clean}"`;
+  }
+
+  /**
    * An error body, already scrubbed as sent, as `StrahlApiError.body` keeps it: when it is JSON
    * with an escape in it, or XML with an entity, a character reference or a CDATA section, it is
    * checked decoded too. An escape (`\u0026`, `&amp;`, `<![CDATA[`) hides an echoed credential from

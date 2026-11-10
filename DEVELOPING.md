@@ -509,11 +509,15 @@ an empty result.
 feature. The live WFS applies the `CQL_FILTER`, but a mirror or proxy that drops it
 answers with the whole network and HTTP 200; that answer is a `StrahlParseError`
 naming the first foreign `kenn` (CLI exit 1), never another station's reading. The
-foreign `kenn` is server text, so the message quotes it through the exported
-`serverTextForMessage` (`engine.ts`): cleaned as an error detail is (`sanitizeServerText`:
-escape sequences, control characters and format characters, bidi controls among them,
-dropped; whitespace and line breaks folded to one space; at most the first 16 384 characters
-read), then cut at 20 characters, never inside a surrogate pair.
+foreign `kenn` is server text, so the message quotes it through
+`RequestEngine#quoteServerValue`: the base URL's credentials scrubbed (a mirror can echo them
+there), cleaned as an error detail is (`sanitizeServerText`: escape sequences, control
+characters and format characters, bidi controls among them, dropped; whitespace and line
+breaks folded to one space; at most the first 16 384 characters read), scrubbed again (a
+dropped control character no longer hides an echo), then cut at 20 characters, never inside a
+surrogate pair. Unscrubbed, the cut kept the first 20 characters of an echoed password. API
+code that quotes a value from an answer uses it; the exported `serverTextForMessage` cleans and
+cuts but knows no credentials.
 
 **`FeatureKindValues` / `TYPE_NAMES`.** The const array of valid feature kinds
 (`latest`, `ts-1h`, `ts-24h`) and the map that translates each to its WFS
