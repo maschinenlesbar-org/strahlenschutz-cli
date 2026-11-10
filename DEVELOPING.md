@@ -493,7 +493,11 @@ body types and four header shapes.
 default 100 MiB), guarding against unbounded responses — applied by the built-in
 transport while reading and by the engine to the body any transport returns. The
 message names the option and the CLI flag: `Response exceeded the size limit of <n>
-bytes (maxResponseBytes; --max-response-bytes on the CLI)`.
+bytes (maxResponseBytes; --max-response-bytes on the CLI)`. Below the cap, the built-in
+transport's memory follows the bytes, not the number of chunks a server sends them in: small
+chunks are joined as they arrive (at most 1 024 of them or 64 KiB unjoined); a Buffer kept
+per chunk held about 210 bytes of heap per byte for one-byte chunks, so 2 MB on the wire
+aborted the CLI under a 256 MB heap.
 
 **Tokens.** Every value the WFS compares exactly — the station id `kenn`, a sort key, the
 feature kind and the resolution — is a token (D8 of the 2026-10-21 fix plan): `tokenProblem`
@@ -642,7 +646,8 @@ everything that drives the CLI is in `apps/cli/test/`.
   tests are skipped, `HAS_OUTPUT_OPTION = false`: the CLI writes no files). P27 big and odd answers (spawns the built bin under a small
   heap): a large flat answer prints with `--compact`; 20 M DEL characters print escaped under a
   512 MB heap, 90 M are an ERROR record of `strahlenschutz.output`, not a crash; a lone surrogate
-  or invalid bytes become U+FFFD with a `WARN` record of `strahlenschutz.api`.
+  or invalid bytes become U+FFFD with a `WARN` record of `strahlenschutz.api`; an answer in two
+  million one-byte chunks prints under a 256 MB heap.
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.

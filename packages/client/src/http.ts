@@ -49,6 +49,11 @@ export interface HttpResponse {
 
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
 
+/** The most received chunks the default transport keeps unjoined. */
+const COALESCE_CHUNKS = 1024;
+/** The bytes of unjoined chunks at which the default transport joins them into one Buffer. */
+const COALESCE_BYTES = 64 * 1024;
+
 /** The message for a body over the size cap, naming the option on both sides. */
 export function sizeLimitMessage(maxBytes: number): string {
   return `Response exceeded the size limit of ${maxBytes} bytes (maxResponseBytes; --max-response-bytes on the CLI)`;
@@ -72,7 +77,9 @@ function shownUrl(url: string): string {
 /**
  * Default transport. Resolves with the raw response (including non-2xx) — status
  * interpretation is the client's job. Rejects only on transport-level failures
- * (connection errors, timeouts, malformed URLs).
+ * (connection errors, timeouts, malformed URLs). The body is read up to `maxResponseBytes`;
+ * small chunks are joined as they arrive, so the memory an answer holds follows its bytes, not
+ * the number of chunks a server sends it in.
  */
 export const nodeHttpTransport: Transport = (request) =>
   new Promise<HttpResponse>((resolve, reject) => {
@@ -121,7 +128,12 @@ export const nodeHttpTransport: Transport = (request) =>
           headers: request.headers,
         },
         (res) => {
+          // Small chunks are joined as they arrive (`pending`, at most COALESCE_CHUNKS of them
+          // or COALESCE_BYTES), so the Buffers kept follow the bytes, not the number of chunks
+          // a server chooses to send: a Buffer per one-byte chunk held ~210 bytes of heap each.
           const chunks: Buffer[] = [];
+          let pending: Buffer[] = [];
+          let pendingBytes = 0;
           let received = 0;
           let aborted = false;
 
@@ -134,14 +146,20 @@ export const nodeHttpTransport: Transport = (request) =>
               fail(new StrahlNetworkError(sizeLimitMessage(maxBytes)));
               return;
             }
-            chunks.push(chunk);
+            pending.push(chunk);
+            pendingBytes += chunk.length;
+            if (pending.length >= COALESCE_CHUNKS || pendingBytes >= COALESCE_BYTES) {
+              chunks.push(pending.length === 1 ? chunk : Buffer.concat(pending, pendingBytes));
+              pending = [];
+              pendingBytes = 0;
+            }
           });
           res.on("end", () => {
             if (aborted) return;
             done({
               status: res.statusCode ?? 0,
               headers: res.headers,
-              body: Buffer.concat(chunks),
+              body: Buffer.concat([...chunks, ...pending]),
             });
           });
           res.on("error", (err) => {

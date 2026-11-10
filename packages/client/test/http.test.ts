@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
+import net from "node:net";
 import { nodeHttpTransport } from "../src/http.js";
 import { StrahlNetworkError } from "../src/errors.js";
 
@@ -119,4 +120,43 @@ test("a URL typed without its scheme is refused without its user name, token or 
   // A scheme spelled as one (`scheme://`) is still named.
   const ftp = await nodeHttpTransport({ method: "GET", url: "ftp://alice:s3cret-pw@h.example/x", headers: {} }).catch((e: unknown) => e);
   assert.ok(ftp instanceof StrahlNetworkError && ftp.message === 'Unsupported protocol "ftp:" in URL: ftp://***@h.example/x', String(ftp));
+});
+
+/** Serve one raw HTTP answer from a TCP server for one test and return its base URL. */
+async function withRawServer(answer: Buffer, fn: (baseUrl: string) => Promise<void>): Promise<void> {
+  const server = net.createServer((socket) => {
+    socket.once("data", () => socket.end(answer));
+    socket.on("error", () => {});
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    await fn(`http://127.0.0.1:${(server.address() as net.AddressInfo).port}`);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
+
+test("a body in many tiny chunks arrives whole and in order, and the byte cap still holds", async () => {
+  // 300 001 chunks of 1 to 3 bytes: whatever the transport joins on the way, every byte is kept
+  // once, in order (the memory side is conformance test P27, the bin in a small heap).
+  const pieces = Array.from({ length: 300_001 }, (_, i) => "abc".slice(0, (i % 3) + 1));
+  const head = "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n";
+  const wire = Buffer.from(head + pieces.map((p) => `${p.length}\r\n${p}\r\n`).join("") + "0\r\n\r\n", "latin1");
+  const expected = pieces.join("");
+  await withRawServer(wire, async (baseUrl) => {
+    const res = await nodeHttpTransport({ method: "GET", url: baseUrl });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.length, expected.length);
+    assert.ok(res.body.equals(Buffer.from(expected, "latin1")));
+  });
+  await withRawServer(wire, async (baseUrl) => {
+    await assert.rejects(
+      () => nodeHttpTransport({ method: "GET", url: baseUrl, maxResponseBytes: expected.length - 1 }),
+      (err: unknown) => err instanceof StrahlNetworkError && /exceeded the size limit/.test(err.message),
+    );
+  });
+  await withRawServer(wire, async (baseUrl) => {
+    const res = await nodeHttpTransport({ method: "GET", url: baseUrl, maxResponseBytes: expected.length });
+    assert.equal(res.body.length, expected.length);
+  });
 });
