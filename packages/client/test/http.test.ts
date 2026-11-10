@@ -103,3 +103,20 @@ test("a header value Node refuses rejects with StrahlNetworkError, not a raw Typ
     (err: unknown) => err instanceof StrahlNetworkError && /^Invalid request: /.test((err as Error).message),
   );
 });
+
+test("a URL typed without its scheme is refused without its user name, token or password (F5 class)", async () => {
+  // `my_user:pw@h` doesn't parse ("_" is no scheme character) and was quoted with its password;
+  // `T0kenS3cret:@h` parses with the token as its scheme, which the message named, lower-cased.
+  for (const url of ["my_user:s3cret-pw@h.example/x", "T0kenS3cret:@h.example/x", "alice:s3cret-pw@h.example/x"]) {
+    const err = await nodeHttpTransport({ method: "GET", url, headers: {} }).then(
+      () => assert.fail(`${url}: accepted`),
+      (caught: unknown) => caught,
+    );
+    assert.ok(err instanceof StrahlNetworkError, String(err));
+    assert.ok(!/s3cret|t0kens3cret|T0kenS3cret|my_user|alice/.test(err.message), err.message);
+    assert.match(err.message, /\*\*\*@h\.example\/x/);
+  }
+  // A scheme spelled as one (`scheme://`) is still named.
+  const ftp = await nodeHttpTransport({ method: "GET", url: "ftp://alice:s3cret-pw@h.example/x", headers: {} }).catch((e: unknown) => e);
+  assert.ok(ftp instanceof StrahlNetworkError && ftp.message === 'Unsupported protocol "ftp:" in URL: ftp://***@h.example/x', String(ftp));
+});
