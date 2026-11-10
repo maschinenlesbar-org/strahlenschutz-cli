@@ -141,15 +141,16 @@ export function redactUrlUserinfo(text: string): string {
 
 /**
  * The forms in which a server may echo the credentials of a userinfo (`user:password`,
- * as {@link credentialsIn} returns it) back in an error body: the `Authorization: Basic`
- * value (base64 of the decoded `user:password`, UTF-8 as the engine sends it), the decoded
- * `user:password` itself, and the password alone when it is at least 4 characters long.
- * `[]` for a userinfo without a password. None of them has an `@` to anchor on, so they
- * are replaced as exact strings ({@link redactSecrets}).
+ * as {@link credentialsIn} returns it) back in an error body, in this order: the
+ * `Authorization: Basic` value (base64 of the decoded `user:password`, UTF-8 as the engine
+ * sends it), the decoded `user:password` itself, and the secret alone when it is at least 4
+ * characters long. The secret is the password; in a userinfo without one (`TOKEN@host`,
+ * `TOKEN:@host`) it is the user name, a token, which the engine sends as Basic `TOKEN:`. `[]`
+ * for an empty userinfo. None of them has an `@` to anchor on, so they are replaced as exact
+ * strings ({@link redactSecrets}).
  */
 export function echoedCredentialForms(userinfo: string): string[] {
   const colon = userinfo.indexOf(":");
-  if (colon < 0) return [];
   const decode = (part: string): string => {
     try {
       return decodeURIComponent(part);
@@ -157,12 +158,13 @@ export function echoedCredentialForms(userinfo: string): string[] {
       return part;
     }
   };
-  const user = decode(userinfo.slice(0, colon));
-  const password = decode(userinfo.slice(colon + 1));
-  if (password === "") return [];
+  const user = decode(colon < 0 ? userinfo : userinfo.slice(0, colon));
+  const password = colon < 0 ? "" : decode(userinfo.slice(colon + 1));
+  const secret = password === "" ? user : password;
+  if (secret === "") return [];
   const pair = `${user}:${password}`;
   const forms = [Buffer.from(pair, "utf8").toString("base64"), pair];
-  if (password.length >= 4) forms.push(password);
+  if (secret.length >= 4) forms.push(secret);
   return forms;
 }
 

@@ -558,3 +558,23 @@ test("the userinfo redaction of what the CLI prints is linear in the answer, a g
   assert.ok(out.includes("https://host://***@h and https://***@x://***@w"), out);
   for (const secret of ["u:p1", "u:p2", "v:q3"]) assert.ok(!out.includes(secret), out);
 });
+
+test("a token as the --base-url user name is redacted from what the CLI prints, on stderr and stdout (E)", async () => {
+  const token = "tok3nsecretvalue";
+  const basic = Buffer.from(`${token}:`, "utf8").toString("base64");
+  for (const base of [`https://${token}@127.0.0.1:9`, `https://${token}:@127.0.0.1:9`]) {
+    // An error answer that echoes the token and the Basic value: stderr, both log formats.
+    for (const format of ["text", "jsonl"]) {
+      const failed = makeCli(() => jsonResponse({ detail: `rejected credentials Basic ${basic} (user ${token}:)` }, 401));
+      assert.equal(await run(["--log-format", format, "--base-url", base, "--max-retries", "0", "latest"], failed.deps), 1);
+      const err = failed.err.join("\n");
+      assert.match(err, /401/);
+      assert.ok(!err.includes(token) && !err.includes(basic), `${base} ${format}: ${err}`);
+    }
+    // A 2xx answer that echoes the Basic value and `TOKEN:`: stdout.
+    const echoed = makeCli(() => answerNamed(`Basic ${basic} for ${token}:x`));
+    assert.equal(await run(["--base-url", base, "latest"], echoed.deps), 0, echoed.err.join("\n"));
+    const out = echoed.out.join("\n");
+    assert.ok(!out.includes(basic) && !out.includes(`${token}:`), `${base}: ${out}`);
+  }
+});

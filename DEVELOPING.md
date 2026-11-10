@@ -302,14 +302,16 @@ Content-Type or charset label a parse error quotes, and the `cause` chain (JSON.
 syntax error quotes the start of the body) — and with it the forms a server echoes it back in
 (`echoedCredentialForms`, exported): the `Authorization: Basic` value, the decoded
 `user:password`, and the password alone from 4 characters on (`redactSecrets`,
-exported), each also percent-encoded. Server text is scrubbed **after it is decoded**, before
+exported), each also percent-encoded. A userinfo without a password (`https://TOKEN@host`,
+`https://TOKEN:@host`) is a token: it is sent as `Basic base64("TOKEN:")`, and its forms are
+that value, `TOKEN:` and the token alone, in place of the password. Server text is scrubbed **after it is decoded**, before
 it is cleaned and cut, and again after: an escape (a JSON `\u0073`, an XML `&amp;` or
 character reference, a CDATA section split inside the password) hid a credential from a scrub
 of the body as sent, and decoding then gave the plain password to `.message` and `.detail`
 (`owsExceptionText` takes the scrub as its second argument). `StrahlApiError.body` keeps its
 spelling unless a credential hides behind an escape in it: a JSON body is then written again
 decoded (`JSON.stringify`) with the credential scrubbed, an XML one is left out (`""`). The CLI replaces the Basic value and the pair on stdout and stderr, the bare
-password on stderr only (on stdout a short password may well occur in the data). The CLI maps
+password (or token) on stderr only (on stdout a short password may well occur in the data). The CLI maps
 `StrahlNotFoundError` to exit code `4`; all other errors map to `1`, an HTTP 404
 included: every command requests the one fixed WFS path, so a 404 means that
 path is missing (a wrong `--base-url`, or the API moved), never an unknown
