@@ -46,6 +46,11 @@ export interface RawResponse {
   status: number;
   /** The URL that answered (after any redirects). */
   url: string;
+  /**
+   * That URL as messages name it: without userinfo, and after a redirect the `Location` with the
+   * base URL's credentials scrubbed as sent, then resolved (a server can echo them there).
+   */
+  shownUrl: string;
 }
 
 export interface EngineOptions {
@@ -664,15 +669,19 @@ export class RequestEngine {
     }
   }
 
-  /** Tell `onRetry` about a retry, then wait. A throwing callback never breaks the request. */
-  private async backOff(attempt: number, delayMs: number, url: string, status?: number): Promise<void> {
+  /**
+   * Tell `onRetry` about a retry (`shown`: the URL as messages name it, userinfo redacted and,
+   * after a redirect, the credentials echoed in it scrubbed), then wait. A throwing callback
+   * never breaks the request.
+   */
+  private async backOff(attempt: number, delayMs: number, shown: string, status?: number): Promise<void> {
     try {
       this.onRetry?.({
         retry: attempt,
         maxRetries: this.maxRetries,
         delayMs,
         ...(status !== undefined ? { status } : {}),
-        url: redactUrl(url),
+        url: shown,
       });
     } catch {
       // a logging hook is no reason to fail the request
@@ -825,6 +834,11 @@ export class RequestEngine {
     if (authorization !== undefined) headers["Authorization"] = authorization;
     /** Why a redirect dropped the base URL's credentials, for a 401/403 message. */
     let dropped: string | undefined;
+    // The URL as messages name it: after a redirect, the Location as the server sent it with the
+    // credentials scrubbed, then resolved (`redirectTarget`). Resolving first would percent-encode
+    // an echoed password in a new spelling (`'` as `%27` in a query) no scrub matches. The
+    // request itself goes to the Location as sent.
+    let shown = redactUrl(url);
 
     // Only an idempotent request is sent again: request() is public, and a POST re-sent
     // after a reset may be applied twice. The client itself sends GETs only.
@@ -849,7 +863,7 @@ export class RequestEngine {
         // retried — a slow upstream should not be asked again at once.
         if (idempotent && hasTransientCode(cause) && attempt < this.maxRetries) {
           attempt += 1;
-          await this.backOff(attempt, this.retryDelayMs * attempt, url);
+          await this.backOff(attempt, this.retryDelayMs * attempt, shown);
           continue;
         }
         // The default transport rejects with StrahlNetworkError only; an injected one may
@@ -857,9 +871,10 @@ export class RequestEngine {
         // password (fetch refuses a URL with credentials and quotes it). Keep the
         // library's error contract — every failure is a StrahlError — and scrub that text.
         if (cause instanceof StrahlError && !(cause instanceof StrahlNetworkError)) throw cause;
-        const reason = cause instanceof Error ? cause.message : String(cause);
+        // A transport's text names the URL it was given; the message names the one shown.
+        const reason = (cause instanceof Error ? cause.message : String(cause)).split(url).join(shown);
         throw new StrahlNetworkError(
-          `${method} ${urlForMessage(url)} failed: ${cleanDetail(this.scrub(reason)) ?? "unknown error"}`,
+          `${method} ${urlForMessage(shown)} failed: ${cleanDetail(this.scrub(reason)) ?? "unknown error"}`,
           { cause: this.scrubCause(cause) },
         );
       }
@@ -869,7 +884,7 @@ export class RequestEngine {
       const invalid = responseProblem(response);
       if (invalid !== undefined) {
         throw new StrahlNetworkError(
-          `${method} ${urlForMessage(url)} failed: the transport returned an invalid response (${invalid}).`,
+          `${method} ${urlForMessage(shown)} failed: the transport returned an invalid response (${invalid}).`,
         );
       }
 
@@ -879,7 +894,7 @@ export class RequestEngine {
       const finalUrl = (response as { url?: unknown }).url;
       if (typeof finalUrl === "string" && finalUrl !== "" && originOf(finalUrl) !== originOf(url)) {
         throw new StrahlNetworkError(
-          `${method} ${urlForMessage(url)} failed: the transport followed a redirect to another origin ` +
+          `${method} ${urlForMessage(shown)} failed: the transport followed a redirect to another origin ` +
             `(${cleanDetail(redactUrl(this.scrub(finalUrl))) ?? ""}); a transport must not follow redirects ` +
             `(HttpRequest.redirect is "manual").`,
         );
@@ -892,7 +907,7 @@ export class RequestEngine {
       // The size cap holds whatever the transport did: the default one aborts early, a custom
       // one may have read everything.
       if (this.maxResponseBytes > 0 && body.byteLength > this.maxResponseBytes) {
-        throw new StrahlNetworkError(`${method} ${urlForMessage(url)} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
+        throw new StrahlNetworkError(`${method} ${urlForMessage(shown)} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
       }
       const retryable = status === 429 || status === 503;
       const retryAfter = retryable ? parseRetryAfter(responseHeaders["retry-after"]) : undefined;
@@ -904,7 +919,7 @@ export class RequestEngine {
         if (retryAfter === undefined || retryAfter <= MAX_RETRY_AFTER_MS) {
           attempt += 1;
           const backoff = this.retryDelayMs * attempt;
-          await this.backOff(attempt, retryAfter === undefined ? backoff : Math.max(retryAfter, backoff), url, status);
+          await this.backOff(attempt, retryAfter === undefined ? backoff : Math.max(retryAfter, backoff), shown, status);
           continue;
         }
       }
@@ -913,13 +928,13 @@ export class RequestEngine {
       if (status >= 300 && status < 400) {
         if (redirects >= this.maxRedirects) {
           throw new StrahlNetworkError(
-            `Too many redirects (>${this.maxRedirects}) for ${method} ${urlForMessage(url)}`,
+            `Too many redirects (>${this.maxRedirects}) for ${method} ${urlForMessage(shown)}`,
           );
         }
         const location = headerValue(responseHeaders["location"]);
         if (typeof location !== "string" || location.length === 0) {
           throw new StrahlNetworkError(
-            `Redirect status ${status} for ${method} ${urlForMessage(url)} without a Location header`,
+            `Redirect status ${status} for ${method} ${urlForMessage(shown)} without a Location header`,
           );
         }
 
@@ -931,7 +946,7 @@ export class RequestEngine {
           to = new URL(location, url);
         } catch {
           throw new StrahlNetworkError(
-            `Redirect status ${status} for ${method} ${urlForMessage(url)} with an invalid Location header ` +
+            `Redirect status ${status} for ${method} ${urlForMessage(shown)} with an invalid Location header ` +
               `"${cleanDetail(this.scrub(location)) ?? ""}"`,
           );
         }
@@ -942,15 +957,16 @@ export class RequestEngine {
         // transport must not be steered to file:/data:/other schemes by a hostile redirect.
         if (to.protocol !== "http:" && to.protocol !== "https:") {
           throw new StrahlNetworkError(
-            `Refusing to follow redirect to unsupported protocol "${cleanDetail(to.protocol) ?? ""}" for ${method} ${urlForMessage(url)}`,
+            `Refusing to follow redirect to unsupported protocol "${cleanDetail(this.scrub(to.protocol)) ?? ""}" for ${method} ${urlForMessage(shown)}`,
           );
         }
 
+        const target = redirectTarget(shown, location, (text) => this.scrub(text));
         // Refuse to downgrade https -> http on redirect (defends against a
         // redirect that strips transport security).
         if (from.protocol === "https:" && to.protocol === "http:") {
           throw new StrahlNetworkError(
-            `Refusing to follow https->http downgrade redirect from ${urlForMessage(url)} to ${urlForMessage(to.toString())}`,
+            `Refusing to follow https->http downgrade redirect from ${urlForMessage(shown)} to ${urlForMessage(target)}`,
           );
         }
 
@@ -972,13 +988,14 @@ export class RequestEngine {
                 dropped =
                   from.protocol === "http:" && to.protocol === "https:" && from.hostname === to.hostname
                     ? "the server redirected http→https, which dropped the base URL's credentials; use an https base URL"
-                    : `the redirect to ${to.origin} dropped the base URL's credentials (they are sent to their own origin only)`;
+                    : `the redirect to ${cleanDetail(this.scrub(to.origin)) ?? ""} dropped the base URL's credentials (they are sent to their own origin only)`;
               }
             }
           }
         }
 
         url = to.toString();
+        shown = target;
         redirects += 1;
         continue;
       }
@@ -987,7 +1004,7 @@ export class RequestEngine {
       if (status < 200 || status >= 300) {
         throw this.toApiError(
           method,
-          url,
+          shown,
           status,
           body,
           contentType,
@@ -1000,7 +1017,7 @@ export class RequestEngine {
         );
       }
 
-      return { data: body, contentType, status, url };
+      return { data: body, contentType, status, url, shownUrl: shown };
     }
   }
 
@@ -1036,7 +1053,7 @@ export class RequestEngine {
       const exception = owsExceptionText(text, (t) => this.scrub(t));
       if (exception !== undefined) {
         const body = this.scrubBody(this.scrub(text));
-        throw new StrahlApiError({ status: res.status, url: res.url, method: "GET", body, detail: this.scrub(exception) });
+        throw new StrahlApiError({ status: res.status, url: res.shownUrl, method: "GET", body, detail: this.scrub(exception) });
       }
       // A maintenance or proxy page answered with 200: say what it was.
       const type = res.contentType.split(";")[0]?.trim() ?? "";
@@ -1092,6 +1109,21 @@ export class RequestEngine {
     if (detail !== undefined) detail = this.scrub(detail);
     if (hint !== undefined) detail = detail === undefined ? hint : `${detail}; ${hint}`;
     return new StrahlApiError({ status, url, method, body: text, detail });
+  }
+}
+
+/**
+ * A redirect's `Location` as messages show the request after it: the base URL's credentials
+ * scrubbed (`scrub`) as sent, before resolving percent-encodes what is left of them in a new
+ * spelling (`'` as `%27` in a query); resolved against the URL shown so far, userinfo redacted.
+ * The engine follows the Location as sent; this is only its name in messages.
+ */
+function redirectTarget(shownUrl: string, location: string, scrub: (text: string) => string): string {
+  const sent = scrub(location);
+  try {
+    return redactUrl(new URL(sent, shownUrl).href);
+  } catch {
+    return redactUrl(scrub(new URL(location, shownUrl).href));
   }
 }
 

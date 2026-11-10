@@ -1286,3 +1286,69 @@ test("a password with inner spaces is scrubbed whole, not word by word (D detail
     for (const part of ["pa ss", "ss  W0rd", "W0rd", basic]) assert.ok(!seen.includes(part), `${echo}: ${part} in ${seen.slice(0, 1500)}`);
   }
 });
+
+test("a credential echoed in a redirect's Location never names the request in a message (D2)", async () => {
+  // The engine follows redirects: every message about the request after one named the followed
+  // URL through redactUrl only, which drops the URL's own userinfo but not the base URL's
+  // credentials in its path or query; a refused downgrade quoted the Location resolved.
+  const pw = "pä\"s's-W0rd";
+  const base = `https://alice:${encodeURIComponent(pw)}@mirror.example`;
+  const basic = Buffer.from(`alice:${pw}`, "utf8").toString("base64");
+  const secrets = [pw, `alice:${pw}`, basic];
+  const leaks = (text: string): boolean => {
+    const decoded = text.replace(/(?:%[0-9a-fA-F]{2})+/g, (run) => {
+      try {
+        return decodeURIComponent(run);
+      } catch {
+        return run;
+      }
+    });
+    return secrets.some((secret) => decoded.includes(secret));
+  };
+  const locations = [
+    `https://elsewhere.example/login?user=alice&pw=${encodeURIComponent(pw)}`,
+    `https://elsewhere.example/login?pw=${pw}`,
+    `https://elsewhere.example/${encodeURIComponent(`alice:${pw}`)}/x`,
+    `https://elsewhere.example/auth?basic=${basic}`,
+    `/relative/${pw}`,
+    `http://mirror.example/login?pw=${pw}`,
+  ];
+  const redirect = (location: string): HttpResponse => ({ status: 302, headers: { location }, body: Buffer.from("") });
+  for (const location of locations) {
+    // A loop (past maxRedirects), an error answer, a refused connection, a 200 ExceptionReport
+    // and an answer too large, each after one redirect; a 503 retried after one in the onRetry case.
+    const answers: Array<(n: number) => HttpResponse> = [
+      () => redirect(location),
+      (n) => (n === 0 ? redirect(location) : jsonResponse({}, 401)),
+      (n) => {
+        if (n === 0) return redirect(location);
+        throw Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
+      },
+      (n) => (n === 0 ? redirect(location) : rawResponse(LIVE_EXCEPTION_REPORT, "application/xml", 200)),
+      (n) => (n === 0 ? redirect(location) : rawResponse("x".repeat(100), "application/json", 200)),
+    ];
+    for (const answer of answers) {
+      let n = 0;
+      const e = new RequestEngine({ baseUrl: base, maxRetries: 0, maxResponseBytes: 50, transport: async () => answer(n++) });
+      const err = await e.getJson("/x").catch((caught: unknown) => caught);
+      assert.ok(err instanceof Error, String(err));
+      const e2 = err as Error & { url?: string };
+      for (const text of [err.message, e2.url ?? ""]) assert.ok(!leaks(text), `${location}: ${text}`);
+    }
+    // onRetry names the request after the redirect as messages do (an https->http one is refused).
+    if (location.startsWith("http:")) continue;
+    let n = 0;
+    const retries: string[] = [];
+    await new RequestEngine({
+      baseUrl: base,
+      maxRetries: 1,
+      sleep: async () => {},
+      onRetry: (event) => retries.push(event.url),
+      transport: async () => (n++ === 0 ? redirect(location) : jsonResponse({}, 503)),
+    })
+      .getJson("/x")
+      .catch(() => undefined);
+    assert.equal(retries.length, 1, location);
+    assert.ok(!leaks(retries[0] ?? ""), `${location}: ${retries[0]}`);
+  }
+});
