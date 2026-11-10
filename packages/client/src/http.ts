@@ -8,7 +8,7 @@
 
 import http from "node:http";
 import https from "node:https";
-import { StrahlNetworkError, credentialsIn, redactCredentials, urlForMessage } from "./errors.js";
+import { StrahlNetworkError, credentialsIn, redactCredentials, urlForMessage, typedUrlCredentials } from "./errors.js";
 
 export interface HttpRequest {
   method: string;
@@ -71,7 +71,7 @@ export const MAX_TIMEOUT_MS = 2_147_483_647;
  * `redactUrl` finds a userinfo only after a scheme.
  */
 function shownUrl(url: string): string {
-  return credentialsIn(url).length > 0 ? urlForMessage(url) : urlForMessage(redactCredentials(url, credentialsIn(`http://${url}`)));
+  return credentialsIn(url).length > 0 ? urlForMessage(url) : urlForMessage(redactCredentials(url, typedUrlCredentials(url)));
 }
 
 /**

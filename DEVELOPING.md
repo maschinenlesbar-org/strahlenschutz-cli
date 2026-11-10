@@ -424,6 +424,11 @@ touched, and a password with DEL, C1 or bidi characters is matched in its raw fo
 `apps/cli/test/conformance-p1-cli-redaction.test.ts` checks ten passwords in seven URL shapes
 at every argv position.
 
+A base URL (`--base-url`, and the environment variable where the CLI reads one) is read as
+a URL however its scheme is typed (`typedUrlCredentials`): missing (`alice:pw@host`) or
+mistyped (`http//alice:pw@host`, the colon left out, whose userinfo is everything between the
+first slashes and the last `@`), so commander's echo of a refused one shows no password.
+
 **Plain `http:` warning.** `cleartextProblem(baseUrl, secrets?)` (`engine.ts`, exported)
 returns one sentence when requests to `baseUrl` would travel unencrypted — `requests to
 <host> are sent unencrypted (http:, not https:)`, or `the base URL's credentials are sent
