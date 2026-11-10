@@ -18,6 +18,7 @@ import {
   echoedCredentialForms,
   redactCredentials,
   redactSecrets,
+  redactUrlUserinfo,
 } from "@maschinenlesbar.org/strahlenschutz-client/internal/errors";
 
 /**
@@ -101,15 +102,6 @@ export function escapeCommanderError(message: string): string {
 }
 
 /**
- * Replace the userinfo of every URL in `text` with `***`, the form `redactUrl` gives
- * (`https://user:secret@host` becomes `https://***@host`). Text-based, so it also covers
- * a URL that does not parse; a backstop behind the exact-string redaction below.
- */
-export function redactUserinfo(text: string): string {
-  return text.replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#']*@/gi, "$1***@");
-}
-
-/**
  * The names (long and short) of the program's own options that require a value
  * (`--user-agent`, `--timeout`). Only the program's: commander takes them out of argv
  * wherever they stand, before a subcommand sees the rest.
@@ -188,7 +180,7 @@ export interface Redaction {
  * `credentialsIn` finds it, plus its JSON-escaped form) is replaced by `***`. Only a value
  * with a scheme is a URL (a bare `a:b@c` is a station id, a User-Agent or a sort key as
  * often as a credential), except as the `--base-url` value. A pattern alone can't delimit a password with spaces, quotes, `#`, `?` or `/`; the exact strings
- * can (`redactUserinfo` is the backstop behind them). Without credentials the text passes
+ * can (`redactUrlUserinfo`, linear, is the backstop behind them). Without credentials the text passes
  * through unchanged. (This CLI reads no environment variable, so the arguments are the
  * only source.)
  */
@@ -224,7 +216,7 @@ export function redactionFor(argv: readonly string[]): Redaction {
   // Longest first, so a password never leaves half of the user:password around it.
   const echoedList = [...echoed].sort((a, b) => b.length - a.length);
   const passwordList = [...passwords].sort((a, b) => b.length - a.length);
-  const out = (text: string): string => redactSecrets(redactUserinfo(redactCredentials(text, list)), echoedList);
+  const out = (text: string): string => redactSecrets(redactUrlUserinfo(redactCredentials(text, list)), echoedList);
   return { out, err: (text) => redactSecrets(out(text), passwordList) };
 }
 

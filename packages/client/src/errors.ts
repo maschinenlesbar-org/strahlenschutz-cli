@@ -51,6 +51,65 @@ export function credentialsIn(value: string): string[] {
   return end > 0 ? [rest.slice(0, end)] : [];
 }
 
+/** A scheme character (RFC 3986: letters, digits, `+`, `.`, `-`). */
+function isSchemeChar(code: number): boolean {
+  return (code >= 0x61 && code <= 0x7a) || (code >= 0x41 && code <= 0x5a) || (code >= 0x30 && code <= 0x39) || code === 0x2b || code === 0x2e || code === 0x2d;
+}
+
+/** An ASCII letter, with which a scheme starts. */
+function isLetter(code: number): boolean {
+  return (code >= 0x61 && code <= 0x7a) || (code >= 0x41 && code <= 0x5a);
+}
+
+/**
+ * Where the scheme of the `://` at `at` starts: the first letter of the run of scheme characters
+ * before it, looking back no further than `from`; -1 when there is none (`1://`, ` ://`). A run
+ * led by other scheme characters (`-https://`) starts at its first letter.
+ */
+function schemeStart(text: string, at: number, from: number): number {
+  let start = at;
+  while (start > from && isSchemeChar(text.charCodeAt(start - 1))) start--;
+  while (start < at && !isLetter(text.charCodeAt(start))) start++;
+  return start < at ? start : -1;
+}
+
+/**
+ * `text` with the userinfo of every URL in it replaced by `***` (`https://user:secret@host`
+ * becomes `https://***@host`): the pattern backstop for text no exact secret matches. Text-based,
+ * so it also covers a URL that does not parse; the userinfo ends at the last `@` before the first
+ * whitespace, `/`, `?`, `#` or `'` after `://`. Linear in `text`, however many URLs it holds: each
+ * `://` is found with `indexOf`, its scheme by walking back no further than the previous `://`,
+ * and the search goes on right after each `://`, not after the authority it read: a URL glued
+ * onto the one before it (`https://host://u:p@h`, `https://u:p@x://v:q@w`) starts inside that
+ * authority, which ends at its `/`. An authority holds no `/`, so no `://` lies wholly inside
+ * one, and every character is read a bounded number of times: by the authority loop and
+ * `indexOf` forwards, by `schemeStart` backwards. The regex it replaces (a scheme tried at every
+ * word start) was quadratic: 200 000 characters of `a.a.…` on stdout took 38 s.
+ */
+export function redactUrlUserinfo(text: string): string {
+  const parts: string[] = [];
+  let copied = 0;
+  let from = 0;
+  for (let at = text.indexOf("://"); at !== -1; at = text.indexOf("://", from)) {
+    const begin = at + 3;
+    let end = begin;
+    let lastAt = -1;
+    for (; end < text.length; end++) {
+      const c = text.charCodeAt(end);
+      if (c === 0x2f || c === 0x3f || c === 0x23 || c === 0x27 || /\s/.test(text[end] as string)) break;
+      if (c === 0x40) lastAt = end;
+    }
+    if (lastAt !== -1 && schemeStart(text, at, from) !== -1) {
+      parts.push(text.slice(copied, begin), "***");
+      copied = lastAt;
+    }
+    from = begin;
+  }
+  if (copied === 0) return text;
+  parts.push(text.slice(copied));
+  return parts.join("");
+}
+
 /**
  * The forms in which a server may echo the credentials of a userinfo (`user:password`,
  * as {@link credentialsIn} returns it) back in an error body: the `Authorization: Basic`

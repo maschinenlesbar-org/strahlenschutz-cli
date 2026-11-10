@@ -535,3 +535,26 @@ test("the search for URLs inside an argument is linear: a long argument without 
   const far = redactionFor(["latest", "--sort", `${"x ".repeat(10_000)}https://bob:s3cretpw@h.example/`]);
   assert.equal(far.err("https://bob:s3cretpw@h.example/ and s3cretpw"), "https://***@h.example/ and ***");
 });
+
+/** A one-station answer whose `name` is `name`. */
+function answerNamed(name: string): HttpResponse {
+  return jsonResponse({ type: "FeatureCollection", features: [{ type: "Feature", id: "x", geometry: null, properties: { name } }] });
+}
+
+test("the userinfo redaction of what the CLI prints is linear in the answer, a glued URL included (B, B2)", async () => {
+  // The regex backstop (a scheme tried at every word start) took seconds on a long `a.a.…` value
+  // with credentials in --base-url; the first linear pass missed a URL glued onto the one before.
+  const base = "https://alice:s3cret-Pw@127.0.0.1:9";
+  const long = "a.".repeat(100_000);
+  let cli = makeCli(() => answerNamed(long));
+  const start = performance.now();
+  assert.equal(await run(["--base-url", base, "--compact", "latest"], cli.deps), 0, cli.err.join("\n"));
+  const ms = performance.now() - start;
+  assert.ok(ms < 1500, `${Math.round(ms)} ms`);
+  assert.ok(cli.out.join("\n").includes(long));
+  cli = makeCli(() => answerNamed("https://host://u:p1@h and https://u:p2@x://v:q3@w"));
+  assert.equal(await run(["--base-url", base, "--compact", "latest"], cli.deps), 0, cli.err.join("\n"));
+  const out = cli.out.join("\n");
+  assert.ok(out.includes("https://host://***@h and https://***@x://***@w"), out);
+  for (const secret of ["u:p1", "u:p2", "v:q3"]) assert.ok(!out.includes(secret), out);
+});

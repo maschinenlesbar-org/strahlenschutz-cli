@@ -396,7 +396,10 @@ argument — at its start, after padding or a dash, mid-phrase, and in its perce
 argument, so a long argument costs linear time —, plus the `--base-url` value read as a URL even when
 typed without its scheme, and redacts them, raw, JSON-escaped, as commander's escaped echo shows
 them and percent-encoded, from every line printed —
-commander's usage errors, which echo a rejected `--base-url` whole, included. The log
+commander's usage errors, which echo a rejected `--base-url` whole, included. Behind the exact
+strings, stdout and stderr also go through `redactUrlUserinfo` (`errors.ts`), which replaces
+the userinfo of any URL in the text (`https://***@host`), in one linear pass however long the
+answer, a URL glued onto the one before it (`https://host://u:p@h`) included. The log
 replaces them in each record's *message* (`redactionFor`), before the record is cut and
 escaped, and writes the record to the raw stderr: the frame (time, level, topic) is never
 touched, and a password with DEL, C1 or bidi characters is matched in its raw form.
