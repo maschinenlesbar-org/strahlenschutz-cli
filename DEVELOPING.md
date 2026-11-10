@@ -647,7 +647,17 @@ everything that drives the CLI is in `apps/cli/test/`.
   heap): a large flat answer prints with `--compact`; 20 M DEL characters print escaped under a
   512 MB heap, 90 M are an ERROR record of `strahlenschutz.output`, not a crash; a lone surrogate
   or invalid bytes become U+FFFD with a `WARN` record of `strahlenschutz.api`; an answer in two
-  million one-byte chunks prints under a 256 MB heap.
+  million one-byte chunks prints under a 256 MB heap. P28–P31 come from the security audit of
+  2026-10-27 (reference `create-cli-template`): P28 hostile error answers (a number with a long
+  run of zeros refused in linear time; unterminated control-string introducers and a 16 MB error
+  message cleaned in linear time and memory; millions of lone surrogates repaired under a small
+  heap; the base URL's credentials scrubbed from JSON-escaped error text, from the foreign `kenn`
+  the station-filter error quotes, `quotedBody` in the adapter, and from a redirect's `Location`,
+  where strahlenschutz ends at `Too many redirects`), P29 base-URL credentials (a token userinfo
+  scrubbed in every form, a backslash or a repaired scheme refused, requests to the parsed host,
+  stdout redaction linear and covering glued URLs), P30 output links (all skipped,
+  `HAS_OUTPUT_OPTION = false`), P31 the release pipeline (`release.yml` and `tools/sbom/` read as
+  text).
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input through `run()` and through
   the library call on one recording mock transport; both must reject without a request, or both
   send the same request.
