@@ -297,8 +297,9 @@ throws becomes a `StrahlNetworkError` (`GET <url> failed: <reason>`, the origina
 shows the base URL's password: the engine keeps the base URL in a real `#private`
 field (so `console.log(client)`, `util.inspect` and `JSON.stringify` don't reveal it),
 every URL in a message goes through `redactUrl`, and the base URL's userinfo (raw and
-percent-decoded) is scrubbed from error bodies and details, transport error text and
-the `cause` chain — and with it the forms a server echoes it back in
+percent-decoded) is scrubbed from error bodies and details, transport error text, the
+Content-Type or charset label a parse error quotes, and the `cause` chain (JSON.parse's
+syntax error quotes the start of the body) — and with it the forms a server echoes it back in
 (`echoedCredentialForms`, exported): the `Authorization: Basic` value, the decoded
 `user:password`, and the password alone from 4 characters on (`redactSecrets`,
 exported), each also percent-encoded. Server text is scrubbed **after it is decoded**, before

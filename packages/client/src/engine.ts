@@ -1017,7 +1017,7 @@ export class RequestEngine {
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
     const request = `GET ${this.describeUrl(path, query)}`;
-    const decoded = decodeBody(res.data, res.contentType, request);
+    const decoded = decodeBody(res.data, res.contentType, request, (t) => this.scrub(t));
     const text = decoded.text;
     if (text.trim() === "") {
       // A broken answer, not "no results": printed as nothing with exit 0, it would let a
@@ -1040,8 +1040,10 @@ export class RequestEngine {
       }
       // A maintenance or proxy page answered with 200: say what it was.
       const type = res.contentType.split(";")[0]?.trim() ?? "";
-      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cleanDetail(type) ?? ""}")` : "";
-      throw new StrahlParseError(`${request}: the answer is not valid JSON${hint}.`, { cause });
+      // Header text, as a server or a custom transport sent it, and JSON.parse's message, which
+      // quotes the start of the body: scrubbed of the base URL's credentials, like an error detail.
+      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cleanDetail(this.scrub(type)) ?? ""}")` : "";
+      throw new StrahlParseError(`${request}: the answer is not valid JSON${hint}.`, { cause: this.scrubCause(cause) });
     }
     // JSON.parse rounds and overflows numbers silently: refuse the answer rather than print a
     // changed value. The BfS sends dose rates and coordinates as decimals, which pass.
@@ -1131,17 +1133,22 @@ function charsetOf(contentType: string): string | undefined {
  * unknown charset label is a StrahlParseError naming it. The BfS server sends UTF-8;
  * this matters for proxies and mirrors that re-encode (`µSv/h` and the umlauts of
  * station names would otherwise turn into U+FFFD). `request` (`GET <url>`) starts the
- * message of the error. Bytes that are not valid in the charset become U+FFFD, and
+ * message of the error, which quotes the label scrubbed of the base URL's credentials (`scrub`). Bytes that are not valid in the charset become U+FFFD, and
  * `replaced` counts them: exactly for UTF-8 and the single-byte charsets; for UTF-16 a
  * U+FFFD the server sent counts too.
  */
-function decodeBody(body: Buffer, contentType: string, request: string): { text: string; replaced: number } {
+function decodeBody(
+  body: Buffer,
+  contentType: string,
+  request: string,
+  scrub: (text: string) => string,
+): { text: string; replaced: number } {
   const charset = charsetOf(contentType) ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset, { fatal: true });
   } catch {
-    throw new StrahlParseError(`${request}: unsupported response charset "${cleanDetail(charset) ?? ""}".`);
+    throw new StrahlParseError(`${request}: unsupported response charset "${cleanDetail(scrub(charset)) ?? ""}".`);
   }
   try {
     return { text: decoder.decode(body), replaced: 0 };

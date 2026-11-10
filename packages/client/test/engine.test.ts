@@ -1,5 +1,5 @@
 import { test } from "node:test";
-import { TextDecoder } from "node:util";
+import { TextDecoder, inspect } from "node:util";
 import { Worker } from "node:worker_threads";
 import { spawn } from "node:child_process";
 import assert from "node:assert/strict";
@@ -1242,4 +1242,30 @@ test("an ExceptionText of millions of CDATA sections is read within a small heap
   const [kind, length] = run.stdout.trim().split(" ");
   assert.equal(kind, "StrahlApiError", run.stdout);
   assert.ok(Number(length) < 1000, `a message of ${length} characters`);
+});
+
+test("the base URL's credential is scrubbed from a Content-Type, a charset or a JSON syntax error a parse error carries (D)", async () => {
+  // Header text and JSON.parse's message (which quotes the start of the body) are not decoded
+  // error details: the scrub of those never reached them.
+  const pw = "s3cret-Pw";
+  const base = `https://alice:${pw}@mirror.example`;
+  const basic = Buffer.from(`alice:${pw}`, "utf8").toString("base64");
+  for (const [body, contentType] of [
+    ["<html>", `text/${pw}`],
+    ["<html>", `text/alice:${pw}`],
+    ["<html>", `text/b${basic}`],
+    ["{}", `application/json; charset=${pw}`],
+    ["{}", `application/json; charset=x-${basic}`],
+    [`${pw} denied`, "application/json"],
+    [`x${basic}`, "application/json"],
+  ] as const) {
+    const engine = new RequestEngine({ baseUrl: base, maxRetries: 0, transport: async () => rawResponse(body, contentType) });
+    const err = await engine.getJson("/x").then(
+      () => assert.fail(`${contentType}: accepted`),
+      (e: unknown) => e,
+    );
+    assert.ok(err instanceof StrahlParseError, String(err));
+    const seen = inspect(err, { depth: 10, showHidden: true });
+    assert.ok(!seen.includes(pw) && !seen.includes(basic), seen.slice(0, 1500));
+  }
 });
