@@ -148,6 +148,19 @@ test("baseUrlProblem checks whitespace, parse, scheme and query/fragment in that
   assert.equal(baseUrlProblem(42), "Expected a string.");
 });
 
+test("baseUrlProblem refuses a backslash and a scheme not followed by exactly // and the host (F, F4)", () => {
+  // WHATWG ends an http(s) host at a backslash and repairs `http:host`, `http:/host`,
+  // `http:///host` silently: the host requested was not the one typed.
+  for (const bad of ["https://u:pw@a.example\\@b.example", "https://h.example\\x", "https:\\\\h.example"]) {
+    assert.equal(baseUrlProblem(bad), 'A base URL cannot contain a backslash (\\); write "/" instead.', bad);
+  }
+  for (const bad of ["http:h.example", "http:/h.example", "http:///h.example", "HTTPS:h.example", "http:alice:pw@h.example"]) {
+    assert.equal(baseUrlProblem(bad), 'Expected an absolute http(s) URL ("https://" and the host).', bad);
+  }
+  assert.equal(baseUrlProblem("http:///h.example/?q=1"), "A base URL cannot have a query (?) or fragment (#).");
+  for (const ok of ["HTTPS://H.example", "https://alice:pw@h.example/p", "http://127.0.0.1:9"]) assert.equal(baseUrlProblem(ok), undefined, ok);
+});
+
 test("every value an own message quotes is cut, never inside a surrogate pair", async () => {
   const lone = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
   const huge = "a" + "\u{1f600}".repeat(100_000);

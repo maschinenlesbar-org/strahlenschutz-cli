@@ -194,8 +194,9 @@ strahlenschutz --base-url https://www.imis.bfs.de \
 ```
 
 `--base-url` overrides the API host (an `http(s)` URL, optionally with a path
-prefix; a `?query` or `#fragment` is refused, since the WFS path is appended to
-it, and so is any whitespace or control character), `--timeout` sets the time limit per request in
+prefix, written `https://` and the host; a `?query` or `#fragment` is refused, since the
+WFS path is appended to it, and so is a backslash, any whitespace or control character, and
+a scheme not followed by exactly `//` and the host, such as `http:///host`), `--timeout` sets the time limit per request in
 milliseconds (reading the whole response included; `0` means no limit, so the CLI waits as long
 as the server takes), and `--user-agent` sets the request `User-Agent`.
 A mirror on plain `http:` works, but the CLI says on stderr that its requests travel

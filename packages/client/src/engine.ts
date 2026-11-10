@@ -593,6 +593,8 @@ export class RequestEngine {
   // JSON.stringify of a client never show it, so a password in the base URL can't be
   // logged by accident. Messages show request URLs through urlForMessage (redacted, cut).
   readonly #baseUrl: string;
+  /** `#baseUrl` without its userinfo: what every request URL starts with (the userinfo goes as a header). */
+  readonly #requestBase: string;
   /** The base URL's userinfo, raw and percent-decoded, for scrubbing server and transport text. */
   readonly #credentials: string[];
   /**
@@ -619,8 +621,18 @@ export class RequestEngine {
     options = options ?? {};
     // Check the raw value, before the trailing-slash strip: "https://h/ " must not
     // get past it, and new URL() would hide the whitespace from the scheme check.
-    this.#baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
-    this.#credentials = credentialsIn(this.#baseUrl).flatMap((raw) => {
+    const baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+    // Requests go to the base URL as WHATWG parses it, the reading every check of it makes (the
+    // host, the cleartext warning, the Authorization header), never to a text-based reading of
+    // the string: a transport that reads the URL as text reaches the same host.
+    const parsed = new URL(baseUrl);
+    this.#baseUrl = parsed.href.replace(/\/+$/, "");
+    parsed.username = "";
+    parsed.password = "";
+    this.#requestBase = parsed.href.replace(/\/+$/, "");
+    // The userinfo as typed and as sent (WHATWG percent-encodes some of its characters).
+    const userinfos = [...new Set([...credentialsIn(baseUrl), ...credentialsIn(this.#baseUrl)])];
+    this.#credentials = userinfos.flatMap((raw) => {
       try {
         return [raw, decodeURIComponent(raw)];
       } catch {
@@ -628,7 +640,7 @@ export class RequestEngine {
       }
     });
     // Each form also percent-encoded (`urlSpellings`), as a server quoting a URL writes it.
-    this.#echoed = [...new Set(credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms).flatMap(urlSpellings))].sort(
+    this.#echoed = [...new Set(userinfos.flatMap(echoedCredentialForms).flatMap(urlSpellings))].sort(
       (a, b) => b.length - a.length,
     );
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
@@ -779,7 +791,7 @@ export class RequestEngine {
    * (`urlForMessage`). It never throws: describing a URL for a message does not validate it.
    */
   describeUrl(path: string, query?: QueryParams): string {
-    return urlForMessage(this.composeUrl(withoutUserinfo(this.#baseUrl), path, query));
+    return urlForMessage(this.composeUrl(this.#requestBase, path, query));
   }
 
   /** `base` + path + query string. */
@@ -825,7 +837,7 @@ export class RequestEngine {
     // Authorization header, per hop, so a redirect to the same origin (relative or
     // absolute) keeps it and one to another origin or scheme drops it. A transport such
     // as fetch also refuses a URL with credentials outright.
-    let url = this.composeUrl(withoutUserinfo(this.#baseUrl), path, options.query);
+    let url = this.composeUrl(this.#requestBase, path, options.query);
     const headers: Record<string, string> = {
       Accept: options.accept,
       "User-Agent": this.userAgent,
@@ -1125,12 +1137,6 @@ function redirectTarget(shownUrl: string, location: string, scrub: (text: string
   } catch {
     return redactUrl(scrub(new URL(location, shownUrl).href));
   }
-}
-
-/** `url` without its userinfo, otherwise exactly as written. */
-function withoutUserinfo(url: string): string {
-  const [userinfo] = credentialsIn(url);
-  return userinfo === undefined ? url : url.replace(`://${userinfo}@`, "://");
 }
 
 /**

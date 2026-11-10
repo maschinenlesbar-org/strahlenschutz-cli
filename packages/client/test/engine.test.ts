@@ -23,6 +23,7 @@ import {
   StrahlParseError,
   StrahlValidationError,
   TextBuilder,
+  credentialsIn,
   cutText,
   echoedCredentialForms,
   redactUrlUserinfo,
@@ -1379,5 +1380,46 @@ test("a token as the base URL's user name is scrubbed from the error in every fo
       const seen = `${err.message}\n${err.body}\n${err.url}`;
       assert.ok(!seen.includes(token) && !seen.includes(basic), `${base} ${echo}: ${seen}`);
     }
+  }
+});
+
+test("credentialsIn ends a special scheme's authority at a backslash and skips the slashes WHATWG skips (F, F3)", () => {
+  // `https://u:pw@a.example\@b.example` sends `u:pw` to a.example; `http:///u:pw@h`,
+  // `https:\\u:pw@h` and `http:u:pw@h` all carry `u:pw` for WHATWG.
+  assert.deepEqual(credentialsIn("https://alice:pw@a.example\\@b.example/x"), ["alice:pw"]);
+  assert.equal(new URL("https://alice:pw@a.example\\@b.example/x").host, "a.example");
+  for (const value of [
+    "http:alice:pw@h.example",
+    "http:/alice:pw@h.example",
+    "http:///alice:pw@h.example/x",
+    "https:////alice:pw@h.example",
+    "HTTPS:\\\\alice:pw@h.example",
+    "wss:\\/alice:pw@h.example",
+    "ftp:alice:pw@h.example",
+  ]) {
+    assert.deepEqual(credentialsIn(value), ["alice:pw"], value);
+    assert.equal(new URL(value).password, "pw", value);
+  }
+  // Another scheme needs "//" before an authority: `foo:u:p@h` and `foo:///u:p@h` carry none.
+  assert.deepEqual(credentialsIn("foo:u:p@h.example"), []);
+  assert.deepEqual(credentialsIn("foo:///u:p@h.example"), []);
+});
+
+test("requests go to the base URL as it parses, and one WHATWG would read otherwise than its text is refused (F, F4)", async () => {
+  const mt = makeMockTransport(() => jsonResponse({ ok: true }));
+  await new RequestEngine({ baseUrl: "https://alice:pw@API.Example:443/v1/", transport: mt.transport }).getJson("/x");
+  assert.equal(mt.last().url, "https://api.example/v1/x");
+  assert.equal(mt.last().headers?.["Authorization"], `Basic ${Buffer.from("alice:pw").toString("base64")}`);
+  for (const baseUrl of [
+    "https://alice:s3cret-Pw@a.example\\@b.example",
+    "http:///alice:s3cret-Pw@h.example",
+    "http:alice:s3cret-Pw@h.example",
+    "https:\\\\alice:s3cret-Pw@h.example",
+  ]) {
+    assert.throws(
+      () => new RequestEngine({ baseUrl, transport: mt.transport }),
+      (err: unknown) => err instanceof StrahlValidationError && !err.message.includes("s3cret-Pw"),
+      baseUrl,
+    );
   }
 });

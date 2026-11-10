@@ -341,9 +341,8 @@ export const headerValueProblem: Problem<unknown> = (value) => {
 
 /**
  * Whitespace and control characters in a base URL. `new URL()` silently trims
- * surrounding whitespace and strips an inner tab or newline, so the URL checks
- * pass, but the engine appends the WFS path to the raw string: `"https://h/ "`
- * would request `/%20/ogc/...`, and a custom transport would get the padded value.
+ * surrounding whitespace and strips an inner tab or newline, so the URL requested would
+ * not be the one typed. Reject rather than guess.
  */
 export const baseUrlWhitespaceProblem: Problem<unknown> = (value) => {
   if (typeof value !== "string") return "Expected a string.";
@@ -354,16 +353,21 @@ export const baseUrlWhitespaceProblem: Problem<unknown> = (value) => {
 
 /**
  * The full base-URL rule set, in order: no whitespace or control characters
- * (baseUrlWhitespaceProblem), an absolute URL, an `http:`/`https:` scheme, and no
- * query or fragment. The WFS path is appended to the base URL as a string, so a
- * `?` or `#` would swallow it (`http://h/#f` requests `/`). A path prefix is fine,
- * and so is userinfo (the engine sends it as Basic auth, e.g. for a mirror); a `%` in
- * it must start a valid escape (`%25` for a literal one). The reasons name no URL, so
- * a credential in it never reaches a message.
+ * (baseUrlWhitespaceProblem), no backslash (WHATWG ends an http(s) host at one, as at a
+ * `/`, while text-based code reads on: `https://u:pw@a.example\@b.example` was checked as
+ * a.example and its credentials went to b.example), an absolute URL, an `http:`/`https:`
+ * scheme, no query or fragment (the WFS path is appended to the base URL as a string, so a
+ * `?` or `#` would swallow it: `http://h/#f` requests `/`), a `%` in the userinfo that starts
+ * a valid escape (`%25` for a literal one), and the scheme followed by exactly `//` and the
+ * host (`http:host`, `http:/host`, `http:///host` are repaired by WHATWG silently into
+ * another URL than the one typed). A path prefix is fine, and so is userinfo (the engine
+ * sends it as Basic auth, e.g. for a mirror). The reasons name no URL, so a credential in
+ * it never reaches a message.
  */
 export const baseUrlProblem: Problem<unknown> = (value) => {
   const whitespace = baseUrlWhitespaceProblem(value);
   if (whitespace !== undefined) return whitespace;
+  if ((value as string).includes("\\")) return 'A base URL cannot contain a backslash (\\); write "/" instead.';
   let url: URL;
   try {
     url = new URL(value as string);
@@ -383,5 +387,9 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
       return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
     }
   }
+  // WHATWG skips any slashes after "http:" and repairs `http:host`, `http:/host` and
+  // `http:///host` into `http://host` silently: the host requested would not be the one typed,
+  // and code that reads the value as text (a userinfo cut after "://") reads another authority.
+  if (!/^https?:\/\/[^/]/i.test(value as string)) return 'Expected an absolute http(s) URL ("https://" and the host).';
   return undefined;
 };

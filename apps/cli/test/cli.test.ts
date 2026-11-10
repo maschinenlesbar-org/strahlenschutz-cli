@@ -578,3 +578,22 @@ test("a token as the --base-url user name is redacted from what the CLI prints, 
     assert.ok(!out.includes(basic) && !out.includes(`${token}:`), `${base}: ${out}`);
   }
 });
+
+test("a --base-url with a backslash, or a scheme not followed by exactly // and the host, is a usage error that never echoes the password (F, F3, F4)", async () => {
+  const pw = "s3cret-Pw";
+  for (const base of [
+    `https://alice:${pw}@127.0.0.1:9\\@127.0.0.2:9`,
+    `http:alice:${pw}@127.0.0.1:9`,
+    `http:/alice:${pw}@127.0.0.1:9`,
+    `http:///alice:${pw}@127.0.0.1:9`,
+    `HTTPS:alice:${pw}@127.0.0.1:9`,
+    `https:\\\\alice:${pw}@127.0.0.1:9`,
+    `http:///alice:${pw}@127.0.0.1:9/?q=1`,
+  ]) {
+    const cli = makeCli(() => jsonResponse(fc));
+    assert.equal(await run(["--base-url", base, "latest"], cli.deps), 1, base);
+    assert.equal(cli.mt.calls.length, 0, base);
+    const text = [...cli.out, ...cli.err].join("\n");
+    assert.ok(!text.includes(pw), `${base}: ${text}`);
+  }
+});
