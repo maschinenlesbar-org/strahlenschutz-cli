@@ -1269,3 +1269,20 @@ test("the base URL's credential is scrubbed from a Content-Type, a charset or a 
     assert.ok(!seen.includes(pw) && !seen.includes(basic), seen.slice(0, 1500));
   }
 });
+
+test("a password with inner spaces is scrubbed whole, not word by word (D detail)", async () => {
+  // A credential's value is one secret: replacing it word by word (or only from its second word
+  // on) would leave a part of it in the message. Stored passwords may hold inner spaces.
+  const pw = "pa ss  W0rd";
+  const base = `https://alice:${encodeURIComponent(pw)}@mirror.example`;
+  const basic = Buffer.from(`alice:${pw}`, "utf8").toString("base64");
+  for (const echo of [`bad ${pw}`, `user alice:${pw}`, `Basic ${basic}`, `url ${base}/x`, `<x>${pw}</x>`]) {
+    const engine = new RequestEngine({ baseUrl: base, maxRetries: 0, transport: async () => jsonResponse({ detail: echo }, 401) });
+    const err = await engine.getJson("/x").then(
+      () => assert.fail("the call should have failed"),
+      (e: unknown) => e,
+    );
+    const seen = inspect(err, { depth: 10, showHidden: true });
+    for (const part of ["pa ss", "ss  W0rd", "W0rd", basic]) assert.ok(!seen.includes(part), `${echo}: ${part} in ${seen.slice(0, 1500)}`);
+  }
+});
