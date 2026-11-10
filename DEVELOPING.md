@@ -378,7 +378,11 @@ characters, never inside a surrogate pair (the exported `cutText`), so the messa
 well-formed; the full body stays on `StrahlApiError.body`. The cleaning reads only the first
 16 384 characters of the server text and is one linear regex pass per step: one string append
 per character over a detail of a few MB exhausted a small heap (a V8 abort, no typed error)
-before the cut.
+before the cut. The same goes for every text the engine puts together from many pieces of an
+answer (the lone-surrogate repair, the quoted `bigIntegerKeys` values, the unwrapped CDATA
+sections, `redactUrlUserinfo`): the pieces are joined in batches (`TextBuilder`, `errors.ts`),
+so memory follows the length of the text, not the number of pieces; one `+=` per piece made a
+rope node each, and millions of them exhausted a 128 MB heap.
 
 **Userinfo redaction.** A base URL may carry `user:password@` (for a mirror behind a
 login). The engine never puts it into the URL a transport sees: it sends it as an

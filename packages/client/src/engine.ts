@@ -19,6 +19,7 @@ import {
   StrahlNetworkError,
   StrahlParseError,
   StrahlValidationError,
+  TextBuilder,
   credentialsIn,
   cutForMessage,
   cutText,
@@ -277,17 +278,21 @@ const XML_ENTITIES: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot:
  * every unclosed section.
  */
 function unwrapCdata(text: string): string {
-  let out = "";
+  // The pieces are joined in batches (TextBuilder): one `+=` per section made a rope node each,
+  // and an ExceptionText of 6 million sections exhausted a 160 MB heap.
+  const out = new TextBuilder();
   let from = 0;
   for (;;) {
     const open = text.indexOf("<![CDATA[", from);
     if (open < 0) break;
     const close = text.indexOf("]]>", open + 9);
     if (close < 0) break;
-    out += text.slice(from, open) + text.slice(open + 9, close);
+    out.push(text.slice(from, open), text.slice(open + 9, close));
     from = close + 3;
   }
-  return from === 0 ? text : out + text.slice(from);
+  if (from === 0) return text;
+  out.push(text.slice(from));
+  return out.toString();
 }
 
 /** Decode the five predefined XML entities, character references and CDATA sections. */
@@ -1197,7 +1202,9 @@ function escapeAt(json: string, at: number): number {
  */
 function wellFormedEscapes(json: string): { json: string; replaced: number } {
   if (!SURROGATE_ESCAPE.test(json)) return { json, replaced: 0 };
-  let out = "";
+  // The pieces are joined in batches (TextBuilder): one `+=` per repair made a rope node each,
+  // and 6 million repairs exhausted a 128 MB heap.
+  const out = new TextBuilder();
   let copied = 0;
   let replaced = 0;
   for (let i = 0; i < json.length; i++) {
@@ -1212,12 +1219,14 @@ function wellFormedEscapes(json: string): { json: string; replaced: number } {
       i += 11;
       continue;
     }
-    out += json.slice(copied, i) + "\\ufffd";
+    out.push(json.slice(copied, i), "\\ufffd");
     copied = i + 6;
     replaced++;
     i += 5;
   }
-  return replaced === 0 ? { json, replaced } : { json: out + json.slice(copied), replaced };
+  if (replaced === 0) return { json, replaced };
+  out.push(json.slice(copied));
+  return { json: out.toString(), replaced };
 }
 
 function isLowSurrogate(code: number): boolean {
@@ -1325,7 +1334,9 @@ function skipSpace(json: string, i: number): number {
 export function scanNumbers(json: string, bigIntegerKeys: ReadonlySet<string> = NO_KEYS): NumberScan {
   const keys = bigIntegerKeys.size === 0 ? undefined : [...bigIntegerKeys];
   let inexact: string | undefined;
-  let out: string | undefined;
+  // Joined in batches (TextBuilder): one `+=` per quoted member made a rope node each, and
+  // 3 million declared members exhausted a 128 MB heap.
+  let out: TextBuilder | undefined;
   let copied = 0;
   for (let i = 0; i < json.length; i++) {
     const c = json.charCodeAt(i);
@@ -1349,7 +1360,8 @@ export function scanNumbers(json: string, bigIntegerKeys: ReadonlySet<string> = 
       STRICT_JSON_NUMBER.lastIndex = at;
       const literal = STRICT_JSON_NUMBER.exec(json)?.[0];
       if (literal === undefined) continue;
-      out = (out ?? "") + json.slice(copied, at) + '"' + literal + '"';
+      out ??= new TextBuilder();
+      out.push(json.slice(copied, at), '"', literal, '"');
       copied = at + literal.length;
       i = copied - 1;
     } else if (c === 0x2d || (c >= 0x30 && c <= 0x39)) {
@@ -1364,7 +1376,9 @@ export function scanNumbers(json: string, bigIntegerKeys: ReadonlySet<string> = 
       i += literal.length - 1;
     }
   }
-  return { json: out === undefined ? json : out + json.slice(copied), inexact };
+  if (out === undefined) return { json, inexact };
+  out.push(json.slice(copied));
+  return { json: out.toString(), inexact };
 }
 
 /** A member name written with an escape, decoded; a name JSON.parse can't read matches nothing. */

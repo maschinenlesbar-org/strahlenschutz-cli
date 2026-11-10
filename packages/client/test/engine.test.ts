@@ -22,6 +22,7 @@ import {
   StrahlNetworkError,
   StrahlParseError,
   StrahlValidationError,
+  TextBuilder,
   cutText,
   redactUrlUserinfo,
   toWellFormed,
@@ -1158,4 +1159,87 @@ test("redactUrlUserinfo hides the userinfo of a URL glued onto the one before it
     assert.ok(got === want, `${text.slice(0, 40)}…`);
     assert.ok(ms < 1000, `${Math.round(ms)} ms on ${text.slice(0, 40)}…`);
   }
+});
+
+/** Run `script` (an ES module) in a node process with a `heapMb` heap: its exit, signal and output. */
+function runSmallHeap(script: string, heapMb: number): Promise<{ code: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [`--max-old-space-size=${heapMb}`, "--input-type=module", "-e", script], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
+    child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+    child.on("close", (code, signal) => resolve({ code, signal, stdout, stderr }));
+  });
+}
+
+test("a TextBuilder joins its pieces in order across batches", () => {
+  const b = new TextBuilder();
+  const expected: string[] = [];
+  for (let i = 0; i < 40_000; i++) {
+    b.push(String(i), ",");
+    expected.push(String(i), ",");
+  }
+  assert.equal(b.toString(), expected.join(""));
+  assert.equal(new TextBuilder().toString(), "");
+});
+
+test("scanNumbers quotes millions of declared members within a small heap (C)", STARTS_A_PROCESS, async () => {
+  // One `+=` per quoted member made a rope node each: 3 million of them exhausted a 128 MB heap.
+  const engine = new URL("../src/engine.js", import.meta.url).href;
+  const n = 3_000_000;
+  const run = await runSmallHeap(
+    `const { scanNumbers } = await import(${JSON.stringify(engine)});` +
+      `const json = "[" + '{"k":1},'.repeat(${n - 1}) + '{"k":1}]';` +
+      `process.stdout.write(String(scanNumbers(json, new Set(["k"])).json.length));`,
+    128,
+  );
+  assert.equal(run.signal, null, `aborted: ${run.stderr.slice(0, 500)}`);
+  assert.equal(run.stdout, String(n * 10 + 1), run.stderr.slice(0, 500));
+});
+
+/** A script that asks `latest()` of a client answered with `answer` and prints `ok <name length> <warned>` or `<error name> <message length>`. */
+function latestScript(answer: string): string {
+  const index = new URL("../src/index.js", import.meta.url).href;
+  return `
+    const { StrahlenschutzClient } = await import(${JSON.stringify(index)});
+    const answer = () => ${answer};
+    let warned = "";
+    const client = new StrahlenschutzClient({ maxRetries: 0, onWarning: (m) => (warned = m), transport: async () => {
+      const [status, type, body] = answer();
+      return { status, headers: { "content-type": type }, body: Buffer.from(body) };
+    } });
+    try {
+      const fc = await client.latest();
+      console.log("ok", fc.features[0].properties.name.length, warned.slice(warned.indexOf(": ") + 2, warned.indexOf(" characters")));
+    } catch (err) {
+      console.log(err.name, err.message.length);
+    }
+  `;
+}
+
+test("an answer of millions of lone surrogate escapes is repaired within a small heap (C)", STARTS_A_PROCESS, async () => {
+  // wellFormedEscapes made one `+=` per repaired surrogate, a rope node each: 6 million repairs
+  // (36 MB) exhausted a 128 MB heap.
+  const run = await runSmallHeap(
+    latestScript(`[200, "application/json", '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":null,"properties":{"name":"' + "\\\\ud800".repeat(6_000_000) + '"}}]}']`),
+    128,
+  );
+  assert.equal(run.signal, null, `aborted: ${run.stderr.slice(0, 500)}`);
+  assert.equal(run.code, 0, run.stderr.slice(0, 500));
+  assert.equal(run.stdout.trim(), "ok 6000000 6000000");
+});
+
+test("an ExceptionText of millions of CDATA sections is read within a small heap (C)", STARTS_A_PROCESS, async () => {
+  // unwrapCdata made one `+=` per section, a rope node each: 6 million sections (78 MB, under
+  // the 100 MiB body cap) exhausted a 160 MB heap; batched, 128 MB suffice.
+  const run = await runSmallHeap(
+    latestScript(`[400, "application/xml", "<ows:ExceptionReport><ows:Exception><ows:ExceptionText>" + "<![CDATA[a]]>".repeat(6_000_000) + "</ows:ExceptionText></ows:Exception></ows:ExceptionReport>"]`),
+    128,
+  );
+  assert.equal(run.signal, null, `aborted: ${run.stderr.slice(0, 500)}`);
+  assert.equal(run.code, 0, run.stderr.slice(0, 500));
+  const [kind, length] = run.stdout.trim().split(" ");
+  assert.equal(kind, "StrahlApiError", run.stdout);
+  assert.ok(Number(length) < 1000, `a message of ${length} characters`);
 });
