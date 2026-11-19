@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Binary entry point. Thin shim around run(); all logic lives in run.ts/program.ts.
 
-import { handleOutputErrors } from "./io.js";
+import { exitOnSignalsAsPid1, handleOutputErrors } from "./io.js";
 import { installWarningLog } from "./log.js";
 import { processLogger, run } from "./run.js";
 
@@ -13,5 +13,7 @@ installWarningLog(process, log);
 // Before run(): a reader that closes the pipe early (`| head`) must end the run quietly
 // with exit 0, not an unhandled EPIPE stack trace and exit 1.
 handleOutputErrors(process, undefined, log);
+// In a container the CLI is PID 1, which ignores a signal nothing listens for.
+exitOnSignalsAsPid1();
 const exitCode = await run(argv);
 process.exitCode = exitCode;

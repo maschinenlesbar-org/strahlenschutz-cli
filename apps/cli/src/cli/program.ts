@@ -12,6 +12,7 @@ import { MAX_TIMEOUT_MS } from "@maschinenlesbar.org/strahlenschutz-client/inter
 import { MAX_RETRIES } from "@maschinenlesbar.org/strahlenschutz-client/internal/engine";
 import { once, parseBoundedInt, parseHeaderValue, parseIntArg, parseBaseUrl } from "./shared.js";
 import { registerOdlCommands } from "./commands/odl.js";
+import { readContainerLimits } from "./limits.js";
 import { DEFAULT_LOG_FORMAT, logFormatProblem } from "./log.js";
 
 /**
@@ -36,6 +37,8 @@ export const VERSION = readVersion();
 export const defaultDeps: CliDeps = {
   io: defaultIO,
   createClient: (options) => new StrahlenschutzClient(options),
+  // In a container: the memory and pids limits (cgroup), for action()'s checks.
+  limits: () => readContainerLimits(),
 };
 
 /** commander value-parser for `--log-format`. */
