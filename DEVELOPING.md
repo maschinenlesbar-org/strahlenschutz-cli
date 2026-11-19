@@ -36,7 +36,7 @@ strahlenschutz --help
 ## Library usage
 
 ```ts
-import { StrahlenschutzClient, StrahlApiError, StrahlNotFoundError } from "@maschinenlesbar.org/strahlenschutz-cli";
+import { StrahlenschutzClient, StrahlApiError, StrahlNotFoundError, getDoseSnapshot, getStationTrend } from "@maschinenlesbar.org/strahlenschutz-cli";
 
 const client = new StrahlenschutzClient(); // defaults to https://www.imis.bfs.de
 
@@ -50,6 +50,12 @@ try {
   if (err instanceof StrahlNotFoundError) console.error(err.message); // unknown kenn
   else if (err instanceof StrahlApiError) console.error(err.status, err.detail);
 }
+
+// The skills' use cases, with their traps built in (see "MCP server" below): stations without a
+// value counted and never ranked, each station's own newest hour, a verdict against background;
+// a station's hourly series read newest first and judged against its own baseline.
+const snapshot = await getDoseSnapshot(client, { state: "Bayern", limit: 5 });
+const trend = await getStationTrend(client, { station: "Herrischried", hours: 48 });
 ```
 
 ### Client options
@@ -194,13 +200,17 @@ apps/cli/            # @maschinenlesbar.org/strahlenschutz-cli — the published
   test/              # CLI tests and every conformance-*.test.ts
 packages/client/     # @maschinenlesbar.org/strahlenschutz-client — private, shipped inside the CLI's tarball
   src/               # the API client (below)
-  test/              # tests that only touch the client, + the transport helpers
+  test/              # tests that only touch the client, + the transport helpers and fixtures (a mock of the WFS)
+apps/mcp/            # @maschinenlesbar.org/strahlenschutz-mcp — the MCP server, released with the CLI
+packages/log/        # the log records (text/jsonl), shared by both apps
+tools/image/         # the container images of both apps (build, push, smoke, SBOM)
+tools/interop/       # the built MCP server against the official MCP client (own lockfile)
 tools/pack/          # prepack/postpack: ship the client (dist/node_modules) and commander in the tarball
-tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tools/bump.mjs       # version bump + commit + tag of every published app (npm run bump)
 tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
 ```
 
-- **The client is its own package** so a later MCP app can share it with the CLI. It is
+- **The client is its own package** so the MCP app shares it with the CLI. It is
   never published on its own: `apps/cli`'s `prepack` copies it into
   `apps/cli/dist/node_modules/`, where the CLI's imports find it, and the tarball ships it
   as plain files — so npm lists only commander (bundled) as a dependency, never the
@@ -214,9 +224,10 @@ tsconfig.docs.json   # TypeDoc only: the package entry, with the client read fro
   tests (not bundled). Only `"."` is part of the library.
 - **Dependencies point one way:** the app depends on the client, the client on nothing
   in the workspace.
-- **The version lives in `apps/cli/package.json`.** The root has none; a plain
-  `npm version` at the root is refused. Release with `npm run bump -- <patch|minor|major>`,
-  which bumps the app, commits (the bare version as the message) and tags `vX.Y.Z`.
+- **The version lives in `apps/cli/package.json`** (and, the same, in `apps/mcp/package.json`).
+  The root has none; a plain `npm version` at the root is refused. Release with
+  `npm run bump -- <patch|minor|major>`, which bumps every published app together, commits (the
+  bare version as the message) and tags `vX.Y.Z`.
 - **TypeScript:** `tsconfig.base.json` holds the compiler options; every workspace has a
   `tsconfig.json` (`src/`) and a `tsconfig.test.json` (`test/`), and the root
   `tsconfig.json`/`tsconfig.test.json` reference them, built with `tsc -b`.
@@ -233,6 +244,7 @@ packages/client/src/
     errors.ts    # StrahlError / StrahlApiError / StrahlNetworkError / StrahlParseError / StrahlValidationError
     validate.ts  # input rules (Problem functions) + assertValid, shared by library and CLI
     client.ts    # StrahlenschutzClient — WFS GetFeature over the engine
+    operations.ts # the skills' use cases: getDoseSnapshot / getStationsMap / getStationTrend / findStations / getTimeseries
     index.ts     # the client's public surface (the library entry re-exports it)
 apps/cli/src/cli/
     io.ts        # injectable I/O seam (stdout/stderr/file), the logger and the clock
@@ -671,9 +683,12 @@ everything that drives the CLI is in `apps/cli/test/`.
 
 GitHub Actions workflows under `.github/workflows/`:
 
-- **ci.yml** — type-check, build and test on Node 22/24/26 for every push and PR; then pack the
-  real tarball, check the pack left nothing behind, install it globally with the registry out
-  of reach and run the bin.
+- **ci.yml** — type-check, build and test on Node 22/24/26 for every push and PR; then pack each
+  published app (the CLI and the MCP server), check the pack left nothing behind, install it
+  globally with the registry out of reach and run its bins; its `interop` job runs the MCP
+  server against the official client.
+- **images.yml** — build, smoke-test and scan both container images on every push and weekly
+  (see [Container image](#container-image)).
 - **release.yml** — on a `v*` tag (made by `npm run bump`), three jobs: `pack` (read-only:
   verify the tag matches `apps/cli/package.json`, the release notes, test,
   `npm pack --workspace apps/cli`, the tarball's and the notes' sha256 as job outputs), `sbom`
@@ -683,13 +698,116 @@ GitHub Actions workflows under `.github/workflows/`:
   downloaded tarball and notes against the pack job's digests and runs only `gh release create`
   (tarball, both SBOMs, notes). To update the SBOM tool, change its version in
   `tools/sbom/package.json` and run `npm install --package-lock-only --ignore-scripts` there;
-  like `tools/docs/`, its install is never chained into an npm script.
-- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): `npm publish --workspace apps/cli` via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
+  like `tools/docs/`, its install is never chained into an npm script. The release also carries
+  both image archives, their SBOMs, `SHA256SUMS` and signed provenance (see
+  [Container image](#container-image)).
+- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): publishes the release's own files, both tarballs to npm via OIDC **Trusted
+  Publishing** (no stored `NPM_TOKEN`) with provenance and both images to ghcr.io, each checked
+  first against the immutable release and the provenance `release.yml` signed.
 - **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
   under `/api/`, and deploy both to GitHub Pages on each `v*` tag.
   TypeDoc runs from the isolated, lockfile-pinned `tools/docs/` toolchain because it
   needs the TypeScript 6 compiler API, which TypeScript 7 no longer ships; locally,
   run `npm ci --prefix tools/docs` once before `npm run docs`.
+
+## MCP server (apps/mcp)
+
+`apps/mcp` is the second published app, `@maschinenlesbar.org/strahlenschutz-mcp` (bin
+`strahlenschutz-mcp`), released in lockstep with the CLI: `npm run bump` bumps every
+published app under `apps/` together, one version, one tag. Its npm README is the root
+`MCP.md` (prepack packs `<APP>.md` for an app that has one).
+
+| Module | Role |
+|---|---|
+| `packages/client/src/operations.ts` | The skills' use cases as library functions (getDoseSnapshot, getStationsMap, getStationTrend, findStations, getTimeseries), with their traps built in. The network is one `latest` request (about 1,670 stations, 0.9 MB), filtered and ranked here: the WFS has no name or area search, and its own sort puts the ~120 stations without a value (defekt, Testbetrieb) first, so those are counted by status and never ranked. A station's Land is the first two digits of its kenn (the Gemeindeschlüssel's Land code; the FINO platforms are filed under Schleswig-Holstein). A place is the circle (`radiusKm`, default 25) around the stations whose name it starts a word of (München, not Waldmünchen; umlauts, case and ae/oe/ue folded by `fold`); stations of one name more than 40 km apart (Bergen) are `ambiguous`. Coordinates outside Germany's box (lon 5.5–15.5, lat 47–55.5; one station had [589.28, 3007.11]) are never placed: the map names them in `leftOff`. The snapshot says the hour most readings are for and marks the older ones; its verdict is normal up to 0.3 µSv/h (`NOTABLE_DOSE_RATE`; background is about 0.05–0.25). The trend reads the hourly series newest first (`end_measure D` with `count`: the series comes oldest first), then judges the newest 6 hours against the median before them: rising or falling at 0.03 µSv/h (`TREND_STEP`), a spike at 0.05 above (`SPIKE_STEP`), else steady; day means are per UTC day. An empty series is told apart with a look into the network: an unknown kenn, a station without readings, or the daily series, which has values for Flensburg (010010001) only. Public API of both packages. |
+| `packages/log` | The log records (text/jsonl), shared by both apps; `createLogger({ program })`. |
+| `src/mcp/tools.ts` | This repo's: the five tools (flat input schemas with limits, no root combinators; one object output schema each; descriptions under 2000 characters), the instructions, the licence (the BfS's dl-de/by-2-0 attribution with "eigene Bearbeitung" and its ask for a factual presentation), the hints the server's messages give. |
+| `src/mcp/api.ts` | This repo's: how the kit reaches the client (`StrahlenschutzClient` as `Client`, `StrahlError` as `ClientError`, `StrahlNetworkError` as `NetworkError`, `apiBase`). `apiBase` is the base URL plus `/ogc/opendata`, so a result's `source` is the WFS request (`ows?service=WFS&request=GetFeature&typeName=…`); a trend by name names the request of the station it resolved to. |
+| `src/mcp/server.ts` | The McpServer factory, the tool types, `callTool`: deadline (`--call-timeout`) plus the client's cancellation, cleaned and fitted answers, failures as `isError` results. |
+| `src/mcp/result.ts` | `cleanStrings` (control, bidi, zero-width characters dropped in the value), `fitResult` (whole list entries dropped under `--max-result-chars`, `nextOffset`). |
+| `src/mcp/limiter.ts` | One per process around the upstream transport: 2 in flight, 120 a minute, pause on 429, a bounded queue. |
+| `src/mcp/http.ts` | node:http adapter for the SDK's `createMcpHandler`: POST /mcp, /healthz, Host and Origin checks (the SDK does neither), 1 MiB body, 8 requests at once, timeouts. |
+| `src/mcp/config.ts`, `run.ts`, `index.ts` | Options (`node:util` parseArgs), argv -> exit code, the bin (console into log records, SIGINT/SIGTERM, stdin's end). |
+
+The protocol is the SDK's: `@modelcontextprotocol/server` 2.4.0, bundled with its core and zod
+(prepack). It serves the 2026-07-28 revision and the 2025 handshake (2025-11-25, 2025-06-18)
+statelessly, on stdio (`serveStdio`) and HTTP. The SDK bundles AJV 8.18 into its own code to
+validate tool arguments against the input schemas; an SBOM doesn't list that copy.
+
+Accepted SDK behaviour on stdio: a client that sends `notifications/initialized` and a request
+before the answer to its `initialize` (the MCP lifecycle says it must wait) gets its answers
+late, at the next event on the connection, because `serveStdio` decides the protocol era from
+the opening exchange. Real clients wait, so nothing is worked around here.
+
+**The kit.** Everything in `apps/mcp` but `tools.ts`, `api.ts`, `test/helpers.ts`,
+`test/tools.test.ts` and the conformance tests' adapter blocks, plus `packages/log`,
+`apps/cli/src/cli/limits.ts`, `tools/image/` (but `smoke.json`), `tools/interop/` (but
+`interop.json`), `tools/bump.mjs`, `tools/pack/` and the workflows `ci.yml`, `images.yml`,
+`release.yml` and `publish.yml`, is the kit of `create-cli-template` (in the api-cli workspace),
+the same in every repository with an MCP server: a fix lands there first and comes here with
+`npm run sync-kit -- ../strahlenschutz-cli` (run in create-cli-template; `--check` lists the
+drift).
+
+Tests (`apps/mcp/test`) run in-process over the SDK's InMemoryTransport with raw JSON-RPC (the
+kit's `harness.ts`). The rules every server follows are the shared conformance tests
+`conformance-m1-…` to `conformance-m10-…` (protocol and tool rules, HTTP, Host and Origin,
+stdio with the built bin, config, limiter, result shaping, drain, call errors, MCP.md), each with
+an adapter block naming this repo's calls and mock answers; `tools.test.ts` holds this server's
+own (the five tools, the traps). The mock WFS is the client's `test/fixtures.ts` (`odlApi`,
+`odlAnswer`): it answers like the GeoServer (the layer by `typeName`, `CQL_FILTER kenn='…'`,
+`sortBy` with nulls first, `count`, `startIndex`) over 24 stations of the live `latest` layer of
+2026-11-19 (the five highest, the three offshore platforms, defekt and Testbetrieb stations, a
+reading not validated, readings hours old, four Munich stations, two towns named Bergen;
+Trollenhagen with the broken coordinates of 5 Oct 2026), Herrischried's hourly series (167
+hours) and Flensburg's daily one (40 days). The stdio tests start the built bin (30 s each).
+`tools/interop/` checks the built server against the official client 2.4.0 (stdio and HTTP;
+legacy, auto and pinned 2026-07-28) in ci.yml's `interop` job; it has its own lockfile and is
+never installed by the workspace, release or publish runs; the calls it makes and the mock's
+answer (one per path: the WFS's `latest` layer) are in `tools/interop/interop.json`.
+
+## Container image
+
+`tools/image/` builds both apps' images (Dockerfile targets `cli` and `mcp`) from their release
+tarballs (`npm pack` output), never from source: `ADD` unpacks it onto distroless Node 24 (Debian 13, `nonroot`, uid 65532), so the image
+holds exactly the files npm users get. The base, BuildKit, the test registry, skopeo (local runs
+only), syft and grype are pinned in `pins.json`; bump them in the deps round. A Node or Debian
+security fix reaches the image only through a new base digest, so it means a patch release.
+
+| Script | What it does |
+|---|---|
+| `build.mjs` | Multi-arch OCI archive (amd64, arm64), reproducible: no provenance or SBOM attestation, timestamps from `SOURCE_DATE_EPOCH` (default: the HEAD commit's time). Two builds give the same index digest; compare index digests, not files. |
+| `push.mjs` | Copies the archive to a registry with skopeo (`--all --preserve-digests`) and checks the digest the registry serves. Used for the local test registry and for ghcr.io. |
+| `smoke.mjs` | Runs the image read-only, without capabilities, as an arbitrary uid: `--version`, `--help`, a network error, one request to a mock upstream (`smoke.json`: `latest --max 2` against two recorded stations), and `docker stop`, which must end a waiting call with 143 in under 5 s. |
+| `sbom.mjs` | One CycloneDX SBOM per platform with syft, and with `--gate true` grype over them: a fixable high or critical finding fails. Accepted findings go into `.grype.yaml` with a reason. CI only. |
+
+Locally (colima; the scripts never read your docker config, so no credential helper is asked;
+on macOS port 5000 is often taken by the AirPlay receiver, hence 5055):
+
+```bash
+export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock
+npm pack --workspace apps/cli --pack-destination dist-artifacts
+node tools/image/build.mjs --app cli --tarball dist-artifacts/<tarball>.tgz --out dist-artifacts/cli.oci.tar
+docker run -d -p 127.0.0.1:5055:5000 <registry pin from pins.json>
+node tools/image/push.mjs --archive dist-artifacts/cli.oci.tar --to 127.0.0.1:5055/strahlenschutz-cli:dev
+node tools/image/smoke.mjs --app cli --image 127.0.0.1:5055/strahlenschutz-cli@<index digest>
+```
+
+In CI: `images.yml` does all of it on every push and weekly, with the arm64 image smoke-tested on
+an arm64 runner and the vulnerability gate. In `release.yml` the job `image` builds from the
+checked tarball and records the archive's digest, `image-sbom` makes the SBOMs (no gate: the
+scanner's database changes daily), `attest` signs build provenance for the tarball, the archive
+and the image index, and the release attaches the archive, the image SBOMs and `SHA256SUMS`.
+`publish.yml` publishes the release's own files: both tarballs to npm and both archives to
+`ghcr.io/maschinenlesbar-org/strahlenschutz-cli` and `…/strahlenschutz-mcp` (with the run's `GITHUB_TOKEN`), each checked
+first against the immutable release (`gh release verify-asset`) and the provenance `release.yml`
+signed for that tag (`gh attestation verify`).
+`apps/cli/test/conformance-p32-image-pipeline.test.ts` (shared) pins these rules.
+
+As PID 1 the bin shim listens for SIGINT, SIGTERM and SIGHUP (`exitOnSignalsAsPid1`): without
+a listener the kernel drops them, and `docker stop` would wait 10 s and kill. In a container
+the CLI reads the cgroup limits (`limits.ts`): under a memory limit the default
+`--max-response-bytes` is an eighth of it, under a pids limit below 12 it refuses before any
+request, and a leading program name (`docker run <image> strahlenschutz latest`) is dropped.
 
 ## Website
 

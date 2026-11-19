@@ -35,6 +35,54 @@ Check it works:
 strahlenschutz --help
 ```
 
+### Docker
+
+From 0.10.0 every release is also a container image for linux/amd64 and linux/arm64 on the
+GitHub Container Registry, made from the same tarball as the npm package. It needs no Node.js and no
+install:
+
+```bash
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  ghcr.io/maschinenlesbar-org/strahlenschutz-cli:latest latest --max 5
+```
+
+The image's entrypoint is the program, so the command follows the image name directly;
+`… strahlenschutz-cli:latest strahlenschutz latest --max 5` works too.
+
+In a container with a memory limit (`--memory`) the default `--max-response-bytes` is an eighth
+of that limit (at most the usual 100 MiB), so an oversized answer is refused with a clear
+error instead of the container being killed for memory. The largest answer, the whole network
+(`latest`), is about 0.9 MB.
+The CLI needs at least 12 processes and threads (`--pids-limit 12`): below that it refuses with
+an error, and with 4 or fewer Node.js itself hangs before the CLI can check.
+
+`latest` is the newest release. For scripts, name a release and pin its digest, which the
+[release notes](https://github.com/maschinenlesbar-org/strahlenschutz-cli/releases) give:
+`…/strahlenschutz-cli:0.10.0@sha256:<digest>`. Each image carries signed build provenance;
+check it with
+
+```bash
+gh attestation verify oci://ghcr.io/maschinenlesbar-org/strahlenschutz-cli:latest \
+  --repo maschinenlesbar-org/strahlenschutz-cli
+```
+
+### MCP server
+
+From 0.10.0 the same data is also an [MCP](https://modelcontextprotocol.io/) server for AI agents,
+`@maschinenlesbar.org/strahlenschutz-mcp` (command `strahlenschutz-mcp`, image
+`ghcr.io/maschinenlesbar-org/strahlenschutz-mcp`): five read-only tools, the network snapshot
+ranked and judged against normal background (all of Germany, a Land, around a place), a station's
+trend against its own baseline, the readings as map-ready GeoJSON, the station search and a
+station's raw series, with the service's traps handled (dead sensors counted and never ranked,
+each station's own newest hour, broken coordinates kept off the map, the daily series that only
+Flensburg has), on stdio or Streamable HTTP. Setup for Claude Code, Claude Desktop and VS Code:
+[MCP.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/MCP.md).
+
+```bash
+npm i -g @maschinenlesbar.org/strahlenschutz-mcp
+claude mcp add strahlenschutz -- strahlenschutz-mcp
+```
+
 ## Quickstart
 
 No setup needed — the ODL-Info service is open data and requires no key. Your
@@ -250,6 +298,7 @@ usage error rather than "last one wins":
 - **[Usage.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/Usage.md)** — full use-case-driven cookbook.
 - **[GLOSSARY.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/GLOSSARY.md)** — domain terms, station identifiers, WFS concepts, exit codes.
 - **[DEVELOPING.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[MCP.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/MCP.md)** — the MCP server: tools, setup, options.
 - **[SKILLS.md](https://github.com/maschinenlesbar-org/strahlenschutz-cli/blob/main/SKILLS.md)** — Claude Code Agent Skills bundled with this repo (dose-rate
   snapshot, station trend, GeoJSON export), installable as a plugin.
 
