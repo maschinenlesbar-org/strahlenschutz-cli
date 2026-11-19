@@ -1,6 +1,6 @@
 {
   "name": "@maschinenlesbar.org/strahlenschutz-mcp",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "MCP server for the ambient gamma dose rate (ODL) of the Bundesamt für Strahlenschutz: the network snapshot ranked and judged, a station's trend, map-ready GeoJSON, for AI agents (stdio and Streamable HTTP)",
   "type": "module",
   "bin": {
