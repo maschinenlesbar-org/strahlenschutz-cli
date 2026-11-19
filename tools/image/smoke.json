@@ -1,0 +1,90 @@
+{
+  "comment": "What tools/image/smoke.mjs needs that is particular to this repo: the bin (its log topic), a command that makes one request, the exit code of a network error, the mock's answer to that request (by path, under --base-url http://mock:8080; the client adds /ogc/opendata/ows and the WFS query), and a string the printed answer contains. The answer is two stations of the live latest layer, recorded on 2026-11-19.",
+  "bin": "strahlenschutz",
+  "command": [
+    "latest",
+    "--max",
+    "2"
+  ],
+  "networkErrorExit": 1,
+  "answers": {
+    "/ogc/opendata/ows": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-0",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              9.38,
+              54.78
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ0001",
+            "kenn": "010010001",
+            "plz": "24941",
+            "name": "Flensburg",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 6,
+            "height_above_sea": 39,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.092,
+            "value_cosmic": 0.043,
+            "value_terrestrial": 0.049,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-1",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              8.01,
+              47.68
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ2270",
+            "kenn": "083370490",
+            "plz": "79737",
+            "name": "Herrischried OT Großherrischwand",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 1,
+            "height_above_sea": 850,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.239,
+            "value_cosmic": 0.054,
+            "value_terrestrial": 0.185,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        }
+      ],
+      "totalFeatures": 2,
+      "numberMatched": 2,
+      "numberReturned": 2,
+      "timeStamp": "2026-11-19T19:15:00.000Z",
+      "crs": {
+        "type": "name",
+        "properties": {
+          "name": "urn:ogc:def:crs:EPSG::4326"
+        }
+      }
+    }
+  },
+  "expectStdout": "Herrischried"
+}
