@@ -217,7 +217,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       ...AREA,
       includeDead: { type: "boolean", description: "Keep stations without a value, value null (default false)." },
       offset: OFFSET,
-      limit: limit(500, 100, "points per page"),
+      limit: limit(500, 60, "points per page"),
     }),
     outputSchema: output({ type: string, features: arr, withoutValue: obj, leftOff: arr, valueRange: obj }),
     source: LATEST,

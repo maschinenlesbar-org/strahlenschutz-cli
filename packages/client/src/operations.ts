@@ -303,7 +303,7 @@ function resolveArea(network: readonly StationReading[], input: AreaInput): Area
   const radiusKm = input.radiusKm ?? DEFAULT_RADIUS_KM;
   if (input.state !== undefined) {
     const land = resolveLand(input.state);
-    return { status: "ok", searched: { state: land[2] }, filter: { test: (s) => s.kenn.startsWith(land[0]), label: land[2], geographic: false }, notes: [] };
+    return { status: "ok", searched: { state: land[2] }, filter: { test: (s) => s.kenn.startsWith(land[0]), label: `in ${land[2]}`, geographic: false }, notes: [] };
   }
   const circle = (centre: [number, number]): AreaFilter => ({
     test: (s) => inGermany(s.coordinates) && distanceKm(centre, s.coordinates as [number, number]) <= radiusKm,
@@ -530,7 +530,7 @@ export interface StationsMapInput extends AreaInput {
   includeDead?: boolean | undefined;
   /** Where the page of features starts (default 0). */
   offset?: number | undefined;
-  /** Features per page (1–500, default 100). */
+  /** Features per page (1–500, default 60: about 20,000 characters of JSON). */
   limit?: number | undefined;
 }
 
@@ -584,7 +584,7 @@ export async function getStationsMap(client: StrahlenschutzClient, input: Statio
   checkArea(input);
   const includeDead = input.includeDead === true;
   const offset = assertValid("offset", input.offset ?? 0, intRangeProblem(0, 100_000));
-  const limit = assertValid("limit", input.limit ?? 100, limitProblem(500));
+  const limit = assertValid("limit", input.limit ?? 60, limitProblem(500));
   const network = await loadNetwork(client);
   const area = resolveArea(network, input);
   if (area.status === "ambiguous") return area;

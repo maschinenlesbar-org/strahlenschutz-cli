@@ -79,7 +79,8 @@ test("snapshot: a Land by name or abbreviation narrows by the kenn's Land code",
   const snap = await getDoseSnapshot(clientOf(odlApi()), { state: "BY" });
   assert.equal(snap.status, "ok");
   if (snap.status !== "ok") return;
-  assert.equal(snap.area, "Bayern");
+  assert.equal(snap.area, "in Bayern");
+  assert.match(snap.verdictText, /^All 8 readings in Bayern are at normal background/);
   assert.ok(snap.ranking.every((s) => s.kenn.startsWith("09")));
   assert.equal(snap.stationCount, 8);
 });
@@ -152,6 +153,9 @@ test("map: paged with nextOffset; a Land narrows it", async () => {
   const last = await getStationsMap(clientOf(odlApi()), { offset: 20, limit: 5 });
   assert.equal(last.status === "ok" && last.features.length, 1);
   assert.equal(last.status === "ok" && last.nextOffset, undefined);
+  const many = Array.from({ length: 80 }, (_, i) => stationRow("064380031", { kenn: `0643800${String(i).padStart(2, "0")}` }));
+  const page = await getStationsMap(clientOf(odlApi(many)));
+  assert.deepEqual(page.status === "ok" ? [page.features.length, page.nextOffset] : [], [60, 60], "the default page fits one tool result");
   const sh = await getStationsMap(clientOf(odlApi()), { state: "Schleswig-Holstein" });
   assert.equal(sh.status === "ok" && sh.features.map((f) => f.id).join(), "010010001,010020002,010020003,010020004");
 });
