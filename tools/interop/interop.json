@@ -1,0 +1,828 @@
+{
+  "comment": "What tools/interop/interop.mjs needs that is particular to this repo: the mock upstream's answer per path (under --base-url http://127.0.0.1:<port>; the client adds /ogc/opendata/ows), how many tools the server lists, and the calls to make with what each must answer. The mock answers by path only, so every call reads the latest layer: 24 stations recorded live on 2026-11-19 (the client test fixtures; Trollenhagen with the broken coordinates of 5 Oct 2026).",
+  "answers": {
+    "/ogc/opendata/ows": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-0",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              9.38,
+              54.78
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ0001",
+            "kenn": "010010001",
+            "plz": "24941",
+            "name": "Flensburg",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 6,
+            "height_above_sea": 39,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.092,
+            "value_cosmic": 0.043,
+            "value_terrestrial": 0.049,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-1",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              10.27,
+              54.5
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ3261",
+            "kenn": "010020001",
+            "plz": "24159",
+            "name": "Leuchtturm Kiel",
+            "site_status": 2,
+            "site_status_text": "defekt",
+            "kid": 6,
+            "height_above_sea": 30,
+            "start_measure": null,
+            "end_measure": null,
+            "value": null,
+            "value_cosmic": null,
+            "value_terrestrial": null,
+            "unit": "µSv/h",
+            "validated": null,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-2",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              7.15,
+              55.02
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ3399",
+            "kenn": "010020002",
+            "plz": "24106",
+            "name": "FINO 3 - Forschungsplattform",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 6,
+            "height_above_sea": 24,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.05,
+            "value_cosmic": 0.042,
+            "value_terrestrial": 0.008,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-3",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              6.17,
+              54.01
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ3409",
+            "kenn": "010020003",
+            "plz": "24106",
+            "name": "FINO 1 - Forschungsplattform",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 6,
+            "height_above_sea": 21,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.055,
+            "value_cosmic": 0.042,
+            "value_terrestrial": 0.013,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-4",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              13.16,
+              55.01
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ3415",
+            "kenn": "010020004",
+            "plz": "24106",
+            "name": "FINO 2 - Forschungsplattform",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 6,
+            "height_above_sea": 10,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.059,
+            "value_cosmic": 0.042,
+            "value_terrestrial": 0.017,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-5",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              9.76,
+              51.5
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ0180",
+            "kenn": "031520061",
+            "plz": "37127",
+            "name": "Dransfeld",
+            "site_status": 3,
+            "site_status_text": "Testbetrieb",
+            "kid": 5,
+            "height_above_sea": 310,
+            "start_measure": null,
+            "end_measure": null,
+            "value": null,
+            "value_cosmic": null,
+            "value_terrestrial": null,
+            "unit": "µSv/h",
+            "validated": null,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-6",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              9.66,
+              51.62
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ0212",
+            "kenn": "031550121",
+            "plz": "37170",
+            "name": "Uslar OT Schoningen",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 5,
+            "height_above_sea": 135,
+            "start_measure": "2026-11-19T04:00:00Z",
+            "end_measure": "2026-11-19T05:00:00Z",
+            "value": 0.114,
+            "value_cosmic": 0.044,
+            "value_terrestrial": 0.07,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-7",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              9.96,
+              52.82
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ0303",
+            "kenn": "033510041",
+            "plz": "29303",
+            "name": "Bergen",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 5,
+            "height_above_sea": 8,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.099,
+            "value_cosmic": 0.042,
+            "value_terrestrial": 0.056,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-8",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              8.66,
+              49.96
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ0821",
+            "kenn": "064380031",
+            "plz": "63329",
+            "name": "Egelsbach",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 1,
+            "height_above_sea": 120,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.114,
+            "value_cosmic": 0.044,
+            "value_terrestrial": 0.07,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-9",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              8.4,
+              48.35
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ1206",
+            "kenn": "082370020",
+            "plz": "72275",
+            "name": "Alpirsbach",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 1,
+            "height_above_sea": 440,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.202,
+            "value_cosmic": 0.048,
+            "value_terrestrial": 0.154,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-10",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              8.01,
+              47.68
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ2270",
+            "kenn": "083370490",
+            "plz": "79737",
+            "name": "Herrischried OT Großherrischwand",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 1,
+            "height_above_sea": 850,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.239,
+            "value_cosmic": 0.054,
+            "value_terrestrial": 0.185,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-11",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              11.54,
+              48.16
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ3476",
+            "kenn": "091620001",
+            "plz": "80637",
+            "name": "München-Neuhausen",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 3,
+            "height_above_sea": 515,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.099,
+            "value_cosmic": 0.049,
+            "value_terrestrial": 0.05,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-12",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              11.45,
+              48.15
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ1360",
+            "kenn": "091620002",
+            "plz": "81241",
+            "name": "München-Pasing",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 3,
+            "height_above_sea": 526,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.102,
+            "value_cosmic": 0.049,
+            "value_terrestrial": 0.053,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-13",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              11.66,
+              48.09
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ1361",
+            "kenn": "091620003",
+            "plz": "81739",
+            "name": "München-Neuperlach",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 3,
+            "height_above_sea": 541,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.098,
+            "value_cosmic": 0.05,
+            "value_terrestrial": 0.048,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-14",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              11.52,
+              48.1
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ1984",
+            "kenn": "091620004",
+            "plz": "81479",
+            "name": "München-Obersendling",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 3,
+            "height_above_sea": 547,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.11,
+            "value_cosmic": 0.05,
+            "value_terrestrial": 0.06,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-15",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              11.66,
+              48.26
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ3408",
+            "kenn": "091841192",
+            "plz": "85748",
+            "name": "Garching b. München",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 3,
+            "height_above_sea": 478,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.09,
+            "value_cosmic": 0.049,
+            "value_terrestrial": 0.042,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-16",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              13.78,
+              48.83
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ1919",
+            "kenn": "092721221",
+            "plz": "94145",
+            "name": "Haidmühle",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 3,
+            "height_above_sea": 833,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.201,
+            "value_cosmic": 0.054,
+            "value_terrestrial": 0.147,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-17",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              12.68,
+              49.39
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ3504",
+            "kenn": "093721713",
+            "plz": "93449",
+            "name": "Waldmünchen OT Hocha",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 3,
+            "height_above_sea": 495,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.16,
+            "value_cosmic": 0.049,
+            "value_terrestrial": 0.112,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-18",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              10.95,
+              48.43
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ2898",
+            "kenn": "097711121",
+            "plz": "86444",
+            "name": "Bergen",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 3,
+            "height_above_sea": 461,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.095,
+            "value_cosmic": 0.048,
+            "value_terrestrial": 0.047,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-19",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              13.5,
+              52.63
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ2860",
+            "kenn": "110000004",
+            "plz": "13125",
+            "name": "Berlin-Buch",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 2,
+            "height_above_sea": 61,
+            "start_measure": "2026-11-19T17:00:00Z",
+            "end_measure": "2026-11-19T18:00:00Z",
+            "value": 0.091,
+            "value_cosmic": 0.043,
+            "value_terrestrial": 0.048,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-20",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              13.94,
+              52.85
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ2382",
+            "kenn": "120601721",
+            "plz": "16248",
+            "name": "Niederfinow",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 2,
+            "height_above_sea": 4,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.094,
+            "value_cosmic": 0.042,
+            "value_terrestrial": 0.052,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-21",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              13.94,
+              53.88
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ3167",
+            "kenn": "130590972",
+            "plz": "17406",
+            "name": "Usedom",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 6,
+            "height_above_sea": 5,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.097,
+            "value_cosmic": 0.042,
+            "value_terrestrial": 0.055,
+            "unit": "µSv/h",
+            "validated": 2,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-22",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              589.28,
+              3007.11
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ3583",
+            "kenn": "130711451",
+            "plz": "17039",
+            "name": "Trollenhagen",
+            "site_status": 2,
+            "site_status_text": "defekt",
+            "kid": 6,
+            "height_above_sea": 0,
+            "start_measure": null,
+            "end_measure": null,
+            "value": null,
+            "value_cosmic": null,
+            "value_terrestrial": null,
+            "unit": "µSv/h",
+            "validated": null,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "odlinfo_odl_1h_latest.fid-23",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              10.77,
+              50.65
+            ]
+          },
+          "geometry_name": "geom",
+          "properties": {
+            "id": "DEZ2593",
+            "kenn": "160700171",
+            "plz": "98559",
+            "name": "Gehlberg",
+            "site_status": 1,
+            "site_status_text": "in Betrieb",
+            "kid": 3,
+            "height_above_sea": 943,
+            "start_measure": "2026-11-19T18:00:00Z",
+            "end_measure": "2026-11-19T19:00:00Z",
+            "value": 0.199,
+            "value_cosmic": 0.056,
+            "value_terrestrial": 0.143,
+            "unit": "µSv/h",
+            "validated": 1,
+            "nuclide": "Gamma-ODL-Brutto",
+            "duration": "1h"
+          }
+        }
+      ],
+      "totalFeatures": 24,
+      "numberMatched": 24,
+      "numberReturned": 24,
+      "timeStamp": "2026-11-19T19:15:00.000Z",
+      "crs": {
+        "type": "name",
+        "properties": {
+          "name": "urn:ogc:def:crs:EPSG::4326"
+        }
+      }
+    }
+  },
+  "tools": 5,
+  "calls": [
+    {
+      "name": "getDoseSnapshot",
+      "arguments": {},
+      "expect": {
+        "status": "ok",
+        "verdict": "normal",
+        "ranking.0.kenn": "083370490",
+        "skipped.total": 3,
+        "mainHour": "2026-11-19T19:00:00Z"
+      }
+    },
+    {
+      "name": "getDoseSnapshot",
+      "arguments": {
+        "state": "Bayern",
+        "order": "lowest",
+        "limit": 1
+      },
+      "expect": {
+        "status": "ok",
+        "stationCount": 8
+      }
+    },
+    {
+      "name": "getDoseSnapshot",
+      "arguments": {
+        "place": "Bergen"
+      },
+      "expect": {
+        "status": "ambiguous",
+        "total": 2
+      }
+    },
+    {
+      "name": "getStationsMap",
+      "arguments": {
+        "includeDead": true
+      },
+      "expect": {
+        "status": "ok",
+        "total": 23,
+        "leftOff.0.kenn": "130711451"
+      }
+    },
+    {
+      "name": "findStations",
+      "arguments": {
+        "query": "München"
+      },
+      "expect": {
+        "status": "ok",
+        "total": 5
+      }
+    },
+    {
+      "name": "getDoseSnapshot",
+      "arguments": {
+        "limit": 500
+      },
+      "error": true
+    }
+  ]
+}
