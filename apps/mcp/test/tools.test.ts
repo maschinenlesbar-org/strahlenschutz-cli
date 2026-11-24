@@ -115,6 +115,11 @@ test("the BfS service down or slow (a 502 or 504, a request timeout) is a tool e
   assert.equal(late.isError, true);
   assert.match(late.content[0]?.text ?? "", /timed out after 2000ms.*try again shortly/);
   await slow.close();
+  const asked = await connect({ transport: makeMockTransport(() => ({ status: 503, headers: { "content-type": "text/plain", "retry-after": "120" }, body: Buffer.from("busy") })) });
+  const wait = await asked.call("findStations", { query: "Flensburg" });
+  assert.match(wait.content[0]?.text ?? "", /asked to wait 120 s/);
+  assert.doesNotMatch(wait.content[0]?.text ?? "", /try again shortly/, "a wait the server asked for is not contradicted");
+  await asked.close();
   const wrong = await connect({ transport: makeMockTransport(() => ({ status: 400, headers: { "content-type": "text/plain" }, body: Buffer.from("bad request") })) });
   const refused = await wrong.call("findStations", { query: "Flensburg" });
   assert.doesNotMatch(refused.content[0]?.text ?? "", /try again/, "a 400 is no outage");

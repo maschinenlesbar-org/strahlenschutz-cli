@@ -160,7 +160,8 @@ const OUTAGE_STATUSES = new Set([502, 503, 504]);
 /**
  * `work`, with an outage's error saying what to do: a 502, 503 (after the client's retries) or 504,
  * a request timeout or a reset connection is the BfS service slow or down for a while, so the
- * message adds to try again shortly, unchanged. Other errors (a wrong request, a changed answer,
+ * message adds to try again shortly, unchanged (not where the server's Retry-After asked for longer
+ * than the client waits: that message says how long). Other errors (a wrong request, a changed answer,
  * the size cap, a cancelled call) keep their text.
  */
 async function withHints<T>(work: () => Promise<T>): Promise<T> {
@@ -168,7 +169,8 @@ async function withHints<T>(work: () => Promise<T>): Promise<T> {
     return await work();
   } catch (err) {
     if (
-      (err instanceof StrahlApiError && OUTAGE_STATUSES.has(err.status)) ||
+      // A 503 whose Retry-After asked for longer than the client waits already says when to ask.
+      (err instanceof StrahlApiError && OUTAGE_STATUSES.has(err.status) && !/\(Retry-After\)/.test(err.message)) ||
       (err instanceof StrahlNetworkError && (/timed out/.test(err.message) || isTransientNetworkError(err)))
     ) {
       err.message = `${err.message}. The BfS service is sometimes slow or down for a while: try again shortly, unchanged; if it keeps failing, tell the user.`;
