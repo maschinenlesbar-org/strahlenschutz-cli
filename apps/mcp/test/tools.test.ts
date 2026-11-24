@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
 import { SIZE_HINT, TOOLS } from "../src/mcp/tools.js";
 import { connect } from "./harness.js";
-import { makeMockTransport, odlApi } from "./helpers.js";
+import { makeMockTransport, odlApi, stationRow } from "./helpers.js";
 import { StrahlNetworkError } from "@maschinenlesbar.org/strahlenschutz-client";
 
 const OWS = "https://www.imis.bfs.de/ogc/opendata/ows";
@@ -142,4 +142,18 @@ test("the deadline's and the size cap's advice fit every tool: each option named
     }
     for (const tool of ["getDoseSnapshot", "getStationsMap", "findStations"]) assert.match(text, new RegExp(tool), "the network tools, which read the whole network whatever is asked, are named");
   }
+});
+
+test("getStationsMap: a page the size cap cut never claims the features it lost in its notes", async () => {
+  const many = Array.from({ length: 80 }, (_, i) => stationRow("064380031", { kenn: `0643800${String(i).padStart(2, "0")}` }));
+  const connection = await connect({ transport: odlApi(many), config: { maxResultChars: 8000 } });
+  const page = (await connection.call("getStationsMap", { limit: 80 })).structuredContent ?? {};
+  await connection.close();
+  const kept = (page["features"] as unknown[]).length;
+  assert.ok(kept < 80, `the cap cut the page (${kept})`);
+  assert.equal(page["truncated"], true);
+  assert.equal(page["nextOffset"], kept);
+  const notes = (page["notes"] as string[]).join(" ");
+  assert.doesNotMatch(notes, /1–80/);
+  assert.match(notes, /80 features in all.*nextOffset/);
 });

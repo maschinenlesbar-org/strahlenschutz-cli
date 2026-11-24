@@ -641,7 +641,8 @@ export async function getStationsMap(client: StrahlenschutzClient, input: Statio
     ...(leftOff.length === 0 ? [] : [`${leftOff.length} station${leftOff.length === 1 ? " lies" : "s lie"} outside Germany by the BfS's coordinates and ${leftOff.length === 1 ? "is" : "are"} left off (leftOff): name ${leftOff.length === 1 ? "it" : "them"} to the user.`]),
     "Coordinates are [lon, lat] (EPSG:4326) as the BfS gives them, rounded to 0.01° (about 1 km): fine for a national layer, not for street level.",
     `Colour on value (µSv/h) with a ramp clamped to the values' range${values.length === 0 ? "" : ` (${Math.min(...values)}–${Math.max(...values)})`}, about 0.05–0.25: a 0–1 ramp makes every station look the same.`,
-    ...(next < points.length ? [`This page holds features ${offset + 1}–${next} of ${points.length}: for a file, join every page's features (nextOffset).`] : []),
+    // Not the page's own bounds: a page the MCP server's size cap cuts keeps its notes whole.
+    `The map has ${points.length} feature${points.length === 1 ? "" : "s"} in all: for a file, join every page's features, following nextOffset while there is one.`,
   ];
   return {
     status: "ok",
