@@ -32,7 +32,10 @@ export interface Feature {
 /** A WFS GetFeature response (GeoJSON FeatureCollection). */
 export interface FeatureCollection {
   type: "FeatureCollection";
+  /** How many features match, all pages together (GeoServer sends "unknown" when it didn't count). */
   totalFeatures?: number | string;
+  /** The same count in WFS 2.0's own field. */
+  numberMatched?: number | string;
   numberReturned?: number;
   timeStamp?: string;
   features: Feature[];

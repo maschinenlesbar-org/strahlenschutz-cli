@@ -11,7 +11,8 @@ import assert from "node:assert/strict";
 import { StrahlenschutzClient } from "../src/client.js";
 import { StrahlValidationError } from "../src/errors.js";
 import { findStations, fold, getDoseSnapshot, getStationsMap, getStationTrend, getTimeseries, landOf, resolveLand } from "../src/operations.js";
-import { hourly, odlApi, SERIES, STATIONS, stationRow } from "./fixtures.js";
+import { hourly, odlAnswer, odlApi, SERIES, STATIONS, stationRow } from "./fixtures.js";
+import { jsonResponse, makeMockTransport } from "./helpers.js";
 
 const clientOf = (mock: ReturnType<typeof odlApi>) => new StrahlenschutzClient({ transport: mock.transport });
 const params = (mock: ReturnType<typeof odlApi>, i = 0) => new URL(mock.calls[i]?.url ?? "http://x").searchParams;
@@ -278,4 +279,27 @@ test("map and findStations: an offset past the end is empty and says so, as for 
   assert.match(found.status === "empty" ? found.reason : "", /24 stations match; offset 99999 is past the end \(offsets 0–23\)/);
   const last = await getStationsMap(clientOf(odlApi()), { offset: 20 });
   assert.equal(last.status === "ok" && last.features.length, 1, "the last entry's offset is still a page");
+});
+
+test("getTimeseries: a totalFeatures that is no count is replaced by numberMatched; without either, a full page has a nextOffset", async () => {
+  const rewritten = (change: (body: Record<string, unknown>) => void) =>
+    new StrahlenschutzClient({
+      transport: makeMockTransport((request) => {
+        const body = JSON.parse(odlAnswer(request).body.toString("utf8")) as Record<string, unknown>;
+        change(body);
+        return jsonResponse(body);
+      }).transport,
+    });
+  const unknown = await getTimeseries(rewritten((b) => (b["totalFeatures"] = "unknown")), { station: "083370490", limit: 5 });
+  assert.deepEqual(unknown.status === "ok" ? [unknown.total, unknown.nextOffset] : [], [167, 5]);
+  const neither = await getTimeseries(rewritten((b) => { delete b["totalFeatures"]; delete b["numberMatched"]; }), { station: "083370490", limit: 5 });
+  assert.equal(neither.status, "ok");
+  if (neither.status !== "ok") return;
+  assert.equal(neither.total, undefined, "no count is claimed");
+  assert.equal(neither.nextOffset, 5, "a full page may have more after it");
+  assert.match(neither.notes.join(" "), /did not say how many values the series has/);
+  const short = await getTimeseries(rewritten((b) => { delete b["totalFeatures"]; delete b["numberMatched"]; }), { station: "083370490", offset: 165, limit: 5 });
+  assert.equal(short.status === "ok" && short.nextOffset, undefined, "a short page is the last");
+  const fewer = await getTimeseries(rewritten((b) => (b["totalFeatures"] = 3)), { station: "083370490", limit: 5 });
+  assert.equal(fewer.status === "ok" && fewer.total, 167, "a count below what came back is not believed: numberMatched");
 });

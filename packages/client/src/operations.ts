@@ -959,7 +959,17 @@ export interface TimeseriesInput {
 
 /** The answer of {@link getTimeseries}. */
 export type Timeseries =
-  | { status: "ok"; searched: { station: string; resolution: string; order: string }; station: { kenn: string; name: string; land?: string }; total: number; points: SeriesPoint[]; nextOffset?: number; unit: string; notes: string[] }
+  | {
+      status: "ok";
+      searched: { station: string; resolution: string; order: string };
+      station: { kenn: string; name: string; land?: string };
+      /** The series' length, all pages together; absent when the WFS gave no usable count. */
+      total?: number;
+      points: SeriesPoint[];
+      nextOffset?: number;
+      unit: string;
+      notes: string[];
+    }
   | { status: "empty"; searched: { station: string; resolution: string; order: string }; reason: string };
 
 /** The station whose daily series has values: the only one (26 Sep 2026, still on 19 Nov 2026). */
@@ -984,10 +994,13 @@ export async function getTimeseries(client: StrahlenschutzClient, input: Timeser
     maxFeatures: limit,
     startIndex: offset,
   });
-  const total = Number(series.totalFeatures ?? series.features.length);
   const points = series.features.map(pointOfFeature);
+  // The count, from totalFeatures or numberMatched: GeoServer sends "unknown" when it didn't count,
+  // and a count below what came back is no count of this series.
+  const counts = [series.totalFeatures, series.numberMatched].filter((n): n is number => typeof n === "number" && Number.isSafeInteger(n) && n > 0);
+  const total = counts.find((n) => n >= offset + points.length);
   if (points.length === 0) {
-    if (offset > 0 && total > 0) return { status: "empty", searched, reason: `The series has ${total} values; offset ${offset} is past its end.` };
+    if (offset > 0 && counts[0] !== undefined) return { status: "empty", searched, reason: `The series has ${counts[0]} values; offset ${offset} is past its end.` };
     if (resolution === "daily" && station !== DAILY_SERIES_STATION) {
       return { status: "empty", searched, reason: `The BfS's daily series has values for Flensburg (${DAILY_SERIES_STATION}) only. Ask for resolution hourly, or getStationTrend's days for daily means of the hourly values.` };
     }
@@ -996,17 +1009,20 @@ export async function getTimeseries(client: StrahlenschutzClient, input: Timeser
   const first = series.features[0]?.properties ?? {};
   const land = landOf(station);
   const next = offset + points.length;
+  // Without a count, a full page may have more after it; a short one is the last.
+  const more = total === undefined ? points.length === limit : next < total;
   return {
     status: "ok",
     searched,
     station: { kenn: station, name: str(first["name"]) ?? station, ...(land === undefined ? {} : { land }) },
-    total,
+    ...(total === undefined ? {} : { total }),
     points,
-    ...(Number.isFinite(total) && next < total ? { nextOffset: next } : {}),
+    ...(more ? { nextOffset: next } : {}),
     unit: "µSv/h",
     notes: [
       `${resolution === "hourly" ? "Hourly" : "Daily"} values as published, ${order} first; start and end are UTC. validated false: not marked validated (yet); value null: no reading.`,
       ...(resolution === "hourly" ? ["The hourly series holds about one week."] : []),
+      ...(total === undefined ? [`The WFS did not say how many values the series has (no usable totalFeatures or numberMatched): total is left out${more ? "; nextOffset is given because this page is full, and the next one may be empty" : ""}.`] : []),
     ],
   };
 }
