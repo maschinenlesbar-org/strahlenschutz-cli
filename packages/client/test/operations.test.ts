@@ -177,8 +177,9 @@ test("trend: read newest first (the series comes oldest first), summarised, stea
   assert.equal(trend.aboveBackground, false);
   assert.ok(trend.baseline > 0.2 && trend.baseline < 0.24);
   assert.equal(trend.points?.[0]?.hourEnding, "2026-11-17T20:00:00Z", "points oldest first, for a chart");
-  assert.deepEqual(trend.days.map((d) => [d.day, d.hours]), [["2026-11-17", 5], ["2026-11-18", 24], ["2026-11-19", 19]]);
+  assert.deepEqual((trend.days ?? []).map((d) => [d.day, d.hours]), [["2026-11-17", 5], ["2026-11-18", 24], ["2026-11-19", 19]]);
   assert.match(trend.notes.join(" "), /own flat level/);
+  assert.match(trend.notes.join(" "), /days: means per UTC day/);
 });
 
 test("trend: a name resolves to its kenn; a name two stations carry is ambiguous; an unknown kenn and a dead station are told apart", async () => {
@@ -345,7 +346,7 @@ test("trend: a short window is judged against the hours before it, read for the 
   assert.equal(three.t?.baseline, 0.1);
   assert.equal(three.count, "27", "3 hours and 24 before them");
   assert.deepEqual([three.t?.window.hours, three.t?.window.values, three.t?.min.value], [3, 3, 0.5], "the window is still the 3 hours asked");
-  assert.match(three.t?.notes.join(" ") ?? "", /compares the newest 3 hours with the station's median over the 24 hours before them/);
+  assert.match(three.t?.notes.join(" ") ?? "", /Baseline: the median of the 24 hours before the newest 3/);
   const six = await run(jump, 6);
   assert.equal(six.t?.verdict, "rising", six.t?.verdictText);
   const step = [...Array.from({ length: 42 }, () => 0.1), ...Array.from({ length: 6 }, () => 0.2)];

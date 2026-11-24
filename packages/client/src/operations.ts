@@ -877,7 +877,8 @@ export type StationTrend =
       aboveBackground: boolean;
       notValidated: number;
       unit: string;
-      days: DayMean[];
+      /** Means per UTC day, for a window of 24 hours or more. */
+      days?: DayMean[];
       points?: HourValue[];
       notes: string[];
     }
@@ -1019,19 +1020,19 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
   }
   const gaps = oldestFirst.length - valued.length;
   const notes = [
-    "Hourly readings, newest hours of the series (about one week is kept); times are UTC, each value for the hour ending at its time.",
-    `Normal background is about ${NORMAL_BACKGROUND.min}–${NORMAL_BACKGROUND.max} µSv/h; each site has its own flat level (high-altitude and granite sites 0.20–0.26 all week). Judge against the station's baseline, and treat a few hundredths of a µSv/h as noise.`,
+    // Short: the notes are kept whole under the MCP server's size cap.
+    `UTC, each value for the hour ending then. Each site has its own flat level (0.20–0.26 µSv/h at high-altitude and granite sites is normal): judge against it; a few hundredths is noise.`,
     ...(before.length < 3
       ? [`The series has only ${before.length} hour${before.length === 1 ? "" : "s"} with a value before the newest ${recent.length}: the baseline includes the newest hours, so a rise may not show.`]
       : readValued.length > valued.length
-        ? [`The verdict compares the newest ${recent.length} hour${recent.length === 1 ? "" : "s"} with the station's median over the ${before.length} hours before them, read for the baseline beyond the window asked.`]
+        ? [`Baseline: the median of the ${before.length} hours before the newest ${recent.length}, read beyond the window.`]
         : []),
     ...(maxPoint.value > NOTABLE_DOSE_RATE ? [`Some hour is above ${NOTABLE_DOSE_RATE} µSv/h: compare with the station's history and neighbours (getDoseSnapshot around it) before calling it more than weather.`] : []),
     ...(notValidated === 0 ? [] : [`${notValidated} hour${notValidated === 1 ? " is" : "s are"} not marked validated${maxPoint.validated === false ? ", the highest among them: a spike not validated is not a confirmed rise" : ""}.`]),
     ...(stale === "" ? [] : [`The newest reading is for the hour ending ${latest.end}, ${ageOf(behind)} before the BfS answered (${series.timeStamp}): the station has stopped reporting, so the window and verdict describe that time, not now. Say so, and check its status with findStations.`]),
     ...seriesUnitNotes(oldestFirst),
     ...(gaps === 0 ? [] : [`${gaps} hour${gaps === 1 ? " has" : "s have"} no value (a gap) and ${gaps === 1 ? "is" : "are"} left out of min, max and mean.`]),
-    "days are means of the hourly values per UTC day (a day with fewer than 24 hours is partial). The BfS's own daily series holds Flensburg (010010001) only.",
+    ...(hours < 24 ? [] : ["days: means per UTC day (a partial day has fewer than 24 hours)."]),
   ];
   return {
     status: "ok",
@@ -1050,7 +1051,8 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
     aboveBackground: maxPoint.value > NOTABLE_DOSE_RATE,
     notValidated,
     unit: "µSv/h",
-    days: [...days].map(([day, v]) => ({ day, hours: v.length, mean: round(v.reduce((s, x) => s + x, 0) / v.length, 3), min: Math.min(...v), max: Math.max(...v) })),
+    // A window under a day has no day means: they would repeat min, max and mean.
+    ...(hours < 24 ? {} : { days: [...days].map(([day, v]) => ({ day, hours: v.length, mean: round(v.reduce((s, x) => s + x, 0) / v.length, 3), min: Math.min(...v), max: Math.max(...v) })) }),
     ...(input.points === true ? { points: valued.map(at) } : {}),
     notes,
   };

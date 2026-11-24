@@ -157,3 +157,24 @@ test("getStationsMap: a page the size cap cut never claims the features it lost 
   assert.doesNotMatch(notes, /1–80/);
   assert.match(notes, /80 features in all.*nextOffset/);
 });
+
+test("getStationTrend fits a small size cap: a short window answers whole, a long one with its days cut, its notes kept", async () => {
+  // A 1-hour trend was 1936 characters whole, a size error at every cap below that.
+  const connection = await connect({ transport: odlApi(), config: { maxResultChars: 1700 } });
+  const short = await connection.call("getStationTrend", { station: "083370490", hours: 1 });
+  assert.notEqual(short.isError, true, short.content[0]?.text);
+  const one = short.structuredContent ?? {};
+  assert.equal(one["status"], "ok");
+  assert.equal(one["days"], undefined, "a window under a day has no day means: they would repeat min, max and mean");
+  assert.match((one["notes"] as string[]).join(" "), /own flat level/);
+  await connection.close();
+  const wider = await connect({ transport: odlApi(), config: { maxResultChars: 2100 } });
+  const long = await wider.call("getStationTrend", { station: "083370490", hours: 168 });
+  assert.notEqual(long.isError, true, long.content[0]?.text);
+  const week = long.structuredContent ?? {};
+  assert.equal(week["truncated"], true);
+  assert.ok((week["days"] as unknown[]).length >= 1);
+  assert.match((week["notes"] as string[]).join(" "), /own flat level/);
+  assert.match(String(week["reason"]), /days lost entries/);
+  await wider.close();
+});

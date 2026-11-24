@@ -66,7 +66,7 @@ For scripts and shared configs, pin a release and its digest from the
 | Tool | What it answers |
 |---|---|
 | `getDoseSnapshot` | The network's latest readings ranked and judged against normal background, for all of Germany, a Land, around a place or a point, or in a box: the verdict, the highest (or lowest) stations with their cosmic and terrestrial parts, the stations without a value counted apart, the hour most readings are for and the older ones. |
-| `getStationTrend` | One station's hourly dose rate over the newest hours (up to a week), by kenn or name: the latest value, min, max, mean, day means and a verdict (steady, rising, falling, spike) against the station's own baseline. |
+| `getStationTrend` | One station's hourly dose rate over the newest hours (up to a week), by kenn or name: the latest value, min, max, mean, day means (for 24 hours or more) and a verdict (steady, rising, falling, spike) against the station's own baseline. |
 | `getStationsMap` | The stations as map-ready GeoJSON points with the dose rate promoted for colour scaling and a popup text; dead sensors dropped (or kept, value null), points outside Germany left off and named; paged. |
 | `findStations` | Stations with their latest reading, by a part of the name, a postal code, a kenn, a Land, a status, or nearest to a point. |
 | `getTimeseries` | One station's series as published: hourly (about a week) or daily (Flensburg only), newest or oldest first, paged. |
