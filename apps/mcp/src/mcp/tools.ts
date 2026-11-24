@@ -19,6 +19,7 @@ import {
   isTransientNetworkError,
   StrahlApiError,
   StrahlNetworkError,
+  trendHoursRead,
   TYPE_NAMES,
   type FeatureKind,
 } from "@maschinenlesbar.org/strahlenschutz-client";
@@ -201,7 +202,7 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     title: "A station's dose-rate trend",
     description: [
       'One station\'s hourly dose rate over the newest hours (up to a week): the latest value, min, max, mean, day means and a verdict against the station\'s own baseline. Use it for "wie hat sich die Strahlung in Herrischried entwickelt?", "ODL-Verlauf der letzten 48 Stunden an Station 083370490", "steigt die Ortsdosisleistung?", "how has radiation changed at station X?", "is the dose rate rising near Flensburg?", "plot the ODL for the last day".',
-      `station is a kenn (9 digits, from getDoseSnapshot or findStations) or a station name (Herrischried, Berlin-Buch); a name several stations carry is ambiguous: ask which. Lead with latest (value, hour, validated or not), then min-max and mean, then the verdict: steady, rising (newest 6 hours 0.03+ above the baseline), falling, or spike (one hour 0.05+ above, back since: typically rain). A flat level above 0.20 is that site's normal, not a rise; a few hundredths is noise. Empty says why: no such kenn, or a station without readings (defekt). points: true adds every hour (oldest first) for a chart. Times are UTC. ${CITE}`,
+      `station is a kenn (9 digits, from getDoseSnapshot or findStations) or a station name (Herrischried, Berlin-Buch); a name several stations carry is ambiguous: ask which. Lead with latest (value, hour, validated or not), then min-max and mean, then the verdict: steady, rising (newest 6 hours, or all of a shorter window, 0.03+ above the median of the hours before them; a short window reads 24 more for that), falling, or spike (one hour 0.05+ above, back since: typically rain). A flat level above 0.20 is that site's normal, not a rise; a few hundredths is noise. Empty says why: no such kenn, or a station without readings (defekt). points: true adds every hour (oldest first) for a chart. Times are UTC. ${CITE}`,
       RULES,
     ].join("\n\n"),
     inputSchema: input(
@@ -233,7 +234,7 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     source: (args) => {
       const station = str(args, "station");
       const kenn = resolved.get(args) ?? (isKenn(station) ? station.trim() : undefined);
-      return kenn === undefined ? LATEST : wfs("ts-1h", { kenn, sortBy: "end_measure D", count: num(args, "hours") ?? 48 });
+      return kenn === undefined ? LATEST : wfs("ts-1h", { kenn, sortBy: "end_measure D", count: trendHoursRead(num(args, "hours") ?? 48) });
     },
     async run(args, context) {
       const trend = await getStationTrend(context.client, { station: str(args, "station") ?? "", hours: num(args, "hours"), points: args["points"] === true });

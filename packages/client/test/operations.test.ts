@@ -331,3 +331,24 @@ test("trend: a series that stopped days before the BfS's answer says so, in the 
   const current = await getStationTrend(clientOf(odlApi()), { station: "083370490" });
   assert.doesNotMatch(current.status === "ok" ? `${current.verdictText} ${current.notes.join(" ")}` : "", /not reported since/);
 });
+
+test("trend: a short window is judged against the hours before it, read for the baseline, never against itself", async () => {
+  const run = async (values: number[], hours: number) => {
+    const mock = odlApi(STATIONS, { ...SERIES, "064380031": { hourly: hourly(values) } });
+    const t = await getStationTrend(clientOf(mock), { station: "064380031", hours });
+    assert.equal(t.status, "ok");
+    return { t: t.status === "ok" ? t : undefined, count: params(mock, 1).get("count") };
+  };
+  const jump = [...Array.from({ length: 45 }, () => 0.1), 0.5, 0.5, 0.5];
+  const three = await run(jump, 3);
+  assert.equal(three.t?.verdict, "rising", three.t?.verdictText);
+  assert.equal(three.t?.baseline, 0.1);
+  assert.equal(three.count, "27", "3 hours and 24 before them");
+  assert.deepEqual([three.t?.window.hours, three.t?.window.values, three.t?.min.value], [3, 3, 0.5], "the window is still the 3 hours asked");
+  assert.match(three.t?.notes.join(" ") ?? "", /compares the newest 3 hours with the station's median over the 24 hours before them/);
+  const six = await run(jump, 6);
+  assert.equal(six.t?.verdict, "rising", six.t?.verdictText);
+  const step = [...Array.from({ length: 42 }, () => 0.1), ...Array.from({ length: 6 }, () => 0.2)];
+  for (const hours of [6, 11, 12]) assert.equal((await run(step, hours)).t?.verdict, "rising", `hours ${hours}`);
+  assert.equal((await run(step, 48)).count, "48", "a long window reads only itself");
+});

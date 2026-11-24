@@ -56,7 +56,7 @@ test("getStationTrend: a name resolves to its station, read newest first; the so
   assert.equal(content["status"], "ok", result.content[0]?.text);
   assert.deepEqual(content["latest"], { value: 0.239, hourEnding: "2026-11-19T19:00:00Z", validated: true });
   assert.equal(content["verdict"], "steady");
-  assert.equal(content["source"], `${OWS}?service=WFS&request=GetFeature&typeName=opendata%3Aodlinfo_timeseries_odl_1h&outputFormat=application%2Fjson&CQL_FILTER=kenn%3D%27083370490%27&sortBy=end_measure%20D&count=24`);
+  assert.equal(content["source"], `${OWS}?service=WFS&request=GetFeature&typeName=opendata%3Aodlinfo_timeseries_odl_1h&outputFormat=application%2Fjson&CQL_FILTER=kenn%3D%27083370490%27&sortBy=end_measure%20D&count=30`, "24 hours and 24 before the newest 6, for the baseline");
   const unknown = (await connection.call("getStationTrend", { station: "099999999" })).structuredContent ?? {};
   assert.equal(unknown["status"], "empty");
   assert.match(String(unknown["reason"]), /No station with kenn 099999999/);

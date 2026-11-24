@@ -692,6 +692,18 @@ export const TREND_STEP = 0.03;
 export const SPIKE_STEP = 0.05;
 /** How many of the newest hours make "recent". */
 const RECENT_HOURS = 6;
+/** How many hours before the recent ones a short window reads for the station's baseline. */
+const BASELINE_HOURS = 24;
+
+/**
+ * The hours getStationTrend reads for a window of `hours`: the window itself, and for a short one
+ * as many more as give its recent hours (up to 6) a baseline of 24 hours before them; a window
+ * judged against itself could never show a rise.
+ */
+export function trendHoursRead(hours: number): number {
+  return Math.max(hours, Math.min(RECENT_HOURS, hours) + BASELINE_HOURS);
+}
+
 /** A newest reading this much older (ms) than the BfS's answer: the station has stopped reporting. */
 const STALE_MS = 3 * 3_600_000;
 
@@ -801,18 +813,25 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
   const lookup = await lookupStation(client, station);
   if (lookup.status === "ambiguous") return { status: "ambiguous", searched: { station }, total: lookup.total, candidates: lookup.candidates };
   if (lookup.status === "empty") return { status: "empty", searched, reason: lookup.reason };
-  const series = await client.timeseries(lookup.kenn, "ts-1h", { sortBy: "end_measure D", maxFeatures: hours });
-  const newestFirst = series.features.map(pointOfFeature);
-  if (newestFirst.length === 0) return { status: "empty", searched, reason: await whyEmpty(client, lookup.kenn, lookup.station, "hourly readings in the last week") };
+  const series = await client.timeseries(lookup.kenn, "ts-1h", { sortBy: "end_measure D", maxFeatures: trendHoursRead(hours) });
+  const readNewestFirst = series.features.map(pointOfFeature);
+  if (readNewestFirst.length === 0) return { status: "empty", searched, reason: await whyEmpty(client, lookup.kenn, lookup.station, "hourly readings in the last week") };
   const summary = summaryOf(lookup.station);
-  const oldestFirst = [...newestFirst].reverse();
-  const valued = oldestFirst.filter((p): p is SeriesPoint & { value: number } => p.value !== null);
+  type Valued = SeriesPoint & { value: number };
+  const isValued = (p: SeriesPoint): p is Valued => p.value !== null;
+  // The window is the newest `hours`; the hours read before it serve the baseline only.
+  const oldestFirst = readNewestFirst.slice(0, hours).reverse();
+  const valued = oldestFirst.filter(isValued);
   if (valued.length === 0) return { status: "empty", searched, reason: `${summary.name} (${summary.kenn}) has only empty hours (value null) in the newest ${hours}: no reading to judge.` };
-  const at = (p: SeriesPoint & { value: number }): HourValue => ({ value: p.value, hourEnding: p.end, validated: p.validated });
+  const at = (p: Valued): HourValue => ({ value: p.value, hourEnding: p.end, validated: p.validated });
   const values = valued.map((p) => p.value);
-  const recent = valued.slice(-RECENT_HOURS);
-  const before = valued.slice(0, -RECENT_HOURS);
-  const baseline = round(median(before.length >= RECENT_HOURS ? before.map((p) => p.value) : values), 3);
+  // The newest hours (up to 6, never more than the window) against the median of the hours read
+  // before them; with fewer than 3 such hours (a series that short) the median of all it has.
+  const readValued = [...readNewestFirst].reverse().filter(isValued);
+  const recentCount = Math.min(RECENT_HOURS, valued.length);
+  const recent = readValued.slice(-recentCount);
+  const before = readValued.slice(0, -recentCount);
+  const baseline = round(median(before.length >= 3 ? before.map((p) => p.value) : readValued.map((p) => p.value)), 3);
   const recentMean = round(recent.reduce((sum, p) => sum + p.value, 0) / recent.length, 3);
   const change = round(recentMean - baseline, 3);
   const maxPoint = valued.reduce((m, p) => (p.value > m.value ? p : m));
@@ -840,6 +859,11 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
   const notes = [
     "Hourly readings, newest hours of the series (about one week is kept); times are UTC, each value for the hour ending at its time.",
     `Normal background is about ${NORMAL_BACKGROUND.min}–${NORMAL_BACKGROUND.max} µSv/h; each site has its own flat level (high-altitude and granite sites 0.20–0.26 all week). Judge against the station's baseline, and treat a few hundredths of a µSv/h as noise.`,
+    ...(before.length < 3
+      ? [`The series has only ${before.length} hour${before.length === 1 ? "" : "s"} with a value before the newest ${recent.length}: the baseline includes the newest hours, so a rise may not show.`]
+      : readValued.length > valued.length
+        ? [`The verdict compares the newest ${recent.length} hour${recent.length === 1 ? "" : "s"} with the station's median over the ${before.length} hours before them, read for the baseline beyond the window asked.`]
+        : []),
     ...(maxPoint.value > NOTABLE_DOSE_RATE ? [`Some hour is above ${NOTABLE_DOSE_RATE} µSv/h: compare with the station's history and neighbours (getDoseSnapshot around it) before calling it more than weather.`] : []),
     ...(notValidated === 0 ? [] : [`${notValidated} hour${notValidated === 1 ? " is" : "s are"} not marked validated${maxPoint.validated === false ? ", the highest among them: a spike not validated is not a confirmed rise" : ""}.`]),
     ...(stale === "" ? [] : [`The newest reading is for the hour ending ${latest.end}, ${ageOf(behind)} before the BfS answered (${series.timeStamp}): the station has stopped reporting, so the window and verdict describe that time, not now. Say so, and check its status with findStations.`]),
