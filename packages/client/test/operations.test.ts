@@ -168,8 +168,8 @@ test("trend: read newest first (the series comes oldest first), summarised, stea
   const trend = await getStationTrend(clientOf(mock), { station: "083370490", hours: 48, points: true });
   assert.equal(trend.status, "ok");
   if (trend.status !== "ok") return;
-  assert.equal(params(mock).get("sortBy"), "end_measure D");
-  assert.equal(params(mock).get("count"), "48");
+  assert.equal(params(mock, 1).get("sortBy"), "end_measure D");
+  assert.equal(params(mock, 1).get("count"), "48");
   assert.deepEqual(trend.latest, { value: 0.239, hourEnding: "2026-11-19T19:00:00Z", validated: true });
   assert.equal(trend.window.values, 48);
   assert.equal(trend.window.from, "2026-11-17T19:00:00Z");
@@ -302,4 +302,21 @@ test("getTimeseries: a totalFeatures that is no count is replaced by numberMatch
   assert.equal(short.status === "ok" && short.nextOffset, undefined, "a short page is the last");
   const fewer = await getTimeseries(rewritten((b) => (b["totalFeatures"] = 3)), { station: "083370490", limit: 5 });
   assert.equal(fewer.status === "ok" && fewer.total, 167, "a count below what came back is not believed: numberMatched");
+});
+
+test("trend: a station given by kenn carries its own status, name and postal code from the network, like one given by name", async () => {
+  const series = { ...SERIES, "010020001": { hourly: hourly(Array.from({ length: 48 }, () => 0.1)) } };
+  const mock = odlApi(STATIONS, series);
+  const byKenn = await getStationTrend(clientOf(mock), { station: "010020001" });
+  assert.equal(byKenn.status, "ok");
+  if (byKenn.status !== "ok") return;
+  assert.deepEqual(byKenn.station, { kenn: "010020001", name: "Leuchtturm Kiel", plz: "24159", land: "Schleswig-Holstein", status: "defekt" });
+  assert.equal(params(mock, 0).get("CQL_FILTER"), "kenn='010020001'");
+  assert.equal(params(mock, 0).get("typeName"), "opendata:odlinfo_odl_1h_latest", "the station first, then its series");
+  assert.equal(mock.calls.length, 2);
+  const byName = await getStationTrend(clientOf(odlApi(STATIONS, series)), { station: "Leuchtturm Kiel" });
+  assert.deepEqual(byName.status === "ok" && byName.station, byKenn.station);
+  const unknown = odlApi();
+  await getStationTrend(clientOf(unknown), { station: "099999999" });
+  assert.equal(unknown.calls.length, 1, "an unknown kenn needs no series request");
 });

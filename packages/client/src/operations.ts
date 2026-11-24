@@ -740,7 +740,7 @@ function pointOfFeature(feature: Feature): SeriesPoint {
 
 /** A station by kenn or name: the kenn and what is known of it, or why not. */
 type StationLookup =
-  | { status: "ok"; kenn: string; station?: StationReading }
+  | { status: "ok"; kenn: string; station: StationReading }
   | { status: "ambiguous"; total: number; candidates: StationSummary[] }
   | { status: "empty"; reason: string };
 
@@ -749,7 +749,10 @@ const KENN = /^\d{9}$/;
 async function lookupStation(client: StrahlenschutzClient, station: string): Promise<StationLookup> {
   if (/^\d+$/.test(station)) {
     if (!KENN.test(station)) return { status: "empty", reason: `${quoteValue(station, 20)} is no station id: a kenn has 9 digits (083370490). findStations finds it by name.` };
-    return { status: "ok", kenn: station };
+    // The station's own entry (its name, status and postal code: the series carries no status).
+    const known = (await client.latest({ station })).features.map(readingOf)[0];
+    if (known === undefined) return { status: "empty", reason: `No station with kenn ${station} in the BfS network. Check the id with findStations.` };
+    return { status: "ok", kenn: station, station: known };
   }
   const network = await loadNetwork(client);
   const named = stationsNamed(network, station);
@@ -777,9 +780,10 @@ const median = (values: readonly number[]): number => {
  * One station's hourly dose rate over the newest hours (read newest first: the series comes
  * oldest first, so a bare limit gave the oldest hours), with the latest value, min, max, mean, the
  * day means, and a verdict against the station's own baseline (a flat 0.22 at a granite site is
- * its normal level, not a rise; a few hundredths is noise). A station given by name is looked up
- * in the network first (one more request); several matches are ambiguous. An empty series is told
- * apart: an unknown kenn, or a real station without readings (defekt).
+ * its normal level, not a rise; a few hundredths is noise). The station is looked up first (one
+ * more request: by name in the network, by kenn its own entry, for its name and status); several
+ * matches are ambiguous. An empty series is told apart: an unknown kenn, or a real station without
+ * readings (defekt).
  */
 export async function getStationTrend(client: StrahlenschutzClient, input: StationTrendInput): Promise<StationTrend> {
   const station = normalizeText(assertValid("station", input.station, textProblem));
@@ -791,10 +795,7 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
   const series = await client.timeseries(lookup.kenn, "ts-1h", { sortBy: "end_measure D", maxFeatures: hours });
   const newestFirst = series.features.map(pointOfFeature);
   if (newestFirst.length === 0) return { status: "empty", searched, reason: await whyEmpty(client, lookup.kenn, lookup.station, "hourly readings in the last week") };
-  const first = series.features[0]?.properties ?? {};
-  const summary: StationSummary = lookup.station === undefined
-    ? { kenn: lookup.kenn, name: str(first["name"]) ?? lookup.kenn, ...(landOf(lookup.kenn) === undefined ? {} : { land: landOf(lookup.kenn) as string }), status: "in Betrieb" }
-    : summaryOf(lookup.station);
+  const summary = summaryOf(lookup.station);
   const oldestFirst = [...newestFirst].reverse();
   const valued = oldestFirst.filter((p): p is SeriesPoint & { value: number } => p.value !== null);
   if (valued.length === 0) return { status: "empty", searched, reason: `${summary.name} (${summary.kenn}) has only empty hours (value null) in the newest ${hours}: no reading to judge.` };
