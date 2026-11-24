@@ -637,6 +637,7 @@ export async function getDoseSnapshot(client: StrahlenschutzClient, input: DoseS
     ...(skippedTotal === 0 ? [] : [`${skippedTotal} station${skippedTotal === 1 ? " has" : "s have"} no value (${Object.entries(byStatus).map(([k, v]) => `${v} ${k}`).join(", ")}) and ${skippedTotal === 1 ? "is" : "are"} not ranked: say so.`]),
     ...(notValidated === 0 ? [] : [`${notValidated} reading${notValidated === 1 ? " is" : "s are"} not marked validated (validated false): say so for any you name.`]),
     ...unitNotes(inArea),
+    ...(order === "lowest" ? [`order lowest: the list starts with the lowest reading, and rank still counts from the highest (rank ${reporting.length} is the lowest of ${reporting.length}): present the entries as the lowest, not by their rank.`] : []),
     `Normal background is about ${NORMAL_BACKGROUND.min}–${NORMAL_BACKGROUND.max} µSv/h (most stations 0.07–0.15). The highest readings are high-altitude or granite sites, dose from the ground (valueTerrestrial) and from altitude (valueCosmic), normal for that site; the offshore platforms read lowest. Never present a reading at the top of that range as an alarm.`,
   ];
   return {

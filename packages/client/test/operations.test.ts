@@ -72,6 +72,7 @@ test("snapshot: latest is not one common hour: the main hour, the older readings
   assert.equal(snap.ranking.find((s) => s.kenn === "031550121")?.olderReading, true, "Uslar's reading is from 05:00");
   assert.match(snap.notes.join(" "), /back to 2026-11-19T05:00:00Z, Uslar OT Schoningen/);
   assert.deepEqual(snap.ranking.slice(0, 3).map((s) => [s.name, s.rank]), [["FINO 3 - Forschungsplattform", 21], ["FINO 1 - Forschungsplattform", 20], ["FINO 2 - Forschungsplattform", 19]], "lowest first keeps the rank from the top");
+  assert.match(snap.notes.join(" "), /order lowest: the list starts with the lowest reading, and rank still counts from the highest \(rank 21 is the lowest of 21\)/);
   assert.equal(snap.notValidated, 1, "Usedom is not marked validated");
   assert.equal(snap.ranking.find((s) => s.kenn === "130590972")?.validated, false);
 });
