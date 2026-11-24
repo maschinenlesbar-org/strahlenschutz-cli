@@ -729,7 +729,7 @@ published app under `apps/` together, one version, one tag. Its npm README is th
 | `src/mcp/http.ts` | node:http adapter for the SDK's `createMcpHandler`: POST /mcp, /healthz, Host and Origin checks (the SDK does neither) and CORS for an allowed origin, 1 MiB body, 8 requests at once, timeouts. |
 | `src/mcp/stdio.ts` | stdio that answers the requests it has read when stdin ends, and a line that isn't JSON-RPC with an error (-32700, -32600) and a WARN record. |
 | `src/mcp/config.ts`, `run.ts`, `index.ts` | Options (`node:util` parseArgs), argv -> exit code, the bin (console into log records, SIGINT/SIGTERM, stdin's end). |
-| `src/mcp/credentials.ts`, `auth.ts` | The credentials hook (api.ts's `findCredentials`; this API needs none) and the secrets redacted from results and records; the HTTP bearer token of `--auth-token-file`. |
+| `src/mcp/credentials.ts`, `auth.ts` | The credentials hook (api.ts's `findCredentials`; this API needs none) and the secrets redacted from results and records; the HTTP bearer token of `--auth-token-file` (read once at start: no link, owned by the server's user, mode 600, one token of at least 32 characters, a regular file opened non-blocking, so a FIFO is refused at once instead of blocking the start). |
 
 The protocol is the SDK's: `@modelcontextprotocol/server` 2.4.0, bundled with its core and zod
 (prepack). It serves the 2026-07-28 revision and the 2025 handshake (2025-11-25, 2025-06-18)
