@@ -110,6 +110,10 @@ where the reason is).
 --log-format <text|jsonl>  the log records on stderr (default text)
 ```
 
+`--max-pages` has no effect here: no tool pages through the API. Each call reads the whole network
+(one request of about 1,670 stations) or one station's series (one request, at most 500 values),
+and a trend or an empty series one more request for the station.
+
 ## What it does and doesn't do
 
 - **Read-only.** No tool changes anything, here or upstream.
