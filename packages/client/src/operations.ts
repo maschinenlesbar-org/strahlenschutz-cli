@@ -1141,6 +1141,9 @@ export async function findStations(client: StrahlenschutzClient, input: FindStat
   } else {
     stations = [...found].sort((a, b) => a.name.localeCompare(b.name, "de") || a.kenn.localeCompare(b.kenn));
   }
+  if (query !== undefined && /^\d{6,8}$/.test(query)) {
+    return { status: "empty", searched, reason: `${quoteValue(query, 20)} is no station id and no postal code: a kenn has 9 digits (083370490), a postal code 5 (or its first digits). Check the digits, or search by name.` };
+  }
   if (stations.length === 0) {
     return {
       status: "empty",

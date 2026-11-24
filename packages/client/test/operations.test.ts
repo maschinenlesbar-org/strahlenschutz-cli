@@ -492,3 +492,11 @@ test("common spellings of a place match the BfS's abbreviations: Sankt for St., 
   const achern = await findStations(clientOf(odlApi(towns)), { query: "Achern" });
   assert.equal(achern.status, "empty", "a one-letter abbreviation is never a place's first word: Achern is not the a. of a.d.Fulda");
 });
+
+test("findStations: 6 to 8 digits are no kenn and no postal code, and the answer says a kenn has 9", async () => {
+  for (const query of ["806370", "08337049"]) {
+    const found = await findStations(clientOf(odlApi()), { query });
+    assert.equal(found.status, "empty", query);
+    assert.match(found.status === "empty" ? found.reason : "", /a kenn has 9 digits \(083370490\), a postal code 5/, query);
+  }
+});
