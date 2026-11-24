@@ -727,6 +727,7 @@ published app under `apps/` together, one version, one tag. Its npm README is th
 | `src/mcp/result.ts` | `cleanStrings` (control, bidi, zero-width characters dropped in the value), `fitResult` (whole list entries dropped under `--max-result-chars`, `nextOffset`). |
 | `src/mcp/limiter.ts` | One per process around the upstream transport: 2 in flight, 120 a minute, a pause of at most 30 s on 429, a bounded queue; a request they would hold past its deadline refused at once. |
 | `src/mcp/http.ts` | node:http adapter for the SDK's `createMcpHandler`: POST /mcp, /healthz, Host and Origin checks (the SDK does neither) and CORS for an allowed origin, 1 MiB body, 8 requests at once, timeouts. |
+| `src/mcp/stdio.ts` | stdio that answers the requests it has read when stdin ends. |
 | `src/mcp/config.ts`, `run.ts`, `index.ts` | Options (`node:util` parseArgs), argv -> exit code, the bin (console into log records, SIGINT/SIGTERM, stdin's end). |
 | `src/mcp/credentials.ts`, `auth.ts` | The credentials hook (api.ts's `findCredentials`; this API needs none) and the secrets redacted from results and records; the HTTP bearer token of `--auth-token-file`. |
 
