@@ -81,7 +81,9 @@ baseline: a few hundredths is noise, and rain raises the dose rate for a few hou
 says whether the station id is unknown or the station has no readings (defekt). Times are UTC.
 
 Every tool only reads. An answer is JSON (`structuredContent` and the same as text), with the
-`source` it came from and the data licence. A failure is a tool error that says what to change.
+`source` it came from (an answer a redirect fetched from another host says so there: "… (answered by
+https://other.example after a redirect)", and a WARN record names both) and the data licence. A
+failure is a tool error that says what to change.
 
 ## Options
 
