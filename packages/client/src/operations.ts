@@ -1020,6 +1020,9 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
     days.set(day, [...(days.get(day) ?? []), p.value]);
   }
   const gaps = oldestFirst.length - valued.length;
+  // Hours with no row at all (not a null value): the window's rows then span more hours.
+  const span = Math.round((Date.parse((oldestFirst[oldestFirst.length - 1] as SeriesPoint).end) - Date.parse((oldestFirst[0] as SeriesPoint).end)) / 3_600_000) + 1;
+  const missing = Number.isFinite(span) ? span - oldestFirst.length : 0;
   const notes = [
     // Short: the notes are kept whole under the MCP server's size cap.
     `UTC, each value for the hour ending then. Each site has its own flat level (0.20–0.26 µSv/h at high-altitude and granite sites is normal): judge against it; a few hundredths is noise.`,
@@ -1032,6 +1035,7 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
     ...(notValidated === 0 ? [] : [`${notValidated} hour${notValidated === 1 ? " is" : "s are"} not marked validated${maxPoint.validated === false ? ", the highest among them: a spike not validated is not a confirmed rise" : ""}.`]),
     ...(stale === "" ? [] : [`The newest reading is for the hour ending ${latest.end}, ${ageOf(behind)} before the BfS answered (${series.timeStamp}): the station has stopped reporting, so the window and verdict describe that time, not now. Say so, and check its status with findStations.`]),
     ...seriesUnitNotes(oldestFirst),
+    ...(missing > 0 ? [`${missing} hour${missing === 1 ? " is" : "s are"} missing from the series (no row): the window's ${oldestFirst.length} values span ${span} hours.`] : []),
     ...(gaps === 0 ? [] : [`${gaps} hour${gaps === 1 ? " has" : "s have"} no value (a gap) and ${gaps === 1 ? "is" : "are"} left out of min, max and mean.`]),
     ...(hours < 24 ? [] : ["days: means per UTC day (a partial day has fewer than 24 hours)."]),
   ];

@@ -501,3 +501,12 @@ test("findStations: 6 to 8 digits are no kenn and no postal code, and the answer
     assert.match(found.status === "empty" ? found.reason : "", /a kenn has 9 digits \(083370490\), a postal code 5/, query);
   }
 });
+
+test("trend: hours missing from the series (no row at all) are said, not only empty ones", async () => {
+  const steps = hourly(Array.from({ length: 48 }, () => 0.1)).filter((_, i) => i < 40 || i > 42);
+  const t = await getStationTrend(clientOf(odlApi(STATIONS, { ...SERIES, "064380031": { hourly: steps } })), { station: "064380031", hours: 24 });
+  assert.equal(t.status, "ok");
+  if (t.status !== "ok") return;
+  assert.equal(t.window.values, 24);
+  assert.match(t.notes.join(" "), /3 hours are missing from the series \(no row\): the window's 24 values span 27 hours/);
+});
