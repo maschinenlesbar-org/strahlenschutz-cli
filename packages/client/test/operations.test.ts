@@ -427,3 +427,40 @@ test("a network answer that drifted or came back empty is an error that says so,
   const fine = await getDoseSnapshot(drifted(() => {}, (i) => i < 3));
   assert.equal(fine.status, "ok", "a small network that holds what a network holds is no drift");
 });
+
+// Stations of other towns, at their real places, for the place matching.
+const town = (kenn: string, name: string, coordinates: [number, number]) => stationRow("064380031", { kenn, name, coordinates, plz: "00000" });
+const TOWNS = [
+  ...STATIONS,
+  town("053820001", "Reichshof-Erdingen", [7.64, 50.95]),
+  town("031550201", "Katlenburg-Lindau", [10.1, 51.68]),
+  town("055660601", "Neuenkirchen", [7.37, 52.24]),
+  town("066320001", "Rotenburg a.d.Fulda", [9.73, 50.99]),
+  town("081250001", "Bönnigheim", [9.09, 49.04]),
+  town("083370001", "Bonndorf", [8.34, 47.82]),
+];
+
+test("a place is a station's town, never another town a word of whose name starts with it, and ue is not read as ü", async () => {
+  for (const place of ["Erding", "Lindau", "Fulda", "Bonn"]) {
+    const snap = await getDoseSnapshot(clientOf(odlApi(TOWNS)), { place });
+    assert.equal(snap.status, "empty", place);
+    assert.match(snap.status === "empty" ? snap.reason : "", new RegExp(`No station is named after "${place}"`), place);
+  }
+  const erding = await getDoseSnapshot(clientOf(odlApi(TOWNS)), { place: "Erding" });
+  assert.match(erding.status === "empty" ? erding.reason : "", /only part of the names Reichshof-Erdingen \(Nordrhein-Westfalen, 053820001\)/);
+  const neun = await getDoseSnapshot(clientOf(odlApi(TOWNS)), { place: "Neunkirchen" });
+  assert.match(neun.status === "empty" ? neun.reason : "", /No station's name starts with "Neunkirchen"/, "Neuenkirchen is another town");
+  const trend = await getStationTrend(clientOf(odlApi(TOWNS)), { station: "Neunkirchen" });
+  assert.equal(trend.status, "empty");
+  const lindau = await getStationTrend(clientOf(odlApi(TOWNS)), { station: "Lindau" });
+  assert.match(lindau.status === "empty" ? lindau.reason : "", /No station is named after "Lindau".*Katlenburg-Lindau \(Niedersachsen, 031550201\)/);
+  const found = await findStations(clientOf(odlApi(TOWNS)), { query: "Neunkirchen" });
+  assert.equal(found.status, "empty", "findStations doesn't read Neuenkirchen for Neunkirchen either");
+  const erdingen = await findStations(clientOf(odlApi(TOWNS)), { query: "Erding" });
+  assert.equal(erdingen.status === "ok" && erdingen.stations[0]?.name, "Reichshof-Erdingen", "a search still finds a word that starts with it");
+  assert.match(erdingen.status === "ok" ? erdingen.notes.join(" ") : "", /No station is named after "Erding"/);
+  assert.equal(fold("Muenchen"), fold("München"));
+  assert.notEqual(fold("Neunkirchen"), fold("Neuenkirchen"));
+  const munchen = await getDoseSnapshot(clientOf(odlApi()), { place: "Munchen", radiusKm: 30 });
+  assert.equal(munchen.status, "ok", "the English spelling without the umlaut still matches");
+});

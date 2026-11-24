@@ -59,8 +59,8 @@ export function landOf(kenn: string): string | undefined {
 
 /** A Land by its code ("09"), abbreviation ("BY", "NRW"), German or English name; else a validation error naming them. */
 export function resolveLand(value: string): Land {
-  const wanted = fold(normalizeText(assertValid("state", value, textProblem)));
-  const found = LANDS.find((land) => land.some((name) => fold(name) === wanted) || (wanted === "nrw" && land[1] === "NW"));
+  const wanted = normalizeText(assertValid("state", value, textProblem));
+  const found = LANDS.find((land) => land.some((name) => sameName(name, wanted)) || (fold(wanted) === "nrw" && land[1] === "NW"));
   if (found === undefined) {
     throw new StrahlValidationError(`Invalid state: ${quoteValue(value, 60)} is no German Land. Use a name (Bayern, Bavaria), an abbreviation (BY, NRW) or a code (09).`);
   }
@@ -68,23 +68,90 @@ export function resolveLand(value: string): Land {
 }
 
 /**
- * Text as names are compared: lower case, without accents (ä → a, ß → ss), and ae/oe/ue read as
- * ä/ö/ü, so "Muenchen", "münchen" and "MÜNCHEN" all match "München".
+ * Text as names are compared: lower case, umlauts as ae/oe/ue (ä → ae, as German writes them
+ * without umlauts), other accents dropped, ß → ss: "Muenchen", "münchen" and "MÜNCHEN" all match
+ * "München", while "Neunkirchen" stays apart from "Neuenkirchen" (ue is only an umlaut where an
+ * umlaut was written).
  */
 export function fold(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .replace(/ß/g, "ss")
-    .toLowerCase()
-    .replace(/ae/g, "a")
-    .replace(/oe/g, "o")
-    .replace(/ue/g, "u");
+  return text.normalize("NFD").replace(/([aou])\u0308/giu, "$1e").replace(/\p{M}/gu, "").replace(/ß/g, "ss").toLowerCase();
 }
 
-/** The words of a name, folded ("Garching b. München" → garching, b, munchen). */
-function wordsOf(name: string): string[] {
-  return fold(name).split(/[^\p{L}\p{N}]+/u).filter((word) => word !== "");
+/** Text folded without the umlauts' e (ä → a): the English spelling "Munchen" of München. */
+function foldPlain(text: string): string {
+  return text.normalize("NFD").replace(/\p{M}/gu, "").replace(/ß/g, "ss").toLowerCase();
+}
+
+/** True when `a` and `b` are the same name, folded either way. */
+export function sameName(a: string, b: string): boolean {
+  return fold(a) === fold(b) || foldPlain(a) === foldPlain(b);
+}
+
+/** A word of a name, folded both ways. */
+interface Word {
+  folded: string;
+  plain: string;
+}
+
+/** The words of a name, folded ("Garching b. München" → garching, b, muenchen). */
+function wordsOf(name: string): Word[] {
+  return name
+    .normalize("NFC")
+    .split(/[^\p{L}\p{M}\p{N}]+/u)
+    .filter((word) => word !== "")
+    .map((word) => ({ folded: fold(word), plain: foldPlain(word) }));
+}
+
+const sameWord = (a: Word, b: Word): boolean => a.folded === b.folded || a.plain === b.plain;
+const startsWord = (name: Word, start: Word): boolean => name.folded.startsWith(start.folded) || name.plain.startsWith(start.plain);
+
+/**
+ * How a station's name matches a place's words, best first: `exact` (the same words), `start`
+ * (the name starts with them: München-Pasing for München), `word` (they are later words of the
+ * name: Katlenburg-Lindau for Lindau, a district or another town), `part` (they only start words of
+ * the name: Reichshof-Erdingen for Erding); undefined for none. The words match in order.
+ */
+type NameMatch = "exact" | "start" | "word" | "part";
+
+function nameMatch(place: readonly Word[], name: readonly Word[]): NameMatch | undefined {
+  if (place.length === 0) return undefined;
+  const inOrder = (same: (name: Word, word: Word) => boolean, anchored: boolean): boolean => {
+    let at = 0;
+    for (const [i, word] of place.entries()) {
+      const found = name.findIndex((w, j) => j >= at && same(w, word));
+      if (found < 0 || (anchored && i === 0 && found !== 0)) return false;
+      at = found + 1;
+    }
+    return true;
+  };
+  if (inOrder(sameWord, true)) return place.length === name.length ? "exact" : "start";
+  if (inOrder(sameWord, false)) return "word";
+  if (inOrder(startsWord, false)) return "part";
+  return undefined;
+}
+
+/**
+ * The stations named after `place` (the name is it, or starts with it), and apart those whose name
+ * only has it as a later word or the start of a word: another town or a district, never taken for
+ * the place.
+ */
+function stationsNamed(network: readonly StationReading[], place: string): { named: StationReading[]; partly: StationReading[] } {
+  const words = wordsOf(place);
+  const matched = network.map((s) => ({ s, match: nameMatch(words, wordsOf(s.name)) }));
+  const exact = matched.filter((m) => m.match === "exact").map((m) => m.s);
+  return {
+    named: exact.length > 0 ? exact : matched.filter((m) => m.match === "start").map((m) => m.s),
+    partly: matched.filter((m) => m.match === "word" || m.match === "part").map((m) => m.s),
+  };
+}
+
+/** The reason for a place no station is named after, naming the stations that only have it in their name. */
+function notNamedReason(place: string, partly: readonly StationReading[], instead: string): string {
+  if (partly.length === 0) return `No station's name starts with ${quoteValue(place, 60)}. ${instead}`;
+  return (
+    `No station is named after ${quoteValue(place, 60)}: it is only part of the names ${partly.slice(0, 5).map((s) => `${s.name} (${s.land ?? "?"}, ${s.kenn})`).join("; ")}${partly.length > 5 ? ` and ${partly.length - 5} more` : ""}, ` +
+    `other towns or districts that need not be near the place meant. ${instead} If one of them is meant, give its full name.`
+  );
 }
 
 /** The usual background: about 0.05–0.25 µSv/h across the network (most stations 0.07–0.15). */
@@ -255,25 +322,6 @@ export function distanceKm(a: readonly [number, number], b: readonly [number, nu
 
 const round = (value: number, digits: number): number => Number(value.toFixed(digits));
 
-/** The stations whose name is `place` (folded), else those with a word starting with it. */
-function stationsNamed(network: readonly StationReading[], place: string): StationReading[] {
-  const wanted = fold(place);
-  const exact = network.filter((s) => fold(s.name) === wanted);
-  if (exact.length > 0) return exact;
-  const words = wordsOf(place);
-  return network.filter((s) => {
-    const name = wordsOf(s.name);
-    // Every word of the place starts a word of the name, in order ("Garching b", "Berlin Buch").
-    let at = 0;
-    for (const word of words) {
-      const found = name.findIndex((w, i) => i >= at && w.startsWith(word));
-      if (found < 0) return false;
-      at = found + 1;
-    }
-    return words.length > 0;
-  });
-}
-
 /** A short summary of a station, for candidates and lists. */
 export interface StationSummary {
   kenn: string;
@@ -381,12 +429,17 @@ function resolveArea(network: readonly StationReading[], input: AreaInput): Area
   if (input.place !== undefined) {
     const place = normalizeText(assertValid("place", input.place, textProblem));
     const searched = { place, radiusKm };
-    const named = stationsNamed(network, place).filter((s) => inGermany(s.coordinates));
+    const { named: all, partly } = stationsNamed(network, place);
+    const named = all.filter((s) => inGermany(s.coordinates));
     if (named.length === 0) {
+      const instead = "The BfS names its stations by town or district. Give lat and lon (with radiusKm), a Land (state) or a bbox instead, or look the place up with findStations.";
       return {
         status: "empty",
         searched,
-        reason: `No station's name starts with ${quoteValue(place, 60)}: the BfS names its stations by town or district. Give lat and lon (with radiusKm), a Land (state) or a bbox instead, or look the place up with findStations.`,
+        reason:
+          all.length > 0
+            ? `The station${all.length === 1 ? "" : "s"} named ${all.map((s) => `${s.name} (${s.kenn})`).slice(0, 5).join(", ")} ${all.length === 1 ? "has" : "have"} no usable coordinates, so no circle can be drawn around ${all.length === 1 ? "it" : "them"}. ${instead}`
+            : notNamedReason(place, partly, instead),
       };
     }
     const centre: [number, number] = [
@@ -873,10 +926,10 @@ async function lookupStation(client: StrahlenschutzClient, station: string): Pro
     return { status: "ok", kenn: station, station: known };
   }
   const network = await loadNetwork(client);
-  const named = stationsNamed(network, station);
+  const { named, partly } = stationsNamed(network, station);
   if (named.length === 1) return { status: "ok", kenn: (named[0] as StationReading).kenn, station: named[0] as StationReading };
   if (named.length === 0) {
-    return { status: "empty", reason: `No station's name starts with ${quoteValue(station, 60)}. The BfS names stations by town or district (Herrischried, Berlin-Buch, München-Pasing); findStations searches parts of names, postal codes and Länder.` };
+    return { status: "empty", reason: notNamedReason(station, partly, "The BfS names stations by town or district (Herrischried, Berlin-Buch, München-Pasing); findStations searches parts of names, postal codes and Länder.") };
   }
   return { status: "ambiguous", total: named.length, candidates: named.slice(0, 25).map(summaryOf) };
 }
@@ -1047,12 +1100,22 @@ export async function findStations(client: StrahlenschutzClient, input: FindStat
     if (KENN.test(query)) found = found.filter((s) => s.kenn === query);
     else if (/^\d{1,5}$/.test(query)) found = found.filter((s) => s.plz?.startsWith(query) === true);
     else {
-      const named = stationsNamed(found, query);
-      if (named.length > 0) found = named;
-      else {
-        // No word starts with it: any part of a name ("münchen" in Waldmünchen).
-        const wanted = fold(query);
-        found = found.filter((s) => fold(s.name).includes(wanted));
+      // The best matches there are: the name is it or has it as words (München-Pasing, Garching b.
+      // München), else a word starts with it (Reichshof-Erdingen for Erding), else any part of a
+      // name ("münchen" in Waldmünchen); the last two are said, since they may be other towns.
+      const words = wordsOf(query);
+      const matched = found.map((s) => ({ s, match: nameMatch(words, wordsOf(s.name)) }));
+      const whole = matched.filter((m) => m.match === "exact" || m.match === "start" || m.match === "word");
+      const parts = matched.filter((m) => m.match === "part");
+      if (whole.length > 0) found = whole.map((m) => m.s);
+      else if (parts.length > 0) {
+        found = parts.map((m) => m.s);
+        notes.push(`No station is named after ${quoteValue(query, 60)}: these only have a word that starts with it (other towns or districts, not necessarily the place meant).`);
+      } else {
+        const folded = fold(query);
+        const plain = foldPlain(query);
+        found = found.filter((s) => fold(s.name).includes(folded) || foldPlain(s.name).includes(plain));
+        if (found.length > 0) notes.push(`No word of a station's name starts with ${quoteValue(query, 60)}: these contain it inside a word.`);
       }
     }
   }
