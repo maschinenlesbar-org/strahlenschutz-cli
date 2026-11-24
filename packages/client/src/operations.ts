@@ -99,10 +99,17 @@ function wordsOf(name: string): Word[] {
     .normalize("NFC")
     .split(/[^\p{L}\p{M}\p{N}]+/u)
     .filter((word) => word !== "")
-    .map((word) => ({ folded: fold(word), plain: foldPlain(word) }));
+    .map((word) => ({ folded: fold(word), plain: foldPlain(word) }))
+    // "Sankt Blasien" as the BfS writes it: "St. Blasien".
+    .map((word) => (word.folded === "sankt" ? { folded: "st", plain: "st" } : word));
 }
 
-const sameWord = (a: Word, b: Word): boolean => a.folded === b.folded || a.plain === b.plain;
+/**
+ * A word of a station's name is a word of the place: the same, or, after the place's first word,
+ * the one letter the BfS shortens it to ("a.M." for am Main, "b." for bei, "a.d." for an der).
+ */
+const sameWord = (name: Word, place: Word, i: number): boolean =>
+  name.folded === place.folded || name.plain === place.plain || (i > 0 && name.plain.length === 1 && place.plain.startsWith(name.plain));
 const startsWord = (name: Word, start: Word): boolean => name.folded.startsWith(start.folded) || name.plain.startsWith(start.plain);
 
 /**
@@ -115,10 +122,10 @@ type NameMatch = "exact" | "start" | "word" | "part";
 
 function nameMatch(place: readonly Word[], name: readonly Word[]): NameMatch | undefined {
   if (place.length === 0) return undefined;
-  const inOrder = (same: (name: Word, word: Word) => boolean, anchored: boolean): boolean => {
+  const inOrder = (same: (name: Word, word: Word, i: number) => boolean, anchored: boolean): boolean => {
     let at = 0;
     for (const [i, word] of place.entries()) {
-      const found = name.findIndex((w, j) => j >= at && same(w, word));
+      const found = name.findIndex((w, j) => j >= at && same(w, word, i));
       if (found < 0 || (anchored && i === 0 && found !== 0)) return false;
       at = found + 1;
     }

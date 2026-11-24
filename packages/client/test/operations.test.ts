@@ -477,3 +477,17 @@ test("an exact station name doesn't hide other stations named after the same pla
   const full = await getDoseSnapshot(clientOf(odlApi(towns)), { place: "Neuburg an der Donau" });
   assert.equal(full.status, "ok", "the full name is one station");
 });
+
+test("common spellings of a place match the BfS's abbreviations: Sankt for St., am Main for a.M., bei for b.", async () => {
+  const towns = [...TOWNS, town("064120001", "Frankfurt a.M. ST Eschersheim", [8.66, 50.15]), town("083350001", "St. Blasien", [8.13, 47.76])];
+  for (const place of ["Frankfurt am Main", "Sankt Blasien", "St. Blasien", "St Blasien"]) {
+    const snap = await getDoseSnapshot(clientOf(odlApi(towns)), { place });
+    assert.equal(snap.status, "ok", place);
+  }
+  const garching = await getDoseSnapshot(clientOf(odlApi()), { place: "Garching bei München" });
+  assert.match(garching.status === "ok" ? garching.notes[0] ?? "" : "", /named Garching b\. München/);
+  const found = await findStations(clientOf(odlApi(towns)), { query: "Sankt Blasien" });
+  assert.equal(found.status === "ok" && found.stations[0]?.kenn, "083350001");
+  const achern = await findStations(clientOf(odlApi(towns)), { query: "Achern" });
+  assert.equal(achern.status, "empty", "a one-letter abbreviation is never a place's first word: Achern is not the a. of a.d.Fulda");
+});
