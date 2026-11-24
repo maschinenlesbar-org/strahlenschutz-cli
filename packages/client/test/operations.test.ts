@@ -367,3 +367,33 @@ test("trend: a spike in the newest hour is still on, never called back down; one
   const over = await run([...Array.from({ length: 44 }, () => 0.1), 0.18, 0.1, 0.1, 0.11]);
   assert.match(over?.verdictText ?? "", /short spike to 0\.18 µSv\/h \(hour ending 2026-11-19T16:00:00Z\) over a baseline of 0\.1, back to 0\.11 now/);
 });
+
+test("readings in another unit: nSv/h and mSv/h are converted to µSv/h; an unknown unit is never judged as µSv/h", async () => {
+  const nano = [
+    ...STATIONS.filter(([, p]) => p["kenn"] !== "083370490" && p["kenn"] !== "010010001" && p["kenn"] !== "064380031"),
+    stationRow("083370490", { value: 239, value_cosmic: 54, value_terrestrial: 185, unit: "nSv/h" }),
+    stationRow("010010001", { value: 92, unit: "nSv/h" }),
+    stationRow("064380031", { value: 0.114, unit: "µGy/h" }),
+  ];
+  const snap = await getDoseSnapshot(clientOf(odlApi(nano)), { limit: 3 });
+  assert.equal(snap.status, "ok");
+  if (snap.status !== "ok") return;
+  assert.equal(snap.verdict, "normal", snap.verdictText);
+  assert.deepEqual(snap.ranking.map((s) => [s.kenn, s.value, s.unit]), [["083370490", 0.239, "µSv/h"], ["082370020", 0.202, "µSv/h"], ["092721221", 0.201, "µSv/h"]]);
+  assert.deepEqual([snap.ranking[0]?.valueCosmic, snap.ranking[0]?.valueTerrestrial], [0.054, 0.185]);
+  assert.deepEqual(snap.skipped, { total: 4, byStatus: { defekt: 2, Testbetrieb: 1, "unit µGy/h": 1 } });
+  assert.match(snap.notes.join(" "), /2 readings came in nSv\/h and are converted to µSv\/h/);
+  assert.match(snap.notes.join(" "), /1 station reports in a unit that is no dose rate in µSv\/h \(µGy\/h: Egelsbach, 064380031\) and is left out/);
+  const map = await getStationsMap(clientOf(odlApi(nano)));
+  assert.deepEqual(map.status === "ok" ? map.valueRange : undefined, { min: 0.05, max: 0.239 });
+  const greek = await getDoseSnapshot(clientOf(odlApi([...STATIONS.filter(([, p]) => p["kenn"] !== "083370490"), stationRow("083370490", { unit: "μSv/h" })])), { limit: 1 });
+  assert.equal(greek.status === "ok" && greek.ranking[0]?.kenn, "083370490", "the Greek mu is the micro sign");
+  const series = { ...SERIES, "064380031": { hourly: hourly(Array.from({ length: 48 }, () => 110)) } };
+  const transport = makeMockTransport((request) => {
+    const body = JSON.parse(odlAnswer(request, STATIONS, series).body.toString("utf8")) as { features: { properties: Record<string, unknown> }[] };
+    if (/timeseries/.test(request.url)) for (const f of body.features) f.properties["unit"] = "nSv/h";
+    return jsonResponse(body);
+  });
+  const trend = await getStationTrend(new StrahlenschutzClient({ transport: transport.transport }), { station: "064380031" });
+  assert.deepEqual(trend.status === "ok" ? [trend.latest.value, trend.verdict] : [], [0.11, "steady"]);
+});

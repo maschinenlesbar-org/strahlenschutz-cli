@@ -116,12 +116,15 @@ export interface StationReading {
   height?: number;
   /** [lon, lat] as the BfS stores it (rounded to 0.01°), when it is a pair of numbers. */
   coordinates?: [number, number];
-  /** The ambient gamma dose rate in µSv/h; null: no reading (a dead sensor). */
+  /** The ambient gamma dose rate in µSv/h; null: no reading (a dead sensor, or a unit that is no dose rate in µSv/h). */
   value: number | null;
   /** The cosmic and terrestrial (ground) parts of the value. */
   valueCosmic?: number | null;
   valueTerrestrial?: number | null;
+  /** Always µSv/h: a reading in another unit is converted, or has no value. */
   unit: string;
+  /** The unit the BfS sent, when it wasn't µSv/h: converted (nSv/h, mSv/h), or why value is null. */
+  unitSent?: string;
   /** true: validated; false: not marked validated (yet); null: no reading. */
   validated: boolean | null;
   /** The end of the reading's hour (UTC). */
@@ -130,6 +133,27 @@ export interface StationReading {
 
 const str = (value: JsonValue | undefined): string | undefined => (typeof value === "string" && value !== "" ? value : undefined);
 const numOrNull = (value: JsonValue | undefined): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
+
+/** Factors from the units a reading may come in to µSv/h (the micro sign, the Greek mu, a plain u). */
+const TO_MICROSIEVERT_PER_HOUR: Readonly<Record<string, number>> = { "µsv/h": 1, "μsv/h": 1, "usv/h": 1, "nsv/h": 0.001, "msv/h": 1000 };
+
+/** The factor to µSv/h for `unit` (absent: µSv/h, as the BfS sends it), or undefined for another unit. */
+export function microsievertFactor(unit: string | undefined): number | undefined {
+  return unit === undefined ? 1 : TO_MICROSIEVERT_PER_HOUR[unit.trim().toLowerCase()];
+}
+
+/** `value` times `factor`, without a binary fraction's noise (239 nSv/h is 0.239, not 0.23900000000000002). */
+const scaled = (value: number | null, factor: number): number | null => (value === null ? null : Number((value * factor).toPrecision(12)));
+
+/** The unit as sent, when it is not µSv/h (for `unitSent`). */
+function unitSentOf(unit: string | undefined): string | undefined {
+  return unit === undefined || microsievertFactor(unit) === 1 ? undefined : unit;
+}
+
+/** Why a station has no value: its status, or a unit that is no dose rate in µSv/h. */
+function noValueReason(s: StationReading): string {
+  return s.unitSent !== undefined && microsievertFactor(s.unitSent) === undefined ? `unit ${s.unitSent}` : s.status;
+}
 
 /** The [lon, lat] of a feature, when its geometry is a pair of finite numbers. */
 function coordinatesOf(feature: Feature): [number, number] | undefined {
@@ -150,7 +174,11 @@ export function inGermany(coordinates: readonly [number, number] | undefined): b
 export function readingOf(feature: Feature): StationReading {
   const p = feature.properties;
   const kenn = str(p["kenn"]) ?? "";
-  const value = numOrNull(p["value"]);
+  // In µSv/h whatever unit it came in; a unit that can't be converted leaves no value.
+  const unit = str(p["unit"]);
+  const factor = microsievertFactor(unit);
+  const unitSent = unitSentOf(unit);
+  const value = factor === undefined ? null : scaled(numOrNull(p["value"]), factor);
   const validated = p["validated"] === 1 ? true : p["validated"] === 2 ? false : null;
   const coordinates = coordinatesOf(feature);
   const land = landOf(kenn);
@@ -168,9 +196,10 @@ export function readingOf(feature: Feature): StationReading {
     ...(height === null ? {} : { height }),
     ...(coordinates === undefined ? {} : { coordinates }),
     value,
-    valueCosmic: numOrNull(p["value_cosmic"]),
-    valueTerrestrial: numOrNull(p["value_terrestrial"]),
-    unit: str(p["unit"]) ?? "µSv/h",
+    valueCosmic: factor === undefined ? null : scaled(numOrNull(p["value_cosmic"]), factor),
+    valueTerrestrial: factor === undefined ? null : scaled(numOrNull(p["value_terrestrial"]), factor),
+    unit: "µSv/h",
+    ...(unitSent === undefined ? {} : { unitSent }),
     validated: value === null ? null : validated,
     ...(hourEnding === undefined ? {} : { hourEnding }),
   };
@@ -369,6 +398,20 @@ function unplacedNote(network: readonly StationReading[], filter: AreaFilter): s
   return unplaced.length === 0 ? [] : [`${unplaced.length} station${unplaced.length === 1 ? " has" : "s have"} no usable coordinates and could not be placed in the area (${unplaced.map((s) => `${s.name}, ${s.kenn}`).slice(0, 5).join("; ")}).`];
 }
 
+/** Notes on readings that came in another unit: converted, or left out. */
+function unitNotes(stations: readonly StationReading[]): string[] {
+  const sent = stations.filter((s) => s.unitSent !== undefined);
+  const converted = sent.filter((s) => s.value !== null);
+  const unknown = sent.filter((s) => microsievertFactor(s.unitSent) === undefined);
+  const units = (list: readonly StationReading[]): string => [...new Set(list.map((s) => s.unitSent))].join(", ");
+  return [
+    ...(converted.length === 0 ? [] : [`${converted.length} reading${converted.length === 1 ? "" : "s"} came in ${units(converted)} and ${converted.length === 1 ? "is" : "are"} converted to µSv/h.`]),
+    ...(unknown.length === 0
+      ? []
+      : [`${unknown.length} station${unknown.length === 1 ? " reports" : "s report"} in a unit that is no dose rate in µSv/h (${units(unknown)}: ${unknown.slice(0, 5).map((s) => `${s.name}, ${s.kenn}`).join("; ")}) and ${unknown.length === 1 ? "is" : "are"} left out: say so.`]),
+  ];
+}
+
 // --- getDoseSnapshot -------------------------------------------------------------------------------
 
 /** The input of {@link getDoseSnapshot}. */
@@ -452,7 +495,7 @@ export async function getDoseSnapshot(client: StrahlenschutzClient, input: DoseS
   }
   const reporting = inArea.filter((s): s is StationReading & { value: number } => s.value !== null);
   const byStatus: Record<string, number> = {};
-  for (const s of inArea) if (s.value === null) byStatus[s.status] = (byStatus[s.status] ?? 0) + 1;
+  for (const s of inArea) if (s.value === null) byStatus[noValueReason(s)] = (byStatus[noValueReason(s)] ?? 0) + 1;
   const skippedTotal = inArea.length - reporting.length;
   if (reporting.length === 0) {
     return { status: "empty", searched, reason: `None of the ${inArea.length} stations ${area.filter.label === "Germany" ? "of the network" : area.filter.label} reports a value now (${Object.entries(byStatus).map(([k, v]) => `${v} ${k}`).join(", ")}).` };
@@ -498,6 +541,7 @@ export async function getDoseSnapshot(client: StrahlenschutzClient, input: DoseS
     `latest is each station's newest reading, not one common hour: ${hourCounts.get(mainHour) ?? 0} for the hour ending ${mainHour}${older.length === 0 ? "" : `, ${older.length} older (back to ${oldest?.hourEnding}, ${oldest?.name}); ranked ones with an older reading carry olderReading`}.`,
     ...(skippedTotal === 0 ? [] : [`${skippedTotal} station${skippedTotal === 1 ? " has" : "s have"} no value (${Object.entries(byStatus).map(([k, v]) => `${v} ${k}`).join(", ")}) and ${skippedTotal === 1 ? "is" : "are"} not ranked: say so.`]),
     ...(notValidated === 0 ? [] : [`${notValidated} reading${notValidated === 1 ? " is" : "s are"} not marked validated (validated false): say so for any you name.`]),
+    ...unitNotes(inArea),
     `Normal background is about ${NORMAL_BACKGROUND.min}–${NORMAL_BACKGROUND.max} µSv/h (most stations 0.07–0.15). The highest readings are high-altitude or granite sites, dose from the ground (valueTerrestrial) and from altitude (valueCosmic), normal for that site; the offshore platforms read lowest. Never present a reading at the top of that range as an alarm.`,
   ];
   return {
@@ -618,7 +662,7 @@ export async function getStationsMap(client: StrahlenschutzClient, input: Statio
         ...(s.hourEnding === undefined ? {} : { hourEnding: s.hourEnding }),
         ...(s.height === undefined ? {} : { height: s.height }),
         validated: s.validated,
-        popup: s.value === null ? `${s.name}: no reading (${s.status})` : `${s.name}: ${s.value} ${s.unit}`,
+        popup: s.value === null ? `${s.name}: no reading (${noValueReason(s)})` : `${s.name}: ${s.value} ${s.unit}`,
       },
     });
   }
@@ -639,6 +683,7 @@ export async function getStationsMap(client: StrahlenschutzClient, input: Statio
       ? `${withoutValue} station${withoutValue === 1 ? "" : "s"} without a value ${withoutValue === 1 ? "is" : "are"} kept with value null (defekt, Testbetrieb): style them grey, never as a dose.`
       : `${withoutValue} station${withoutValue === 1 ? "" : "s"} without a value (defekt, Testbetrieb) ${withoutValue === 1 ? "is" : "are"} dropped for a dose map: say so.`,
     ...(leftOff.length === 0 ? [] : [`${leftOff.length} station${leftOff.length === 1 ? " lies" : "s lie"} outside Germany by the BfS's coordinates and ${leftOff.length === 1 ? "is" : "are"} left off (leftOff): name ${leftOff.length === 1 ? "it" : "them"} to the user.`]),
+    ...unitNotes(network.filter(area.filter.test)),
     "Coordinates are [lon, lat] (EPSG:4326) as the BfS gives them, rounded to 0.01° (about 1 km): fine for a national layer, not for street level.",
     `Colour on value (µSv/h) with a ramp clamped to the values' range${values.length === 0 ? "" : ` (${Math.min(...values)}–${Math.max(...values)})`}, about 0.05–0.25: a 0–1 ramp makes every station look the same.`,
     // Not the page's own bounds: a page the MCP server's size cap cuts keeps its notes whole.
@@ -748,15 +793,33 @@ export type StationTrend =
 export interface SeriesPoint {
   start?: string;
   end: string;
+  /** In µSv/h; null: no reading, or a unit that is no dose rate in µSv/h (then `unit` names it). */
   value: number | null;
   validated: boolean | null;
+  /** The unit the BfS sent, when it can't be converted to µSv/h. */
+  unit?: string;
 }
 
 function pointOfFeature(feature: Feature): SeriesPoint {
   const p = feature.properties;
-  const value = numOrNull(p["value"]);
+  const unit = str(p["unit"]);
+  const factor = microsievertFactor(unit);
+  const value = factor === undefined ? null : scaled(numOrNull(p["value"]), factor);
   const start = str(p["start_measure"]);
-  return { ...(start === undefined ? {} : { start }), end: str(p["end_measure"]) ?? "", value, validated: value === null ? null : p["validated"] === 1 ? true : p["validated"] === 2 ? false : null };
+  return {
+    ...(start === undefined ? {} : { start }),
+    end: str(p["end_measure"]) ?? "",
+    value,
+    validated: value === null ? null : p["validated"] === 1 ? true : p["validated"] === 2 ? false : null,
+    ...(factor === undefined && unit !== undefined ? { unit } : {}),
+  };
+}
+
+/** A note on series steps in a unit that is no dose rate in µSv/h (left without a value). */
+function seriesUnitNotes(points: readonly SeriesPoint[]): string[] {
+  const odd = points.filter((p) => p.unit !== undefined);
+  if (odd.length === 0) return [];
+  return [`${odd.length} value${odd.length === 1 ? " comes" : "s come"} in a unit that is no dose rate in µSv/h (${[...new Set(odd.map((p) => p.unit))].join(", ")}) and ${odd.length === 1 ? "is" : "are"} left out (value null): say so.`];
 }
 
 /** A station by kenn or name: the kenn and what is known of it, or why not. */
@@ -871,6 +934,7 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
     ...(maxPoint.value > NOTABLE_DOSE_RATE ? [`Some hour is above ${NOTABLE_DOSE_RATE} µSv/h: compare with the station's history and neighbours (getDoseSnapshot around it) before calling it more than weather.`] : []),
     ...(notValidated === 0 ? [] : [`${notValidated} hour${notValidated === 1 ? " is" : "s are"} not marked validated${maxPoint.validated === false ? ", the highest among them: a spike not validated is not a confirmed rise" : ""}.`]),
     ...(stale === "" ? [] : [`The newest reading is for the hour ending ${latest.end}, ${ageOf(behind)} before the BfS answered (${series.timeStamp}): the station has stopped reporting, so the window and verdict describe that time, not now. Say so, and check its status with findStations.`]),
+    ...seriesUnitNotes(oldestFirst),
     ...(gaps === 0 ? [] : [`${gaps} hour${gaps === 1 ? " has" : "s have"} no value (a gap) and ${gaps === 1 ? "is" : "are"} left out of min, max and mean.`]),
     "days are means of the hourly values per UTC day (a day with fewer than 24 hours is partial). The BfS's own daily series holds Flensburg (010010001) only.",
   ];
@@ -1066,6 +1130,7 @@ export async function getTimeseries(client: StrahlenschutzClient, input: Timeser
     notes: [
       `${resolution === "hourly" ? "Hourly" : "Daily"} values as published, ${order} first; start and end are UTC. validated false: not marked validated (yet); value null: no reading.`,
       ...(resolution === "hourly" ? ["The hourly series holds about one week."] : []),
+      ...seriesUnitNotes(points),
       ...(total === undefined ? [`The WFS did not say how many values the series has (no usable totalFeatures or numberMatched): total is left out${more ? "; nextOffset is given because this page is full, and the next one may be empty" : ""}.`] : []),
     ],
   };
