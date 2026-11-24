@@ -9,6 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
+import { SIZE_HINT, TOOLS } from "../src/mcp/tools.js";
 import { connect } from "./harness.js";
 import { makeMockTransport, odlApi } from "./helpers.js";
 import { StrahlNetworkError } from "@maschinenlesbar.org/strahlenschutz-client";
@@ -117,4 +118,28 @@ test("the BfS service down or slow (a 502 or 504, a request timeout) is a tool e
   const refused = await wrong.call("findStations", { query: "Flensburg" });
   assert.doesNotMatch(refused.content[0]?.text ?? "", /try again/, "a 400 is no outage");
   await wrong.close();
+});
+
+test("the deadline's and the size cap's advice fit every tool: each option named with the tools that take it", async () => {
+  const hanging = { transport: (): Promise<never> => new Promise<never>(() => {}) };
+  const connection = await connect({ transport: hanging, config: { callTimeoutMs: 30 } });
+  const deadline = (await connection.call("findStations", {})).content[0]?.text ?? "";
+  await connection.close();
+  assert.match(deadline, /took longer than .* and was stopped/);
+  const schemas = new Map(TOOLS.map((tool) => [tool.name, Object.keys((tool.inputSchema as { properties: Record<string, unknown> }).properties)]));
+  for (const text of [deadline, SIZE_HINT]) {
+    const pairs = [...text.matchAll(/(\w+(?: or \w+)*) \((\w+(?:, \w+)*)\)/g)];
+    assert.ok(pairs.length >= 2, text);
+    for (const [, options, tools] of pairs) {
+      for (const tool of (tools as string).split(", ")) {
+        assert.ok(schemas.has(tool), `no tool ${tool}: ${text}`);
+        for (const option of (options as string).split(" or ")) assert.ok(schemas.get(tool)?.includes(option), `${tool} takes no ${option}: ${text}`);
+      }
+    }
+    const named = new Set(pairs.flatMap(([, options]) => (options as string).split(" or ")));
+    for (const option of new Set([...schemas.values()].flat())) {
+      assert.ok(!new RegExp(`\\b${option}\\b`).test(text) || named.has(option), `${option} named without its tools: ${text}`);
+    }
+    for (const tool of ["getDoseSnapshot", "getStationsMap", "findStations"]) assert.match(text, new RegExp(tool), "the network tools, which read the whole network whatever is asked, are named");
+  }
 });
