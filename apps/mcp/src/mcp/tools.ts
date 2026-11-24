@@ -23,6 +23,7 @@ import {
   TYPE_NAMES,
   type FeatureKind,
 } from "@maschinenlesbar.org/strahlenschutz-client";
+import { callScope } from "./limiter.js";
 import type { JsonSchema, ToolDefinition } from "./server.js";
 
 /** The service, as results and messages name it. */
@@ -138,6 +139,21 @@ const resolved = new WeakMap<object, string>();
 
 const isKenn = (value: string | undefined): value is string => value !== undefined && /^\d{9}$/.test(value.trim());
 
+/**
+ * A verdict whose readings another host answered after a redirect (the client follows redirects,
+ * also to another origin) is flagged first: the kit cites that host in `source` and logs it, but a
+ * dose verdict is what a model repeats. Not withheld: the BfS may move its service to another host
+ * of its own, and the readings are still what that host sent.
+ */
+function flagRedirected<T extends { status: string; verdictText?: string }>(answer: T): T {
+  const elsewhere = [...(callScope.getStore()?.redirects?.answered.keys() ?? [])];
+  if (answer.status !== "ok" || answer.verdictText === undefined || elsewhere.length === 0) return answer;
+  return {
+    ...answer,
+    verdictText: `Unconfirmed: this answer came from ${elsewhere.join(", ")} after a redirect, not from the BfS's own address; say so, and present the verdict as that host's. ${answer.verdictText}`,
+  };
+}
+
 /** An upstream status that means the service is down or overloaded for a while, not a wrong request. */
 const OUTAGE_STATUSES = new Set([502, 503, 504]);
 
@@ -194,7 +210,7 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     }),
     source: LATEST,
     async run(args, context) {
-      return { ...(await getDoseSnapshot(context.client, { ...areaOf(args), order: str(args, "order") as "highest" | "lowest" | undefined, limit: num(args, "limit") })) };
+      return { ...flagRedirected(await getDoseSnapshot(context.client, { ...areaOf(args), order: str(args, "order") as "highest" | "lowest" | undefined, limit: num(args, "limit") })) };
     },
   },
   {
@@ -239,7 +255,7 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     async run(args, context) {
       const trend = await getStationTrend(context.client, { station: str(args, "station") ?? "", hours: num(args, "hours"), points: args["points"] === true });
       if (trend.status === "ok") resolved.set(args, trend.station.kenn);
-      return { ...trend };
+      return { ...flagRedirected(trend) };
     },
   },
   {

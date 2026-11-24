@@ -10,8 +10,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
 import { SIZE_HINT, TOOLS } from "../src/mcp/tools.js";
+import { limitTransport } from "../src/mcp/limiter.js";
 import { connect } from "./harness.js";
-import { makeMockTransport, odlApi, stationRow } from "./helpers.js";
+import { makeMockTransport, odlAnswer, odlApi, stationRow } from "./helpers.js";
 import { StrahlNetworkError } from "@maschinenlesbar.org/strahlenschutz-client";
 
 const OWS = "https://www.imis.bfs.de/ogc/opendata/ows";
@@ -177,4 +178,26 @@ test("getStationTrend fits a small size cap: a short window answers whole, a lon
   assert.match((week["notes"] as string[]).join(" "), /own flat level/);
   assert.match(String(week["reason"]), /days lost entries/);
   await wider.close();
+});
+
+test("a verdict from an answer another host gave after a redirect says so first, as unconfirmed", async () => {
+  const MIRROR = "https://mirror.example";
+  const redirected = makeMockTransport((request) => {
+    const url = new URL(request.url);
+    if (url.origin !== MIRROR) return { status: 302, headers: { location: `${MIRROR}${url.pathname}${url.search}` }, body: Buffer.alloc(0) };
+    return odlAnswer(request);
+  });
+  // The server's transport is the limited one (run.ts): it notes which origin answered.
+  const connection = await connect({ transport: { transport: limitTransport(redirected.transport) } });
+  for (const [tool, args] of [["getDoseSnapshot", {}], ["getStationTrend", { station: "083370490" }]] as const) {
+    const content = (await connection.call(tool, args)).structuredContent ?? {};
+    assert.equal(content["status"], "ok", tool);
+    assert.match(String(content["verdictText"]), /^Unconfirmed: this answer came from https:\/\/mirror\.example after a redirect, not from the BfS's own address/, tool);
+    assert.match(String(content["source"]), /answered by https:\/\/mirror\.example after a redirect/);
+  }
+  await connection.close();
+  const direct = await connect({ transport: odlApi() });
+  const plain = (await direct.call("getDoseSnapshot", {})).structuredContent ?? {};
+  assert.doesNotMatch(String(plain["verdictText"]), /Unconfirmed/);
+  await direct.close();
 });

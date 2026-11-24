@@ -85,7 +85,8 @@ says whether the station id is unknown or the station has no readings (defekt). 
 Every tool only reads. An answer is JSON (`structuredContent` and the same as text), with the
 `source` it came from (whole, never cut like the data; an answer a redirect fetched from another
 host says so there: "… (answered by https://other.example after a redirect)", and a WARN record
-names both) and the data licence. A text over 2000 characters is cut and ends in `…[cut, N
+names both; a verdict of getDoseSnapshot or getStationTrend from such an answer starts with
+"Unconfirmed: this answer came from … after a redirect") and the data licence. A text over 2000 characters is cut and ends in `…[cut, N
 characters in all]`, and the answer says `truncated`. An answer over `--max-result-chars` first
 loses entries from the end of its page (then `nextOffset` says where to go on), then has its longest
 texts cut further (each with that mark) or, when that isn't enough, its other lists shortened
