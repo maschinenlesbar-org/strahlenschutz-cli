@@ -464,3 +464,16 @@ test("a place is a station's town, never another town a word of whose name start
   const munchen = await getDoseSnapshot(clientOf(odlApi()), { place: "Munchen", radiusKm: 30 });
   assert.equal(munchen.status, "ok", "the English spelling without the umlaut still matches");
 });
+
+test("an exact station name doesn't hide other stations named after the same place", async () => {
+  const towns = [...TOWNS, town("130740001", "Neuburg", [11.59, 53.95]), town("091850001", "Neuburg an der Donau", [11.18, 48.73]), town("150020001", "Halle", [11.97, 51.48]), town("057540001", "Halle-Hörste", [8.4, 52.0])];
+  for (const place of ["Neuburg", "Halle"]) {
+    const snap = await getDoseSnapshot(clientOf(odlApi(towns)), { place });
+    assert.equal(snap.status, "ambiguous", place);
+    assert.equal(snap.status === "ambiguous" && snap.total, 2, place);
+    const trend = await getStationTrend(clientOf(odlApi(towns)), { station: place });
+    assert.equal(trend.status, "ambiguous", place);
+  }
+  const full = await getDoseSnapshot(clientOf(odlApi(towns)), { place: "Neuburg an der Donau" });
+  assert.equal(full.status, "ok", "the full name is one station");
+});

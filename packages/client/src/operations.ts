@@ -138,9 +138,10 @@ function nameMatch(place: readonly Word[], name: readonly Word[]): NameMatch | u
 function stationsNamed(network: readonly StationReading[], place: string): { named: StationReading[]; partly: StationReading[] } {
   const words = wordsOf(place);
   const matched = network.map((s) => ({ s, match: nameMatch(words, wordsOf(s.name)) }));
-  const exact = matched.filter((m) => m.match === "exact").map((m) => m.s);
+  // An exact name doesn't hide the others named after the place (Neuburg, Neuburg an der Donau):
+  // the spread of them all decides whether the place is one.
   return {
-    named: exact.length > 0 ? exact : matched.filter((m) => m.match === "start").map((m) => m.s),
+    named: matched.filter((m) => m.match === "exact" || m.match === "start").map((m) => m.s),
     partly: matched.filter((m) => m.match === "word" || m.match === "part").map((m) => m.s),
   };
 }
