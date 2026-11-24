@@ -77,7 +77,8 @@ latest reading is its own newest hour, not one common hour: the snapshot says wh
 readings are for and marks the older ones. Normal background is about 0.05–0.25 µSv/h: the
 highest readings are high-altitude and granite sites, dose from the ground, normal for them; a
 reading above 0.3 µSv/h is named, with what to check. A trend is judged against the station's own
-baseline: a few hundredths is noise, and rain raises the dose rate for a few hours. An empty series
+baseline: a few hundredths is noise, and rain raises the dose rate for a few hours; a station that
+stopped reporting hours or days before the answer says so first. An empty series
 says whether the station id is unknown or the station has no readings (defekt). Times are UTC.
 
 Every tool only reads. An answer is JSON (`structuredContent` and the same as text), with the

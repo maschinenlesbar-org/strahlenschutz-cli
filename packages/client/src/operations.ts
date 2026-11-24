@@ -692,6 +692,15 @@ export const TREND_STEP = 0.03;
 export const SPIKE_STEP = 0.05;
 /** How many of the newest hours make "recent". */
 const RECENT_HOURS = 6;
+/** A newest reading this much older (ms) than the BfS's answer: the station has stopped reporting. */
+const STALE_MS = 3 * 3_600_000;
+
+/** "N hours" or "N days" for a span in ms (whole units, rounded down). */
+function ageOf(ms: number): string {
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours < 48) return `${hours} hours`;
+  return `${Math.floor(hours / 24)} days`;
+}
 
 /** The answer of {@link getStationTrend}. */
 export type StationTrend =
@@ -811,12 +820,17 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
   const verdict = change >= TREND_STEP ? "rising" : -change >= TREND_STEP ? "falling" : maxPoint.value - baseline >= SPIKE_STEP ? "spike" : "steady";
   const latest = valued[valued.length - 1] as SeriesPoint & { value: number };
   const notValidated = valued.filter((p) => p.validated === false).length;
-  const verdictText = {
+  // The answer's own time (the WFS's timeStamp) says whether the newest reading is current.
+  const answeredAt = Date.parse(series.timeStamp ?? "");
+  const behind = Number.isFinite(answeredAt) ? answeredAt - Date.parse(latest.end) : 0;
+  const stale = behind > STALE_MS ? `As of the hour ending ${latest.end}, ${ageOf(behind)} before the BfS's answer (${series.timeStamp}): the station has not reported since. ` : "";
+  const judged = {
     steady: `Steady at the station's own level (about ${baseline} µSv/h, ${round(minPoint.value, 3)}–${round(maxPoint.value, 3)} in the window): no rising trend.`,
     rising: `Rising: the newest ${recent.length} hours average ${recentMean} µSv/h, ${change} above the station's baseline of ${baseline}. Rain raises the dose rate for a few hours (radon progeny washed out); check whether it falls back before suggesting anything else.`,
     falling: `Falling: the newest ${recent.length} hours average ${recentMean} µSv/h, ${-change} below the station's baseline of ${baseline} (often the end of a rain bump, or snow cover shielding the ground).`,
     spike: `A short spike to ${maxPoint.value} µSv/h (hour ending ${maxPoint.end}${maxPoint.validated === false ? ", not validated" : ""}) over a baseline of ${baseline}, back to ${recentMean} now: typically rain, a benign cause.`,
   }[verdict];
+  const verdictText = `${stale}${judged}`;
   const days = new Map<string, number[]>();
   for (const p of valued) {
     const day = (p.start ?? new Date(Date.parse(p.end) - 3_600_000).toISOString()).slice(0, 10);
@@ -828,6 +842,7 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
     `Normal background is about ${NORMAL_BACKGROUND.min}–${NORMAL_BACKGROUND.max} µSv/h; each site has its own flat level (high-altitude and granite sites 0.20–0.26 all week). Judge against the station's baseline, and treat a few hundredths of a µSv/h as noise.`,
     ...(maxPoint.value > NOTABLE_DOSE_RATE ? [`Some hour is above ${NOTABLE_DOSE_RATE} µSv/h: compare with the station's history and neighbours (getDoseSnapshot around it) before calling it more than weather.`] : []),
     ...(notValidated === 0 ? [] : [`${notValidated} hour${notValidated === 1 ? " is" : "s are"} not marked validated${maxPoint.validated === false ? ", the highest among them: a spike not validated is not a confirmed rise" : ""}.`]),
+    ...(stale === "" ? [] : [`The newest reading is for the hour ending ${latest.end}, ${ageOf(behind)} before the BfS answered (${series.timeStamp}): the station has stopped reporting, so the window and verdict describe that time, not now. Say so, and check its status with findStations.`]),
     ...(gaps === 0 ? [] : [`${gaps} hour${gaps === 1 ? " has" : "s have"} no value (a gap) and ${gaps === 1 ? "is" : "are"} left out of min, max and mean.`]),
     "days are means of the hourly values per UTC day (a day with fewer than 24 hours is partial). The BfS's own daily series holds Flensburg (010010001) only.",
   ];

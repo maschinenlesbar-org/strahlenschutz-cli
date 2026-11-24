@@ -320,3 +320,14 @@ test("trend: a station given by kenn carries its own status, name and postal cod
   await getStationTrend(clientOf(unknown), { station: "099999999" });
   assert.equal(unknown.calls.length, 1, "an unknown kenn needs no series request");
 });
+
+test("trend: a series that stopped days before the BfS's answer says so, in the verdict and a note", async () => {
+  const series = { ...SERIES, "064380031": { hourly: hourly(Array.from({ length: 48 }, () => 0.11), "2026-11-15T19:00:00Z") } };
+  const stale = await getStationTrend(clientOf(odlApi(STATIONS, series)), { station: "064380031" });
+  assert.equal(stale.status, "ok");
+  if (stale.status !== "ok") return;
+  assert.match(stale.verdictText, /^As of the hour ending 2026-11-15T19:00:00Z, 4 days before the BfS's answer \(2026-11-19T19:15:00\.000Z\): the station has not reported since\. Steady/);
+  assert.match(stale.notes.join(" "), /newest reading is for the hour ending 2026-11-15T19:00:00Z, 4 days before/);
+  const current = await getStationTrend(clientOf(odlApi()), { station: "083370490" });
+  assert.doesNotMatch(current.status === "ok" ? `${current.verdictText} ${current.notes.join(" ")}` : "", /not reported since/);
+});
