@@ -182,9 +182,13 @@ export const nodeHttpTransport: Transport = (request) =>
       }, Math.min(timeoutMs, MAX_TIMEOUT_MS));
     }
 
+    // The engine's overall deadline (HttpRequest.signal, aborted with its timeout error), or a
+    // caller's (a tool call's deadline, a cancellation): stop the request when it fires, and say
+    // which. A caller's abort is no request timeout, whatever timeoutMs was.
     if (request.signal !== undefined) {
+      const signal = request.signal;
       const abort = (): void => {
-        const err = new StrahlNetworkError(`Request timed out after ${request.timeoutMs ?? 0}ms`);
+        const err = signal.reason instanceof StrahlNetworkError ? signal.reason : new StrahlNetworkError("Request aborted by its caller before it finished");
         fail(err);
         req.destroy(err);
       };

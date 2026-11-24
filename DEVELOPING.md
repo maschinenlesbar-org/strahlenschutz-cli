@@ -495,7 +495,10 @@ seconds, ms under 1 s). Tests: `apps/cli/test/retry-log.test.ts`.
 **Transport contract.** The engine enforces its limits for every transport, not only
 the built-in one: each call runs under the `timeoutMs` deadline (the request carries
 an `AbortSignal` in `HttpRequest.signal`, which the built-in transport honours, and the
-engine rejects at the deadline whether the transport stops or not), and the body it
+engine rejects at the deadline whether the transport stops or not; the built-in transport fails
+with the signal's reason when that is the engine's own timeout error, and with `Request aborted by
+its caller before it finished` when another signal aborted it (the MCP server's tool call: its
+deadline or a cancellation), never with a request timeout that didn't happen), and the body it
 gets back is checked against `maxResponseBytes`. It accepts any `ArrayBuffer` view
 (`Buffer`, a fetch `Uint8Array`, a `DataView`) or `ArrayBuffer` as the body, from any
 realm, and reads headers from a plain object in any case, a `Headers` object or a
