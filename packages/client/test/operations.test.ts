@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { StrahlenschutzClient } from "../src/client.js";
-import { StrahlValidationError } from "../src/errors.js";
+import { StrahlParseError, StrahlValidationError } from "../src/errors.js";
 import { findStations, fold, getDoseSnapshot, getStationsMap, getStationTrend, getTimeseries, landOf, resolveLand } from "../src/operations.js";
 import { hourly, odlAnswer, odlApi, SERIES, STATIONS, stationRow } from "./fixtures.js";
 import { jsonResponse, makeMockTransport } from "./helpers.js";
@@ -396,4 +396,34 @@ test("readings in another unit: nSv/h and mSv/h are converted to µSv/h; an unkn
   });
   const trend = await getStationTrend(new StrahlenschutzClient({ transport: transport.transport }), { station: "064380031" });
   assert.deepEqual(trend.status === "ok" ? [trend.latest.value, trend.verdict] : [], [0.11, "steady"]);
+});
+
+test("a network answer that drifted or came back empty is an error that says so, never an empty answer with advice that sends the caller elsewhere", async () => {
+  const drifted = (change: (feature: { geometry: { coordinates: unknown } | null; properties: Record<string, unknown> }) => void, keep?: (i: number) => boolean) =>
+    new StrahlenschutzClient({
+      transport: makeMockTransport((request) => {
+        const body = JSON.parse(odlAnswer(request).body.toString("utf8")) as { features: { geometry: { coordinates: unknown } | null; properties: Record<string, unknown> }[] };
+        body.features = body.features.filter((_, i) => keep?.(i) ?? true);
+        body.features.forEach(change);
+        return jsonResponse(body);
+      }).transport,
+    });
+  const rename = (from: string, to: string) => (f: { properties: Record<string, unknown> }) => {
+    f.properties[to] = f.properties[from];
+    delete f.properties[from];
+  };
+  const cases: [string, () => Promise<unknown>, RegExp][] = [
+    ["empty", () => getDoseSnapshot(drifted(() => {}, () => false)), /holds no stations at all/],
+    ["value renamed", () => getDoseSnapshot(drifted(rename("value", "wert"))), /21 of 21 stations in Betrieb have no value in µSv\/h/],
+    ["value as a string", () => getDoseSnapshot(drifted((f) => (f.properties["value"] = String(f.properties["value"])))), /have no value in µSv\/h/],
+    ["kenn renamed", () => getDoseSnapshot(drifted(rename("kenn", "id_kenn")), { state: "BY" }), /24 of 24 stations have no 9-digit kenn/],
+    ["coordinates swapped", () => getStationsMap(drifted((f) => f.geometry !== null && (f.geometry.coordinates = [...(f.geometry.coordinates as number[])].reverse()))), /stations have no coordinates in Germany/],
+    ["geometry null", () => getDoseSnapshot(drifted((f) => (f.geometry = null)), { place: "München" }), /24 of 24 stations have no coordinates in Germany/],
+    ["end_measure renamed", () => findStations(drifted(rename("end_measure", "ende")), { query: "Bergen" }), /21 of 21 readings carry no end_measure/],
+  ];
+  for (const [name, call, message] of cases) {
+    await assert.rejects(call(), (err) => err instanceof StrahlParseError && message.test(err.message) && /unexpected shape/.test(err.message), name);
+  }
+  const fine = await getDoseSnapshot(drifted(() => {}, (i) => i < 3));
+  assert.equal(fine.status, "ok", "a small network that holds what a network holds is no drift");
 });

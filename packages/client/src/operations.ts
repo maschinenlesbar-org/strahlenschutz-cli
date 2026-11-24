@@ -20,7 +20,7 @@
 // guessed.
 
 import type { StrahlenschutzClient } from "./client.js";
-import { StrahlValidationError, quoteValue } from "./errors.js";
+import { StrahlParseError, StrahlValidationError, quoteValue } from "./errors.js";
 import type { Feature, JsonValue } from "./types.js";
 import { assertValid, intRangeProblem, normalizeText, textProblem } from "./validate.js";
 
@@ -205,9 +205,43 @@ export function readingOf(feature: Feature): StationReading {
   };
 }
 
-/** The whole network's latest readings (one request, about 1670 stations). */
+/**
+ * The whole network's latest readings (one request, about 1670 stations). An answer that can't be
+ * the network (no stations; most without a 9-digit kenn or coordinates in Germany; most stations
+ * in Betrieb without a value in µSv/h; most readings without their hour) is a StrahlParseError: a
+ * changed or broken answer read as data would give empty answers that send the caller elsewhere
+ * ("no station lies in Bayern") or a verdict without an hour.
+ */
 export async function loadNetwork(client: StrahlenschutzClient): Promise<StationReading[]> {
-  return (await client.latest()).features.map(readingOf);
+  const network = (await client.latest()).features.map(readingOf);
+  const problem = networkProblem(network);
+  if (problem !== undefined) {
+    throw new StrahlParseError(
+      `The BfS's network answer (the latest layer) has an unexpected shape: ${problem}. The network has about 1,670 stations, each with a 9-digit kenn and coordinates in Germany, and those in Betrieb with a value in µSv/h for an hour (end_measure). Try again later; if it stays so, the service changed.`,
+    );
+  }
+  return network;
+}
+
+/** What makes `network` no network answer, or undefined: half of the stations must hold each part. */
+function networkProblem(network: readonly StationReading[]): string | undefined {
+  const most = (part: number, all: number): boolean => part * 2 >= all;
+  if (network.length === 0) return "it holds no stations at all";
+  const withKenn = network.filter((s) => KENN.test(s.kenn)).length;
+  if (!most(withKenn, network.length)) return `${network.length - withKenn} of ${network.length} stations have no 9-digit kenn`;
+  const placed = network.filter((s) => inGermany(s.coordinates)).length;
+  if (!most(placed, network.length)) return `${network.length - placed} of ${network.length} stations have no coordinates in Germany (none, or lon and lat swapped)`;
+  const working = network.filter((s) => s.status === "in Betrieb");
+  const valuedWorking = working.filter((s) => s.value !== null).length;
+  const units = [...new Set(working.filter((s) => s.value === null && s.unitSent !== undefined).map((s) => s.unitSent))];
+  if (!most(valuedWorking, working.length)) {
+    return `${working.length - valuedWorking} of ${working.length} stations in Betrieb have no value in µSv/h (missing, not a number${units.length === 0 ? "" : `, or in ${units.join(", ")}`})`;
+  }
+  const valued = network.filter((s) => s.value !== null);
+  if (valued.length === 0) return `none of the ${network.length} stations has a value in µSv/h`;
+  const timed = valued.filter((s) => s.hourEnding !== undefined).length;
+  if (!most(timed, valued.length)) return `${valued.length - timed} of ${valued.length} readings carry no end_measure (the hour they are for)`;
+  return undefined;
 }
 
 /** The great-circle distance in km between two [lon, lat] points. */
@@ -491,7 +525,7 @@ export async function getDoseSnapshot(client: StrahlenschutzClient, input: DoseS
   const searched = { ...area.searched, order };
   const inArea = network.filter(area.filter.test);
   if (inArea.length === 0) {
-    return { status: "empty", searched, reason: `No station of the BfS network lies ${area.filter.label}. Widen the area (radiusKm, a larger bbox) or ask for a Land or all of Germany.` };
+    return { status: "empty", searched, reason: `No station of the BfS network lies ${area.filter.label === "Germany" ? "in Germany" : area.filter.label}. Widen the area (radiusKm, a larger bbox) or ask for a Land or all of Germany.` };
   }
   const reporting = inArea.filter((s): s is StationReading & { value: number } => s.value !== null);
   const byStatus: Record<string, number> = {};
