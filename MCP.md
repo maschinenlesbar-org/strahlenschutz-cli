@@ -113,7 +113,8 @@ Every tool only reads. An answer is JSON (`structuredContent` and the same as te
   Exposed beyond localhost (it logs a warning then), it belongs behind a proxy that authenticates or
   at least terminates TLS.
 - **Gentle with the upstream.** One server process sends at most 2 requests at a time and 120 a
-  minute to the API, pauses on HTTP 429, and stops a tool call after its deadline.
+  minute to the API, pauses on HTTP 429 (as long as its Retry-After asks, at most 30 s), and stops a
+  tool call after its deadline.
 - **Results are data.** Text from the API is cleaned (control, bidi and zero-width characters
   removed), but it is still other people's text: a model can be told things in it. The server
   can't act on that (it has no tool that writes), but other tools in the same session could.
