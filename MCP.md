@@ -90,7 +90,8 @@ texts cut further (each with that mark) or, when that isn't enough, its other li
 (`reason` names them); a list keeps its first entry, `notes` stay whole, and the answer says
 `truncated`. One that can't be cut down so far is a tool error that says to ask for less. A failure
 is a tool error that says what to change (one over 5000 characters loses its middle, never its end,
-where the reason is).
+where the reason is); the BfS service down or slow (HTTP 502, a 503 after the retries, 504, a
+request timeout or a reset connection) says to try again shortly, unchanged.
 
 ## Options
 

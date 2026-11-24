@@ -10,7 +10,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
 import { connect } from "./harness.js";
-import { odlApi } from "./helpers.js";
+import { makeMockTransport, odlApi } from "./helpers.js";
+import { StrahlNetworkError } from "@maschinenlesbar.org/strahlenschutz-client";
 
 const OWS = "https://www.imis.bfs.de/ogc/opendata/ows";
 const LATEST = `${OWS}?service=WFS&request=GetFeature&typeName=opendata%3Aodlinfo_odl_1h_latest&outputFormat=application%2Fjson&sortBy=kenn`;
@@ -97,4 +98,23 @@ test("getTimeseries: Flensburg's daily series; another station's daily series is
   const name = await connection.call("getTimeseries", { station: "Herrischried" });
   assert.equal(name.isError, true);
   await connection.close();
+});
+
+test("the BfS service down or slow (a 502 or 504, a request timeout) is a tool error that says to try again shortly", async () => {
+  // A 502 and a timeout are not retried, so no test waits for a backoff; a 503 ends the same way after its retries.
+  const down = await connect({ transport: makeMockTransport(() => ({ status: 502, headers: { "content-type": "text/html" }, body: Buffer.from("<html>bad gateway</html>") })) });
+  const busy = await down.call("findStations", { query: "Flensburg" });
+  assert.equal(busy.isError, true);
+  assert.match(busy.content[0]?.text ?? "", /HTTP 502/);
+  assert.match(busy.content[0]?.text ?? "", /try again shortly/);
+  await down.close();
+  const slow = await connect({ transport: makeMockTransport(() => { throw new StrahlNetworkError("Request timed out after 2000ms"); }) });
+  const late = await slow.call("getDoseSnapshot", {});
+  assert.equal(late.isError, true);
+  assert.match(late.content[0]?.text ?? "", /timed out after 2000ms.*try again shortly/);
+  await slow.close();
+  const wrong = await connect({ transport: makeMockTransport(() => ({ status: 400, headers: { "content-type": "text/plain" }, body: Buffer.from("bad request") })) });
+  const refused = await wrong.call("findStations", { query: "Flensburg" });
+  assert.doesNotMatch(refused.content[0]?.text ?? "", /try again/, "a 400 is no outage");
+  await wrong.close();
 });

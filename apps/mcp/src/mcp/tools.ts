@@ -16,6 +16,9 @@ import {
   getStationsMap,
   getStationTrend,
   getTimeseries,
+  isTransientNetworkError,
+  StrahlApiError,
+  StrahlNetworkError,
   TYPE_NAMES,
   type FeatureKind,
 } from "@maschinenlesbar.org/strahlenschutz-client";
@@ -124,7 +127,30 @@ const resolved = new WeakMap<object, string>();
 
 const isKenn = (value: string | undefined): value is string => value !== undefined && /^\d{9}$/.test(value.trim());
 
-export const TOOLS: readonly ToolDefinition[] = [
+/** An upstream status that means the service is down or overloaded for a while, not a wrong request. */
+const OUTAGE_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * `work`, with an outage's error saying what to do: a 502, 503 (after the client's retries) or 504,
+ * a request timeout or a reset connection is the BfS service slow or down for a while, so the
+ * message adds to try again shortly, unchanged. Other errors (a wrong request, a changed answer,
+ * the size cap, a cancelled call) keep their text.
+ */
+async function withHints<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (err) {
+    if (
+      (err instanceof StrahlApiError && OUTAGE_STATUSES.has(err.status)) ||
+      (err instanceof StrahlNetworkError && (/timed out/.test(err.message) || isTransientNetworkError(err)))
+    ) {
+      err.message = `${err.message}. The BfS service is sometimes slow or down for a while: try again shortly, unchanged; if it keeps failing, tell the user.`;
+    }
+    throw err;
+  }
+}
+
+const DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: "getDoseSnapshot",
     title: "Radiation now: the network ranked",
@@ -300,3 +326,5 @@ export const TOOLS: readonly ToolDefinition[] = [
     },
   },
 ];
+
+export const TOOLS: readonly ToolDefinition[] = DEFINITIONS.map((tool) => ({ ...tool, run: (args, context) => withHints(() => tool.run(args, context)) }));
