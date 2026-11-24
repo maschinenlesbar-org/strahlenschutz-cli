@@ -268,3 +268,14 @@ test("getTimeseries: Flensburg's daily series newest first and paged; any other 
   assert.match(past.status === "empty" ? past.reason : "", /167 values; offset 500 is past its end/);
   await assert.rejects(getTimeseries(clientOf(odlApi()), { station: "Herrischried" }), StrahlValidationError);
 });
+
+test("map and findStations: an offset past the end is empty and says so, as for a series", async () => {
+  const map = await getStationsMap(clientOf(odlApi()), { offset: 5000 });
+  assert.equal(map.status, "empty");
+  assert.match(map.status === "empty" ? map.reason : "", /21 features; offset 5000 is past its end \(offsets 0–20\)/);
+  const found = await findStations(clientOf(odlApi()), { offset: 99999 });
+  assert.equal(found.status, "empty");
+  assert.match(found.status === "empty" ? found.reason : "", /24 stations match; offset 99999 is past the end \(offsets 0–23\)/);
+  const last = await getStationsMap(clientOf(odlApi()), { offset: 20 });
+  assert.equal(last.status === "ok" && last.features.length, 1, "the last entry's offset is still a page");
+});

@@ -626,6 +626,9 @@ export async function getStationsMap(client: StrahlenschutzClient, input: Statio
   if (points.length === 0) {
     return { status: "empty", searched, reason: `No station ${area.filter.label === "Germany" ? "of the network" : area.filter.label} ${includeDead ? "has usable coordinates" : "reports a value (includeDead: true maps the dead sensors too)"}.` };
   }
+  if (offset >= points.length) {
+    return { status: "empty", searched, reason: `The map has ${points.length} feature${points.length === 1 ? "" : "s"}; offset ${offset} is past its end (offsets 0–${points.length - 1}).` };
+  }
   const values = points.map((p) => p.properties.value).filter((v): v is number => v !== null);
   const page = points.slice(offset, offset + limit);
   const next = offset + page.length;
@@ -928,6 +931,9 @@ export async function findStations(client: StrahlenschutzClient, input: FindStat
       searched,
       reason: `No station matches ${Object.entries(searched).map(([k, v]) => `${k} ${JSON.stringify(v)}`).join(", ") || "the search"}. Names are German towns or districts as the BfS writes them (München-Pasing, Berlin-Buch); try a shorter part, a postal code or a Land.`,
     };
+  }
+  if (offset >= stations.length) {
+    return { status: "empty", searched, reason: `${stations.length} station${stations.length === 1 ? " matches" : "s match"}; offset ${offset} is past the end (offsets 0–${stations.length - 1}).` };
   }
   const page = stations.slice(offset, offset + limit);
   const next = offset + page.length;
