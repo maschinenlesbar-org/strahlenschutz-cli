@@ -41,6 +41,9 @@ const code = await run(argv, {
   stderr: (line) => process.stderr.write(`${line}\n`),
   stopped,
   stdinReceived: () => received,
+  // Credentials, for an API that needs them (credentials.ts): from here only, never in a test.
+  env: process.env,
+  credentialsFile: true,
   onLogger: (log) => {
     installWarningLog(process, log, "mcp");
     // What a dependency prints is a record too: every stderr line is one.
