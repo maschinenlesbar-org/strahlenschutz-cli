@@ -352,3 +352,18 @@ test("trend: a short window is judged against the hours before it, read for the 
   for (const hours of [6, 11, 12]) assert.equal((await run(step, hours)).t?.verdict, "rising", `hours ${hours}`);
   assert.equal((await run(step, 48)).count, "48", "a long window reads only itself");
 });
+
+test("trend: a spike in the newest hour is still on, never called back down; one that is over says the latest value", async () => {
+  const run = async (values: number[], validated?: (i: number) => number) => {
+    const t = await getStationTrend(clientOf(odlApi(STATIONS, { ...SERIES, "064380031": { hourly: hourly(values, undefined, validated) } })), { station: "064380031" });
+    return t.status === "ok" ? t : undefined;
+  };
+  const now = await run([...Array.from({ length: 47 }, () => 0.1), 0.18]);
+  assert.equal(now?.verdict, "spike");
+  assert.doesNotMatch(now?.verdictText ?? "", /back to|benign/);
+  assert.match(now?.verdictText ?? "", /The newest hour \(ending 2026-11-19T19:00:00Z\) reads 0\.18 µSv\/h, 0\.08 above the station's baseline of 0\.1: a jump in the latest hour, not over/);
+  const unvalidated = await run([...Array.from({ length: 47 }, () => 0.1), 0.18], (i) => (i === 47 ? 2 : 1));
+  assert.match(unvalidated?.verdictText ?? "", /reads 0\.18 µSv\/h \(not validated\)/);
+  const over = await run([...Array.from({ length: 44 }, () => 0.1), 0.18, 0.1, 0.1, 0.11]);
+  assert.match(over?.verdictText ?? "", /short spike to 0\.18 µSv\/h \(hour ending 2026-11-19T16:00:00Z\) over a baseline of 0\.1, back to 0\.11 now/);
+});

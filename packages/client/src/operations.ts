@@ -847,7 +847,11 @@ export async function getStationTrend(client: StrahlenschutzClient, input: Stati
     steady: `Steady at the station's own level (about ${baseline} µSv/h, ${round(minPoint.value, 3)}–${round(maxPoint.value, 3)} in the window): no rising trend.`,
     rising: `Rising: the newest ${recent.length} hours average ${recentMean} µSv/h, ${change} above the station's baseline of ${baseline}. Rain raises the dose rate for a few hours (radon progeny washed out); check whether it falls back before suggesting anything else.`,
     falling: `Falling: the newest ${recent.length} hours average ${recentMean} µSv/h, ${-change} below the station's baseline of ${baseline} (often the end of a rain bump, or snow cover shielding the ground).`,
-    spike: `A short spike to ${maxPoint.value} µSv/h (hour ending ${maxPoint.end}${maxPoint.validated === false ? ", not validated" : ""}) over a baseline of ${baseline}, back to ${recentMean} now: typically rain, a benign cause.`,
+    // A spike whose newest hour is still that high is not over: never "back".
+    spike:
+      latest.value - baseline >= SPIKE_STEP
+        ? `The newest hour (ending ${latest.end}) reads ${latest.value} µSv/h${latest.validated === false ? " (not validated)" : ""}, ${round(latest.value - baseline, 3)} above the station's baseline of ${baseline}: a jump in the latest hour, not over yet. Rain raises the dose rate for a few hours; ask again in an hour or two to see whether it falls back before suggesting anything else.`
+        : `A short spike to ${maxPoint.value} µSv/h (hour ending ${maxPoint.end}${maxPoint.validated === false ? ", not validated" : ""}) over a baseline of ${baseline}, back to ${latest.value} now: typically rain, a benign cause.`,
   }[verdict];
   const verdictText = `${stale}${judged}`;
   const days = new Map<string, number[]>();
