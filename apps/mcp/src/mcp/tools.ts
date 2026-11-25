@@ -51,9 +51,10 @@ export const DEADLINE_HINT =
   "The BfS service answered slowly: try again shortly, unchanged. getDoseSnapshot, getStationsMap and findStations read the whole network whatever is asked, so only a later try helps there; a series reads less with fewer hours (getStationTrend) or a smaller limit (getTimeseries).";
 
 /**
- * An answer over the size cap (the result's, or the 16 MiB an upstream answer may have) says what
- * to ask instead: each option with the tools that take it, and that the network tools read the
- * whole network whatever they are asked.
+ * An answer over this server's result cap (--max-result-chars) says what to ask instead: each option
+ * with the tools that take it, and that the network tools read the whole network whatever they are
+ * asked. An upstream answer over the 16 MiB the server reads gets the kit's own error, which says
+ * that narrower options don't help.
  */
 export const SIZE_HINT =
   "Ask for less: a smaller limit (getDoseSnapshot, getStationsMap, findStations, getTimeseries), fewer hours or points (getStationTrend). getDoseSnapshot, getStationsMap and findStations read the whole network whatever is asked.";
